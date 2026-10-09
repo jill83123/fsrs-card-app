@@ -6,6 +6,8 @@ export interface SyncFields {
   createdAt: number
   updatedAt: number
   deleted?: boolean
+  /** permanently deleted by hand: content wiped, only this synced marker remains until it expires */
+  purged?: boolean
 }
 
 /** Every node is a deck; 'folder' only appears in data from older versions. */

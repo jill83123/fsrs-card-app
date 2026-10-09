@@ -351,11 +351,13 @@ export const useData = defineStore('data', () => {
 
   /** Decks deleted within the last DELETED_KEEP_DAYS days (the top-most of each batch). */
   async function listDeleted(): Promise<DeletedDeck[]> {
-    const gone = await db.nodes.filter((n) => !!n.deleted).toArray()
+    const gone = await db.nodes.filter((n) => !!n.deleted && !n.purged).toArray()
     const byId = new Map(gone.map((n) => [n.id, n]))
     const stamps = new Set(gone.map((n) => n.updatedAt))
     const cardsByDeck = new Map<string, number>()
-    for (const c of await db.cards.filter((c) => !!c.deleted && stamps.has(c.updatedAt)).toArray()) {
+    for (const c of await db.cards
+      .filter((c) => !!c.deleted && !c.purged && stamps.has(c.updatedAt))
+      .toArray()) {
       const key = `${c.updatedAt}|${c.deckId}`
       cardsByDeck.set(key, (cardsByDeck.get(key) ?? 0) + 1)
     }
@@ -428,15 +430,40 @@ export const useData = defineStore('data', () => {
     const batchT = root.updatedAt
     const batch = await db.nodes.filter((n) => !!n.deleted && n.updatedAt === batchT).toArray()
     const ids = subtreeIds(batch, id)
+    // Not a physical delete: the cloud copy still holds the tombstones and would bring them
+    // back on the next sync. Wipe the content and leave a newer `purged` marker that syncs
+    // out; it is removed for good by `purgeExpired` like any other tombstone.
+    const t = stamp()
     await db.transaction('rw', db.nodes, db.cards, db.logs, async () => {
       const cardIds = await db.cards
         .where('deckId')
         .anyOf(ids)
         .filter((c) => !!c.deleted && c.updatedAt === batchT)
         .primaryKeys()
-      await db.logs.where('cardId').anyOf(cardIds).delete()
-      await db.cards.bulkDelete(cardIds)
-      await db.nodes.bulkDelete(ids)
+      await db.logs
+        .where('cardId')
+        .anyOf(cardIds)
+        .modify((l) => {
+          l.purged = true
+          l.updatedAt = t
+        })
+      await db.cards.where('id').anyOf(cardIds).modify((c) => {
+        const x = c as Card
+        x.purged = true
+        x.updatedAt = t
+        if (x.type === 'basic') {
+          x.front = ''
+          x.back = ''
+        } else {
+          x.word = ''
+          x.reading = ''
+          x.meaning = ''
+          x.pos = []
+          x.examples = []
+          x.note = ''
+        }
+      })
+      await db.nodes.where('id').anyOf(ids).modify({ purged: true, name: '', updatedAt: t })
     })
     markLocalChange()
   }
