@@ -1,0 +1,295 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --primary: #5f93c4;
+  --bg: #eeedea;
+  --surface: #ffffff;
+  --surface-2: #f5f4f1;
+  --ink: #2f2f2f;
+  --muted: #8b8a87;
+  --line: #e4e2de;
+  --danger: #e0707a;
+  --success: #6fb38a;
+  --warn: #e7b04f;
+  /* deck colors are mixed toward this in dark mode */
+  --tint-base: #ffffff;
+  --tint-amount: 100%;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #2b2b2b;
+  --surface: #3a3a3a;
+  --surface-2: #444444;
+  --ink: #f0efec;
+  --muted: #a6a5a2;
+  --line: #4b4b4b;
+  --tint-base: #3a3a3a;
+  --tint-amount: 55%;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans:
+    'Inter Variable', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Hiragino Sans',
+    'Noto Sans JP', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
+  --color-primary: var(--primary);
+  --color-primary-soft: color-mix(in oklab, var(--primary) 14%, var(--surface));
+  --color-primary-strong: color-mix(in oklab, var(--primary) 75%, var(--ink));
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgb(0_0_0/0.04)];
+  }
+  /* small toggle-like button; used for secondary actions */
+  .pill {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors;
+  }
+  .pill-active {
+    @apply border-primary bg-primary text-white;
+  }
+  .pill-idle {
+    @apply border-line bg-surface text-ink hover:bg-surface-2;
+  }
+  .icon-btn {
+    @apply inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink transition hover:bg-surface-2 active:scale-95 disabled:opacity-40;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply bg-primary text-white hover:brightness-110;
+  }
+  .btn-soft {
+    @apply bg-primary-soft text-primary-strong;
+  }
+  .btn-ghost {
+    @apply border border-line bg-surface text-ink hover:bg-surface-2;
+  }
+  .btn-danger {
+    @apply bg-danger text-white;
+  }
+  .input {
+    @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-ink outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-semibold tracking-wide text-muted uppercase;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink;
+  }
+  .chip-on {
+    @apply border-primary bg-primary-soft text-primary-strong;
+  }
+}
+
+/* Markdown rendering */
+.md {
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.md > * + * {
+  margin-top: 0.6em;
+}
+.md h1 {
+  font-size: 1.5em;
+  font-weight: 700;
+}
+.md h2 {
+  font-size: 1.3em;
+  font-weight: 700;
+}
+.md h3 {
+  font-size: 1.12em;
+  font-weight: 700;
+}
+.md ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.md ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.md blockquote {
+  border-left: 4px solid var(--primary);
+  padding-left: 0.8em;
+  color: var(--muted);
+}
+.md code {
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.md pre {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+}
+.md pre code {
+  background: none;
+  padding: 0;
+}
+.md a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.md hr {
+  border-color: var(--line);
+}
+.md table {
+  border-collapse: collapse;
+}
+.md th,
+.md td {
+  border: 1px solid var(--line);
+  padding: 0.25em 0.6em;
+}
+.md strong {
+  font-weight: 700;
+}
+
+/* Discord-like spoiler */
+.spoiler {
+  background: var(--ink);
+  color: transparent;
+  border-radius: 4px;
+  padding: 0 0.15em;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  user-select: none;
+}
+.spoiler * {
+  visibility: hidden;
+}
+.spoiler.revealed {
+  background: color-mix(in oklab, var(--ink) 12%, transparent);
+  color: inherit;
+  cursor: text;
+  user-select: auto;
+}
+.spoiler.revealed * {
+  visibility: visible;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.sheet-enter-active,
+.sheet-leave-active {
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease;
+}
+.sheet-enter-from,
+.sheet-leave-to {
+  transform: translateY(24px);
+  opacity: 0;
+}
+
+/* Range slider (RangeSlider.vue) — fixed thumb size so ticks line up with values */
+.range {
+  --range-thumb: 20px;
+  appearance: none;
+  width: 100%;
+  height: var(--range-thumb);
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background:
+    linear-gradient(var(--primary), var(--primary)) 0 / var(--fill, 0) 100% no-repeat,
+    var(--line);
+}
+.range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background:
+    linear-gradient(var(--primary), var(--primary)) 0 / var(--fill, 0) 100% no-repeat,
+    var(--line);
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--range-thumb);
+  height: var(--range-thumb);
+  margin-top: calc((6px - var(--range-thumb)) / 2);
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+.range::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--range-thumb);
+  height: var(--range-thumb);
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+.range:focus-visible {
+  outline: none;
+}
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 25%, transparent);
+}
+
+/* Dashed leader between a label and its value, like a table of contents;
+   .leader-divide draws the same dashes between list items */
+.leader,
+.leader-divide > * + * {
+  background: linear-gradient(to right, var(--line) 3px, transparent 3px) repeat-x top / 7px 1px;
+}
+.leader {
+  height: 1px;
+}
