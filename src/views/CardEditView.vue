@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { Eye, Plus, Sparkles, Trash2 } from '@lucide/vue'
+import { BookOpen, Eye, Plus, Sparkles, Trash2 } from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PillTabs from '@/components/PillTabs.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -14,12 +14,14 @@ import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { LANGS } from '@/db/defaults'
-import type { BasicCard, Card, Lang, VocabCard } from '@/db/types'
+import type { BasicCard, Card, Example, Lang, VocabCard } from '@/db/types'
 import { isComplete, newBasicCard, newVocabCard } from '@/lib/cards'
 import { uid } from '@/lib/id'
 import { pathTo } from '@/lib/tree'
 import { db } from '@/db'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
+import { lookupWord, type DictResult } from '@/lib/dictLookup'
+import DictResultSheet from '@/components/DictResultSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,6 +43,43 @@ async function autoReading() {
     ui.toast('產生讀音失敗', 'error')
   } finally {
     genBusy.value = false
+  }
+}
+
+const lookupBusy = ref(false)
+const dictResult = ref<DictResult | null>(null)
+const showDict = ref(false)
+/** Look the word up and let the user pick what to add. */
+async function fillFromDict() {
+  const v = vocab.value
+  if (!v || lookupBusy.value) return
+  if (!v.word.trim()) return ui.toast('請先輸入單字', 'error')
+  lookupBusy.value = true
+  try {
+    dictResult.value = await lookupWord(v.word, v.lang)
+    showDict.value = true
+  } catch {
+    ui.toast('所有字典來源都無法使用，請確認網路連線', 'error')
+  } finally {
+    lookupBusy.value = false
+  }
+}
+
+async function applyDict(picked: { meanings: string[]; pos: string[]; examples: Example[] }) {
+  const v = vocab.value
+  if (!v) return
+  if (picked.meanings.length) {
+    v.meaning = [v.meaning.trim(), ...picked.meanings].filter(Boolean).join('\n')
+  }
+  const known = new Set(settings.synced.pos[v.lang].map((o) => o.id))
+  for (const p of picked.pos) if (known.has(p) && !v.pos.includes(p)) v.pos.push(p)
+  v.examples.push(...picked.examples)
+  if (!v.reading.trim() && canAutoReading(v.lang)) {
+    try {
+      v.reading = (await generateReading(v.word, v.lang)) ?? ''
+    } catch {
+      /* reading is optional */
+    }
   }
 }
 
@@ -281,7 +320,16 @@ const previewRevealed = ref(false)
           <DictLinks :word="vocab.word" :lang="vocab.lang" />
         </div>
         <div>
-          <label class="label">意思</label>
+          <div class="flex items-center justify-between">
+            <label class="label">意思</label>
+            <button
+              class="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary disabled:opacity-50"
+              :disabled="lookupBusy"
+              @click="fillFromDict"
+            >
+              <BookOpen :size="14" /> {{ lookupBusy ? '查詢中…' : '從字典填入' }}
+            </button>
+          </div>
           <textarea v-model="vocab.meaning" rows="2" class="input" placeholder="單字的意思" />
         </div>
         <div>
@@ -351,6 +399,15 @@ const previewRevealed = ref(false)
         <button class="btn btn-primary flex-1" :disabled="frontEmpty" @click="save()">儲存</button>
       </div>
     </div>
+
+    <DictResultSheet
+      v-if="vocab"
+      v-model="showDict"
+      :result="dictResult"
+      :word="vocab.word"
+      :lang="vocab.lang"
+      @apply="applyDict"
+    />
 
     <BottomSheet v-model="showPreview" title="預覽">
       <div class="card min-h-48" @click="previewRevealed = true">
