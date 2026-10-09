@@ -7,15 +7,46 @@ export interface OcrProgress {
   progress: number
 }
 
-export async function recognize(image: Blob, lang: Lang, onProgress?: (p: OcrProgress) => void) {
+/** A recognised word with its bounding box in image pixels. */
+export interface OcrBox {
+  text: string
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+  /** index of the text line the word belongs to (reading order) */
+  line: number
+}
+
+export interface OcrResult {
+  text: string
+  boxes: OcrBox[]
+}
+
+export async function recognize(
+  image: Blob,
+  lang: Lang,
+  onProgress?: (p: OcrProgress) => void,
+): Promise<OcrResult> {
   const { createWorker } = await import('tesseract.js')
   const worker = await createWorker(TESS_LANG[lang], 1, {
     logger: (m: { status: string; progress: number }) =>
       onProgress?.({ status: m.status, progress: m.progress }),
   })
   try {
-    const { data } = await worker.recognize(image)
-    return cleanText(data.text, lang)
+    const { data } = await worker.recognize(image, {}, { text: true, blocks: true })
+    const boxes: OcrBox[] = []
+    let line = 0
+    for (const b of data.blocks ?? [])
+      for (const p of b.paragraphs)
+        for (const l of p.lines) {
+          for (const w of l.words) {
+            const text = w.text.trim()
+            if (text) boxes.push({ text, ...w.bbox, line })
+          }
+          line++
+        }
+    return { text: cleanText(data.text, lang), boxes }
   } finally {
     await worker.terminate()
   }
@@ -28,6 +59,11 @@ function cleanText(text: string, lang: Lang) {
   let t = text.replace(/\r/g, '')
   if (lang === 'ja') t = t.replace(new RegExp(`([${CJK}])[ \\t]+(?=[${CJK}])`, 'g'), '$1')
   return t.replace(/[ \t]+\n/g, '\n').trim()
+}
+
+/** Join selected word boxes back into a sentence (no spaces between CJK characters). */
+export function joinBoxes(boxes: OcrBox[], lang: Lang) {
+  return cleanText(boxes.map((b) => b.text).join(lang === 'en' ? ' ' : ''), lang)
 }
 
 /** Split recognised text into candidate words, de-duplicated in reading order. */

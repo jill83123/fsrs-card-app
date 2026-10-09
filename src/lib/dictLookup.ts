@@ -509,3 +509,23 @@ export async function lookupWord(word: string, lang: Lang): Promise<DictResult |
   }
   return result ? { ...result, warnings } : null
 }
+
+/** Translate one sentence into Traditional Chinese; empty string when the service fails. */
+export async function translateSentence(text: string, lang: Lang): Promise<string> {
+  const t = text.replace(/\s*\n\s*/g, ' ').trim()
+  if (!t) return ''
+  try {
+    const res = await fetch(`${gtxUrl(lang)}&q=${encodeURIComponent(t)}`)
+    if (res.ok) {
+      const d = (await res.json()) as GtxData
+      const out = d[0]
+        .map((x) => x[0])
+        .join('')
+        .trim()
+      if (out) return out
+    }
+  } catch {
+    /* fall through to MyMemory */
+  }
+  return lang === 'en' ? ((await translate(t)) ?? '') : ''
+}
