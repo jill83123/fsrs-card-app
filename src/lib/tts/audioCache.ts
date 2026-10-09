@@ -20,6 +20,17 @@ export async function readAudio(key: string): Promise<string | null> {
   }
 }
 
+/** Whether a clip is already stored (without reading it). */
+export async function hasAudio(key: string): Promise<boolean> {
+  if (urls.has(key)) return true
+  if (!('caches' in globalThis)) return false
+  try {
+    return !!(await (await caches.open(CACHE)).match(keyUrl(key)))
+  } catch {
+    return false
+  }
+}
+
 let writes = 0
 
 export async function writeAudio(key: string, blob: Blob): Promise<string> {

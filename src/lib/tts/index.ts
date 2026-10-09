@@ -3,7 +3,7 @@ import { LANGS } from '@/db/defaults'
 import type { Lang, TtsLangSettings } from '@/db/types'
 import { espeakAudioUrl, isEspeakVoice } from './espeakPiper'
 import { isKokoroVoice, kokoroWav, type KokoroBackend } from './kokoro'
-import { readAudio, writeAudio } from './audioCache'
+import { hasAudio, readAudio, writeAudio } from './audioCache'
 import { speechInput, type SpeechInput } from './reading'
 
 export const speaking = ref<string | null>(null)
@@ -54,15 +54,24 @@ export const setKokoroBackend = (b: KokoroBackend) => (kokoroBackend = b)
 const KOKORO_REV = 2
 const inflight = new Map<string, Promise<string>>()
 
-/** Blob URL of the clip for `input`, generated once and then served from the cache. */
-function neuralAudioUrl(input: SpeechInput, lang: Lang, cfg: TtsLangSettings): Promise<string> {
+function audioKey(input: SpeechInput, lang: Lang, cfg: TtsLangSettings) {
   const model = cfg.piperModel
   const { text, phonemes } = input
   // English readings only change Kokoro's phonemes; Piper keeps reading the word
   const usesPhonemes = !!phonemes && isKokoroVoice(model)
   // bump KOKORO_REV when Kokoro's output changes so cached clips are made again
   const rev = isKokoroVoice(model) ? `k${KOKORO_REV}|` : ''
-  const key = `${rev}${model}|${lang}|${cfg.rate}|${text}${usesPhonemes ? `|/${phonemes}/` : ''}`
+  return {
+    key: `${rev}${model}|${lang}|${cfg.rate}|${text}${usesPhonemes ? `|/${phonemes}/` : ''}`,
+    usesPhonemes,
+  }
+}
+
+/** Blob URL of the clip for `input`, generated once and then served from the cache. */
+function neuralAudioUrl(input: SpeechInput, lang: Lang, cfg: TtsLangSettings): Promise<string> {
+  const model = cfg.piperModel
+  const { text, phonemes } = input
+  const { key, usesPhonemes } = audioKey(input, lang, cfg)
   let p = inflight.get(key)
   if (!p) {
     p = (async () => {
@@ -96,6 +105,46 @@ export function prefetchSpeech(text: string, lang: Lang, cfg: TtsLangSettings, r
   const clean = text.replace(/\|\|/g, '').trim()
   if (!clean || cfg.engine !== 'piper') return
   neuralAudioUrl(speechInput(clean, lang, reading), lang, cfg).catch(() => {})
+}
+
+export interface BackfillItem {
+  text: string
+  lang: Lang
+  reading?: string
+}
+
+/**
+ * Generate, one at a time, the clips that this device does not have yet — e.g. after
+ * moving to a new device that synced the cards but not the audio. Returns how many were
+ * generated; `onProgress(done, total)` counts the items that were still missing.
+ */
+export async function backfillSpeech(
+  items: BackfillItem[],
+  cfgOf: (lang: Lang) => TtsLangSettings,
+  onProgress: (done: number, total: number) => void,
+  signal: AbortSignal,
+) {
+  const missing: BackfillItem[] = []
+  for (const it of items) {
+    const cfg = cfgOf(it.lang)
+    if (cfg.engine !== 'piper') continue
+    const text = it.text.replace(/\|\|/g, '').trim()
+    if (!text) continue
+    if (!(await hasAudio(audioKey(speechInput(text, it.lang, it.reading), it.lang, cfg).key)))
+      missing.push({ ...it, text })
+  }
+  let done = 0
+  onProgress(0, missing.length)
+  for (const it of missing) {
+    if (signal.aborted) break
+    try {
+      await neuralAudioUrl(speechInput(it.text, it.lang, it.reading), it.lang, cfgOf(it.lang))
+    } catch (e) {
+      console.warn('[tts] backfill failed for', it.text, e)
+    }
+    onProgress(++done, missing.length)
+  }
+  return done
 }
 
 async function speakPiper(input: SpeechInput, lang: Lang, cfg: TtsLangSettings, token: string) {
