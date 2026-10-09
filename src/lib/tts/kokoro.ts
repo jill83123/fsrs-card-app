@@ -1,5 +1,7 @@
 /* Main-thread client for the Kokoro worker (see ./kokoro.worker.ts). */
-import type { DownloadProgress } from './fetchCache'
+import { reactive } from 'vue'
+import { isCached, type DownloadProgress } from './fetchCache'
+import { kokoroModelUrl } from './kokoroConfig'
 import type { Lang } from '@/db/types'
 import type { KokoroBackend, KokoroRequest, KokoroResponse } from './kokoro.worker'
 
@@ -38,6 +40,40 @@ export function onKokoroProgress(fn: (p: DownloadProgress) => void) {
   return () => progressListeners.delete(fn)
 }
 
+// Where the last model load / first synthesis got to. If the page is killed (iOS drops a
+// web process that uses too much memory without any error) the last stage stays in
+// localStorage, so the next launch can show where it stopped.
+const DIAG_KEY = 'kokoro-diag'
+export interface KokoroDiag {
+  backend: KokoroBackend
+  stage: string
+  at: number
+}
+
+export function getKokoroDiag(): KokoroDiag | null {
+  try {
+    return JSON.parse(localStorage.getItem(DIAG_KEY) ?? 'null') as KokoroDiag | null
+  } catch {
+    return null
+  }
+}
+
+export function clearKokoroDiag() {
+  try {
+    localStorage.removeItem(DIAG_KEY)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function saveStage(backend: KokoroBackend, stage: string) {
+  try {
+    localStorage.setItem(DIAG_KEY, JSON.stringify({ backend, stage, at: Date.now() }))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 let worker: Worker | null = null
 let seq = 0
 const pending = new Map<number, { resolve: (wav?: Blob) => void; reject: (e: Error) => void }>()
@@ -47,6 +83,10 @@ function getWorker() {
     worker = new Worker(new URL('./kokoro.worker.ts', import.meta.url), { type: 'module' })
     worker.onmessage = (e: MessageEvent<KokoroResponse>) => {
       const m = e.data
+      if (m.type === 'stage') {
+        saveStage(m.backend, m.stage)
+        return
+      }
       if (m.type === 'progress') {
         progressListeners.forEach((fn) => fn(m))
         return
@@ -80,7 +120,8 @@ function request(body: RequestBody) {
   })
 }
 
-const loaded = new Set<KokoroBackend>()
+// reactive so the settings page's button label follows the model state
+const loaded = reactive(new Set<KokoroBackend>())
 
 /** Download the model plus what `voiceId` needs (its style and its language's dictionaries). */
 export async function loadKokoro(backend: KokoroBackend, voiceId: string) {
@@ -109,4 +150,19 @@ export async function kokoroWav(
   loaded.add(backend)
   if (!wav) throw new Error('Kokoro 沒有輸出')
   return wav
+}
+
+/** Whether the model file is already stored on this device (even if it is not loaded yet). */
+export const isKokoroModelCached = (backend: KokoroBackend) => isCached(kokoroModelUrl(backend))
+
+/**
+ * Drop the loaded model: stop the worker so the session and the weights leave memory
+ * (call after the stored files are deleted, otherwise the model keeps working from memory).
+ */
+export function resetKokoro() {
+  worker?.terminate()
+  worker = null
+  for (const p of pending.values()) p.reject(new Error('Kokoro 已重設'))
+  pending.clear()
+  loaded.clear()
 }

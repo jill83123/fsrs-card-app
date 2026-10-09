@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Download, Play } from '@lucide/vue'
 import PillTabs from '../PillTabs.vue'
 import ToggleSwitch from '../ToggleSwitch.vue'
@@ -11,14 +11,19 @@ import type { Lang } from '@/db/types'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { onVoicesChanged, playClip, speak, systemVoices, ttsError } from '@/lib/tts'
+import { useBackfill } from '@/stores/backfill'
 import { SAMPLE_TEXT, sampleUrl } from '@/lib/tts/samples'
 import {
+  clearKokoroDiag,
+  getKokoroDiag,
   isKokoroLoaded,
+  isKokoroModelCached,
   isKokoroVoice,
   KOKORO_SIZE_MB,
   KOKORO_VOICES,
   loadKokoro,
   onKokoroProgress,
+  resetKokoro,
   webgpuAvailable,
 } from '@/lib/tts/kokoro'
 import { clearAudioCache } from '@/lib/tts/audioCache'
@@ -48,12 +53,34 @@ const modelOptions = computed(() =>
 )
 const usesKokoro = computed(() => isKokoroVoice(cfg.value.piperModel))
 const hasWebgpu = ref(false)
-void webgpuAvailable().then((v) => (hasWebgpu.value = v))
+void webgpuAvailable().then((v) => {
+  hasWebgpu.value = v
+  // a saved high-speed choice that this device cannot run goes back to standard
+  if (!v && settings.device.tts.kokoroBackend === 'webgpu')
+    settings.device.tts.kokoroBackend = 'wasm'
+})
+// the Kokoro model counts as ready when it is loaded or already stored on this device
+// (a reload drops the loaded state but not the stored file)
+const kokoroStored = ref(false)
+const refreshStored = async () =>
+  (kokoroStored.value = await isKokoroModelCached(settings.device.tts.kokoroBackend))
+void refreshStored()
+watch(() => settings.device.tts.kokoroBackend, refreshStored)
 const isLoaded = computed(() =>
   usesKokoro.value
-    ? isKokoroLoaded(settings.device.tts.kokoroBackend)
+    ? isKokoroLoaded(settings.device.tts.kokoroBackend) || kokoroStored.value
     : isEspeakVoiceLoaded(cfg.value.piperModel),
 )
+
+// a stage other than 「正常」 left over from an earlier run means that run was cut short
+const diag = ref(getKokoroDiag())
+const unfinishedDiag = computed(() =>
+  diag.value && diag.value.stage !== '正常' ? diag.value : null,
+)
+const dismissDiag = () => {
+  clearKokoroDiag()
+  diag.value = null
+}
 
 const progress = ref<string | null>(null)
 const loading = ref(false)
@@ -76,6 +103,7 @@ async function preload() {
   try {
     if (usesKokoro.value) await loadKokoro(settings.device.tts.kokoroBackend, cfg.value.piperModel)
     else await loadEspeakVoice(cfg.value.piperModel)
+    await refreshStored()
     ui.toast('模型已就緒', 'success')
   } catch (e) {
     ui.toast(`載入失敗：${e instanceof Error ? e.message : e}`, 'error')
@@ -98,6 +126,9 @@ async function test() {
   if (ttsError.value) ui.toast(ttsError.value, 'error')
 }
 
+// the store keeps running when this page is left (see stores/backfill.ts)
+const backfill = useBackfill()
+
 async function clearCache() {
   if (
     !(await ui.confirm('清除已下載的語音模型與發音快取？', {
@@ -106,6 +137,9 @@ async function clearCache() {
   )
     return
   await Promise.all([clearEspeakCache(), clearAudioCache()])
+  // the loaded Kokoro model would otherwise keep working from memory
+  resetKokoro()
+  await refreshStored()
   ui.toast('已清除', 'success')
 }
 </script>
@@ -159,6 +193,21 @@ async function clearCache() {
           ]"
         />
       </SettingRow>
+      <div
+        v-if="usesKokoro && unfinishedDiag"
+        class="space-y-1 rounded-2xl bg-surface-2 p-3 text-xs text-muted"
+      >
+        <p class="font-medium">上次 Kokoro 沒有正常完成</p>
+        <p>
+          模式：{{ unfinishedDiag.backend === 'webgpu' ? '高速（WebGPU）' : '標準' }}<br />
+          停在：{{ unfinishedDiag.stage }}<br />
+          時間：{{ new Date(unfinishedDiag.at).toLocaleString() }}
+        </p>
+        <p>
+          如果是頁面被系統強制結束，會停在崩潰前的最後一步。這可以拿來判斷是哪一步用掉太多記憶體。
+        </p>
+        <button class="underline" @click="dismissDiag">清除這則紀錄</button>
+      </div>
       <div class="space-y-0.5 rounded-2xl bg-surface-2 p-3 text-xs text-muted">
         <template v-if="usesKokoro">
           <template v-if="lang === 'ja'">
@@ -232,6 +281,23 @@ async function clearCache() {
 
     <SettingRow label="自動朗讀單字" hint="單字卡出現時自動播放發音">
       <ToggleSwitch v-model="settings.device.tts.autoPlay" />
+    </SettingRow>
+    <SettingRow
+      label="補齊單字發音"
+      hint="換新裝置後，卡片會同步但發音不會。這會在背景把所有單字缺少的發音產生好（可以離開此頁，但 App 要保持開啟；數量多時會花一段時間）。"
+      stacked
+    >
+      <button
+        v-if="!backfill.progress"
+        class="btn btn-soft py-1.5 text-xs"
+        @click="backfill.start()"
+      >
+        開始補齊
+      </button>
+      <div v-else class="flex items-center gap-2 text-xs text-muted">
+        <span>{{ backfill.progress.done }} / {{ backfill.progress.total }}</span>
+        <button class="underline" @click="backfill.stop()">停止</button>
+      </div>
     </SettingRow>
     <button class="text-xs text-muted underline" @click="clearCache">
       清除已下載的語音模型與發音快取
