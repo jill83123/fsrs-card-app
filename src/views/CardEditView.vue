@@ -23,6 +23,8 @@ import { db } from '@/db'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
 import { lookupWord, type DictResult } from '@/lib/dictLookup'
 import DictResultSheet from '@/components/DictResultSheet.vue'
+import RelationEditor from '@/components/RelationEditor.vue'
+import type { RelatedWords } from '@/lib/relations'
 
 const route = useRoute()
 const router = useRouter()
@@ -66,7 +68,15 @@ async function fillFromDict() {
   }
 }
 
-async function applyDict(picked: { meanings: string[]; pos: string[]; examples: Example[] }) {
+const stubs = ref<VocabCard[]>([])
+const relEditor = ref<InstanceType<typeof RelationEditor> | null>(null)
+
+async function applyDict(picked: {
+  meanings: string[]
+  pos: string[]
+  examples: Example[]
+  related: RelatedWords
+}) {
   const v = vocab.value
   if (!v) return
   if (picked.meanings.length) {
@@ -75,6 +85,8 @@ async function applyDict(picked: { meanings: string[]; pos: string[]; examples: 
   const known = new Set(settings.synced.pos[v.lang].map((o) => o.id))
   for (const p of picked.pos) if (known.has(p) && !v.pos.includes(p)) v.pos.push(p)
   v.examples.push(...picked.examples)
+  for (const kind of ['syn', 'ant', 'der'] as const)
+    for (const w of picked.related[kind]) relEditor.value?.linkWord(kind, w)
   if (!v.reading.trim() && canAutoReading(v.lang)) {
     try {
       v.reading = (await generateReading(v.word, v.lang)) ?? ''
@@ -93,6 +105,7 @@ let saved = false
 
 async function init() {
   saved = false
+  stubs.value = []
   if (editingId.value) {
     const c = await db.cards.get(editingId.value)
     card.value = c && !c.deleted ? structuredClone(c) : null
@@ -192,7 +205,21 @@ async function save(next = false) {
     c.examples = c.examples.filter((e) => e.sentence.trim() || e.translation.trim())
     localStorage.setItem(LAST_LANG, c.lang)
   }
+  const before = original.value ? (JSON.parse(original.value) as Card) : null
+  const prevRel = before?.type === 'vocab' ? before.rel : undefined
+  if (c.type === 'vocab') {
+    // new cards typed in as related words: only those still linked are created
+    const linked = new Set(Object.values(c.rel ?? {}).flat())
+    for (const s of stubs.value) {
+      if (!linked.has(s.id)) continue
+      s.deckId = c.deckId
+      await data.saveCard(s)
+    }
+    stubs.value = []
+  }
   await data.saveCard(c)
+  if (c.type === 'vocab')
+    await data.syncRelations(c.id, editingId.value ? prevRel : undefined, c.rel)
   saved = true
   ui.toast(isComplete(c) ? '已儲存' : '已儲存為未完成卡片', 'success')
   if (next) {
@@ -394,6 +421,13 @@ const previewRevealed = ref(false)
               <Plus :size="18" /> 新增例句
             </button>
           </div>
+        </div>
+        <div>
+          <label class="label">關聯詞</label>
+          <RelationEditor ref="relEditor" v-model:stubs="stubs" :card="vocab" />
+          <p class="mt-2 px-1 text-xs text-muted">
+            只會顯示在卡片詳情，學習時不會出現。關聯會同步記錄在對方的卡片上。
+          </p>
         </div>
         <div>
           <label class="label">備註（選填）</label>

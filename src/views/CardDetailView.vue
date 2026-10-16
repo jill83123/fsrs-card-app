@@ -2,7 +2,19 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { liveQuery } from 'dexie'
-import { ChevronLeft, ChevronRight, CircleHelp, FolderInput, Pause, Pencil, Play, RotateCcw, Star, Trash2, TriangleAlert } from '@lucide/vue'
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  FolderInput,
+  Pause,
+  Pencil,
+  Play,
+  RotateCcw,
+  Star,
+  Trash2,
+  TriangleAlert,
+} from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import CardFace from '@/components/CardFace.vue'
 import MoveDeckSheet from '@/components/MoveDeckSheet.vue'
@@ -20,6 +32,7 @@ import {
 } from '@/lib/fsrs'
 import { formatDateTime, formatInterval } from '@/lib/date'
 import { isComplete } from '@/lib/cards'
+import { REL_KINDS } from '@/lib/relations'
 import { pathTo } from '@/lib/tree'
 import { useLiveQuery } from '@/composables/useLiveQuery'
 
@@ -31,6 +44,19 @@ const ui = useUi()
 const id = computed(() => String(route.params.id))
 const card = computed(() => data.cardById.get(id.value))
 const revealed = ref(true)
+
+// related words are for browsing only: they never appear while studying
+const related = computed(() => {
+  const c = card.value
+  if (c?.type !== 'vocab') return []
+  return REL_KINDS.map((k) => ({
+    label: k.label,
+    cards: (c.rel?.[k.id] ?? []).flatMap((id) => {
+      const r = data.cardById.get(id)
+      return r?.type === 'vocab' ? [r] : []
+    }),
+  })).filter((g) => g.cards.length)
+})
 
 // sibling cards from the list the user came from (saved by CardList)
 const browseIds = computed<string[]>(() => {
@@ -44,7 +70,9 @@ const browseIds = computed<string[]>(() => {
 })
 const browseIndex = computed(() => browseIds.value.indexOf(id.value))
 const hasPrev = computed(() => browseIndex.value > 0)
-const hasNext = computed(() => browseIndex.value >= 0 && browseIndex.value < browseIds.value.length - 1)
+const hasNext = computed(
+  () => browseIndex.value >= 0 && browseIndex.value < browseIds.value.length - 1,
+)
 
 function go(delta: -1 | 1) {
   if (delta < 0 ? !hasPrev.value : !hasNext.value) return
@@ -196,7 +224,12 @@ const openHelp = ref<string | null>(null)
       <!-- out of the flow, so switching between complete and incomplete cards never shifts the height -->
       <span
         v-if="!isComplete(card)"
-        class="absolute top-3 right-3 inline-flex items-center gap-1 rounded-md bg-warn/15 px-2 py-0.5 text-xs font-semibold"
+        class="absolute top-3 right-3 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
+        style="
+          color: #d99100;
+          background: color-mix(in oklab, #f5b301 10%, var(--surface));
+          box-shadow: inset 0 0 0 1px color-mix(in oklab, #f5b301 45%, transparent);
+        "
         title="這張卡片尚未完成，補齊內容後才會進入學習。"
       >
         <TriangleAlert :size="12" />
@@ -204,9 +237,24 @@ const openHelp = ref<string | null>(null)
       </span>
       <CardFace :card="card" :revealed="revealed" />
     </section>
+    <section v-if="related.length" class="card mb-3 space-y-3">
+      <div v-for="g in related" :key="g.label">
+        <h2 class="mb-1.5 text-xs font-semibold text-muted">{{ g.label }}</h2>
+        <div class="flex flex-wrap gap-2">
+          <RouterLink v-for="r in g.cards" :key="r.id" :to="`/card/${r.id}`" class="chip">
+            {{ r.word }}
+          </RouterLink>
+        </div>
+      </div>
+    </section>
     <div class="mb-5 flex items-center justify-center gap-3">
       <template v-if="browseIndex >= 0">
-        <button class="pill pill-idle px-2.5 disabled:opacity-40" aria-label="上一張" :disabled="!hasPrev" @click="go(-1)">
+        <button
+          class="pill pill-idle px-2.5 disabled:opacity-40"
+          aria-label="上一張"
+          :disabled="!hasPrev"
+          @click="go(-1)"
+        >
           <ChevronLeft :size="20" />
         </button>
       </template>
@@ -214,7 +262,12 @@ const openHelp = ref<string | null>(null)
         {{ revealed ? '只看正面' : '顯示答案' }}
       </button>
       <template v-if="browseIndex >= 0">
-        <button class="pill pill-idle px-2.5 disabled:opacity-40" aria-label="下一張" :disabled="!hasNext" @click="go(1)">
+        <button
+          class="pill pill-idle px-2.5 disabled:opacity-40"
+          aria-label="下一張"
+          :disabled="!hasNext"
+          @click="go(1)"
+        >
           <ChevronRight :size="20" />
         </button>
       </template>

@@ -138,7 +138,7 @@ watch(
         <div class="flex min-h-[1.625rem] flex-wrap justify-center gap-1.5">
           <span v-for="p in posLabels" :key="p" class="chip">{{ p }}</span>
         </div>
-        <p class="min-h-14 text-lg whitespace-pre-line">{{ card.meaning }}</p>
+        <p class="min-h-7 text-lg whitespace-pre-line">{{ card.meaning }}</p>
       </div>
 
       <div v-if="picked" class="space-y-2">

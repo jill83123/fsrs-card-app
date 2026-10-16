@@ -3,13 +3,14 @@ import { computed, ref, watch } from 'vue'
 import { Check } from '@lucide/vue'
 import BottomSheet from './BottomSheet.vue'
 import type { Example, Lang } from '@/db/types'
+import { REL_KINDS, type RelatedWords } from '@/lib/relations'
 import type { DictResult } from '@/lib/dictLookup'
 import { useSettings } from '@/stores/settings'
 
 const props = defineProps<{ result: DictResult | null; word: string; lang: Lang }>()
 const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{
-  apply: [picked: { meanings: string[]; pos: string[]; examples: Example[] }]
+  apply: [picked: { meanings: string[]; pos: string[]; examples: Example[]; related: RelatedWords }]
 }>()
 const settings = useSettings()
 
@@ -24,6 +25,7 @@ const posOptions = computed(() =>
 const pickedMeanings = ref<number[]>([])
 const pickedPos = ref<string[]>([])
 const pickedExamples = ref<string[]>([])
+const pickedRelated = ref<RelatedWords>({ syn: [], ant: [], der: [] })
 
 // every new result starts with senses and parts of speech selected; example sentences are
 // matched to a sense only loosely, so they start unselected
@@ -33,6 +35,7 @@ watch(
     pickedMeanings.value = meanings.value.map((_, i) => i)
     pickedPos.value = r?.pos.slice() ?? []
     pickedExamples.value = []
+    pickedRelated.value = { syn: [], ant: [], der: [] }
   },
   { immediate: true },
 )
@@ -47,7 +50,11 @@ const googleUrl = computed(
   () => `https://www.google.com/search?q=${encodeURIComponent(`${props.word.trim()} 意思`)}`,
 )
 const nothing = computed(
-  () => !pickedMeanings.value.length && !pickedPos.value.length && !pickedExamples.value.length,
+  () =>
+    !pickedMeanings.value.length &&
+    !pickedPos.value.length &&
+    !pickedExamples.value.length &&
+    !REL_KINDS.some((k) => pickedRelated.value[k.id].length),
 )
 
 function apply() {
@@ -57,6 +64,7 @@ function apply() {
     meanings: meanings.value.filter((_, i) => pickedMeanings.value.includes(i)),
     pos: pickedPos.value,
     examples: r.examples.filter((e) => pickedExamples.value.includes(e.id)),
+    related: pickedRelated.value,
   })
   open.value = false
 }
@@ -122,9 +130,37 @@ function apply() {
         <p v-if="!result.examples.length" class="text-sm text-muted">字典沒有提供例句。</p>
       </section>
 
+      <section
+        v-for="k in REL_KINDS"
+        v-show="result.related[k.id].length"
+        :key="k.id"
+        class="space-y-2"
+      >
+        <h3 class="label">{{ k.label }}</h3>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="w in result.related[k.id]"
+            :key="w"
+            type="button"
+            class="chip"
+            :class="{ 'chip-on': pickedRelated[k.id].includes(w) }"
+            @click="toggle(pickedRelated[k.id], w)"
+          >
+            {{ w }}
+          </button>
+        </div>
+      </section>
+
       <button class="btn btn-primary w-full" :disabled="nothing" @click="apply">
         加入勾選的項目
       </button>
+
+      <section v-if="result.sources.length" class="space-y-2">
+        <h3 class="label">資料來源</h3>
+        <ul class="list-disc space-y-0.5 pl-5 text-xs text-muted">
+          <li v-for="src in result.sources" :key="src">{{ src }}</li>
+        </ul>
+      </section>
     </div>
 
     <div v-else class="space-y-4 py-2 text-center">

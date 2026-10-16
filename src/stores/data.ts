@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { liveQuery, type Subscription } from 'dexie'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { db, markLocalChange, stamp } from '@/db'
-import type { Card, DeckColor, ReviewLogRecord, TreeNode } from '@/db/types'
+import type { Card, DeckColor, Relations, ReviewLogRecord, TreeNode, VocabCard } from '@/db/types'
 import { addDays, studyDayEnd, studyDayOf, studyDayStart } from '@/lib/date'
 import { uid } from '@/lib/id'
 import { activeSides, isStudyable, schedOf, type Side } from '@/lib/cards'
@@ -447,22 +447,26 @@ export const useData = defineStore('data', () => {
           l.purged = true
           l.updatedAt = t
         })
-      await db.cards.where('id').anyOf(cardIds).modify((c) => {
-        const x = c as Card
-        x.purged = true
-        x.updatedAt = t
-        if (x.type === 'basic') {
-          x.front = ''
-          x.back = ''
-        } else {
-          x.word = ''
-          x.reading = ''
-          x.meaning = ''
-          x.pos = []
-          x.examples = []
-          x.note = ''
-        }
-      })
+      await db.cards
+        .where('id')
+        .anyOf(cardIds)
+        .modify((c) => {
+          const x = c as Card
+          x.purged = true
+          x.updatedAt = t
+          if (x.type === 'basic') {
+            x.front = ''
+            x.back = ''
+          } else {
+            x.word = ''
+            x.reading = ''
+            x.meaning = ''
+            x.pos = []
+            x.examples = []
+            x.note = ''
+            delete x.rel
+          }
+        })
       await db.nodes.where('id').anyOf(ids).modify({ purged: true, name: '', updatedAt: t })
     })
     markLocalChange()
@@ -475,6 +479,39 @@ export const useData = defineStore('data', () => {
     await db.cards.put(copy)
     markLocalChange()
     return copy
+  }
+
+  /**
+   * Keep relation links two-way: after `selfId` changed its links from `prev` to `next`,
+   * add or remove `selfId` on the other cards.
+   */
+  async function syncRelations(selfId: string, prev: Relations = {}, next: Relations = {}) {
+    const t = stamp()
+    await db.transaction('rw', db.cards, async () => {
+      for (const kind of ['syn', 'ant', 'der'] as const) {
+        const before = new Set(prev[kind] ?? [])
+        const after = new Set(next[kind] ?? [])
+        const touch = async (id: string, add: boolean) => {
+          const c = await db.cards.get(id)
+          if (!c || c.deleted || c.type !== 'vocab') return
+          const list = new Set(c.rel?.[kind] ?? [])
+          if (list.has(selfId) === add) return
+          if (add) list.add(selfId)
+          else list.delete(selfId)
+          const rel: Relations = { ...c.rel, [kind]: [...list] }
+          if (!rel[kind]!.length) delete rel[kind]
+          const updated: VocabCard = {
+            ...c,
+            rel: Object.keys(rel).length ? rel : undefined,
+            updatedAt: t,
+          }
+          await db.cards.put(updated)
+        }
+        for (const id of after) if (!before.has(id)) await touch(id, true)
+        for (const id of before) if (!after.has(id)) await touch(id, false)
+      }
+    })
+    markLocalChange()
   }
 
   async function patchCards(
@@ -628,6 +665,7 @@ export const useData = defineStore('data', () => {
     restoreNode,
     purgeDeleted,
     saveCard,
+    syncRelations,
     patchCards,
     resetCards,
     applyRating,
