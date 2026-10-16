@@ -47,6 +47,8 @@ export interface Example {
   id: string
   sentence: string
   translation: string
+  /** parts of the sentence the user colored (usually the studied word in some form) */
+  marks?: string[]
 }
 
 /** FSRS state stored on a card (dates as epoch ms so it is JSON friendly). */

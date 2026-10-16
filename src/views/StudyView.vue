@@ -205,32 +205,7 @@ function openDict() {
   showDict.value = true
 }
 
-function onKey(e: KeyboardEvent) {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-  if (showDict.value || ui.dialog) return
-  if (e.key.toLowerCase() === 'z') {
-    e.preventDefault()
-    void undo()
-    return
-  }
-  if (!current.value) return
-  if (!revealed.value) {
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault()
-      revealed.value = true
-    }
-    return
-  }
-  const g = GRADES.find((x) => x.key === e.key)
-  if (g) return void rate(g.grade)
-  if (e.key === ' ' || e.key === 'Enter') {
-    e.preventDefault()
-    void rate(GRADES[2]!.grade)
-  }
-}
-
 onMounted(() => {
-  window.addEventListener('keydown', onKey)
   if (data.ready) start()
 })
 watch(
@@ -242,7 +217,6 @@ watch(
   () => data.ready && start(),
 )
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKey)
   clearTimeout(waitTimer)
   stopSpeaking()
 })
@@ -302,10 +276,7 @@ const waitText = computed(() =>
           <Pencil :size="16" />
         </button>
       </div>
-      <section
-        class="card flex min-h-[45dvh] flex-1 flex-col justify-center px-6 py-8"
-        @click="!revealed && (revealed = true)"
-      >
+      <section class="card flex min-h-[45dvh] flex-1 flex-col justify-center px-6 py-8">
         <CardFace :card="current" :revealed="revealed" :reverse="reverse" />
       </section>
 
