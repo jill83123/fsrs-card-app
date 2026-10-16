@@ -146,7 +146,24 @@ async function save() {
       reverse,
     }
   } else {
+    // a deck holds either cards or sub-decks, so its existing cards have to go somewhere
+    const parentCards = form.parentId ? (data.cardsByDeck.get(form.parentId) ?? []) : []
+    const parentName = form.parentId ? data.nodeById.get(form.parentId)?.name : ''
+    if (parentCards.length) {
+      const ok = await ui.confirm(`「${parentName}」已有 ${parentCards.length} 張卡片`, {
+        message: `牌組不能同時放卡片和子牌組。
+建立後，這 ${parentCards.length} 張卡片會一併移到新的子牌組「${name}」裡。`,
+        confirmText: '移入新子牌組',
+      })
+      if (!ok) return
+    }
     saved = await data.createNode(form.parentId, name, form.color)
+    if (parentCards.length) {
+      await data.patchCards(
+        parentCards.map((c) => c.id),
+        { deckId: saved.id },
+      )
+    }
     await data.updateNode(saved.id, { limits, defaultCard, reverse })
     saved = { ...saved, limits, defaultCard, reverse }
   }

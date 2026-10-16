@@ -65,9 +65,6 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
         <span v-if="!complete" class="font-semibold text-warn">未完成</span>
         <template v-else>{{ cardSubtitle(card) }}</template>
       </div>
-      <div v-if="showDeck && deckName" class="mt-1 truncate text-[11px] text-muted">
-        {{ deckName }}
-      </div>
     </div>
     <!-- schedule info on the right -->
     <div class="flex shrink-0 flex-col items-end gap-1 text-[11px] text-muted">
@@ -76,6 +73,7 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
         {{ STATE_LABEL[card.sched.state] }}
       </span>
       <span v-if="dueText">{{ dueText }}</span>
+      <span v-if="showDeck && deckName" class="max-w-28 truncate">{{ deckName }}</span>
     </div>
   </button>
 </template>

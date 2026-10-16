@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { BookOpen, Eye, Plus, Sparkles, Trash2 } from '@lucide/vue'
+import { BookOpen, Eye, GripVertical, Plus, Sparkles, Trash2 } from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PillTabs from '@/components/PillTabs.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -17,6 +17,7 @@ import { LANGS } from '@/db/defaults'
 import type { BasicCard, Card, Example, Lang, VocabCard } from '@/db/types'
 import { isComplete, newBasicCard, newVocabCard } from '@/lib/cards'
 import { uid } from '@/lib/id'
+import { moved, useDragSort } from '@/composables/useDragSort'
 import { pathTo } from '@/lib/tree'
 import { db } from '@/db'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
@@ -171,6 +172,11 @@ function togglePos(id: string) {
   if (!v) return
   v.pos = v.pos.includes(id) ? v.pos.filter((p) => p !== id) : [...v.pos, id]
 }
+
+const exDrag = useDragSort((from, to) => {
+  const v = vocab.value
+  if (v) v.examples = moved(v.examples, from, to)
+})
 
 function addExample() {
   vocab.value?.examples.push({ id: uid(), sentence: '', translation: '' })
@@ -352,8 +358,24 @@ const previewRevealed = ref(false)
         <div>
           <label class="label">例句</label>
           <div class="space-y-3">
-            <div v-for="(e, i) in vocab.examples" :key="e.id" class="card space-y-2 p-4">
+            <div
+              v-for="(e, i) in vocab.examples"
+              :key="e.id"
+              data-sort-item
+              class="card space-y-2 p-4"
+              :class="{ 'shadow-lg': exDrag.dragging(i) }"
+              :style="exDrag.style(i)"
+            >
               <div class="flex items-center gap-2">
+                <button
+                  v-if="vocab.examples.length > 1"
+                  type="button"
+                  class="-ml-1 flex size-7 touch-none items-center justify-center rounded-lg text-muted hover:bg-surface-2"
+                  aria-label="拖曳排序"
+                  @pointerdown="exDrag.start($event, i)"
+                >
+                  <GripVertical :size="16" />
+                </button>
                 <span class="text-xs font-bold text-muted">#{{ i + 1 }}</span>
                 <div class="flex-1" />
                 <SpeakButton :text="e.sentence" :lang="vocab.lang" />

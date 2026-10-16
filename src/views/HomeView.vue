@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Layers, Moon, Plus, Sun } from '@lucide/vue'
+import { ArrowUpDown, Check, Layers, Moon, Plus, Sun } from '@lucide/vue'
 import SyncChip from '@/components/SyncChip.vue'
 import NodeLegend from '@/components/NodeLegend.vue'
-import NodeRow from '@/components/NodeRow.vue'
+import NodeList from '@/components/NodeList.vue'
 import NodeFormSheet from '@/components/NodeFormSheet.vue'
 import StudyEntry from '@/components/StudyEntry.vue'
 import { useData } from '@/stores/data'
@@ -36,6 +36,7 @@ function toggle(id: string) {
 watch(collapsed, (s) => localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...s])))
 
 const showForm = ref(false)
+const sorting = ref(false)
 </script>
 
 <template>
@@ -84,9 +85,21 @@ const showForm = ref(false)
 
     <div class="mb-2 flex items-center justify-between">
       <h2 class="text-sm font-semibold tracking-wide text-muted uppercase">牌組</h2>
-      <button v-if="roots.length" class="btn btn-ghost py-1.5" @click="showForm = true">
-        <Plus :size="16" /> 新增
-      </button>
+      <div v-if="roots.length" class="flex gap-2">
+        <button
+          v-if="roots.length > 1 || sorting"
+          class="btn py-1.5"
+          :class="sorting ? 'btn-primary' : 'btn-ghost'"
+          @click="sorting = !sorting"
+        >
+          <Check v-if="sorting" :size="16" />
+          <ArrowUpDown v-else :size="16" />
+          {{ sorting ? '完成' : '排序' }}
+        </button>
+        <button class="btn btn-ghost py-1.5" @click="showForm = true">
+          <Plus :size="16" /> 新增
+        </button>
+      </div>
     </div>
 
     <div v-if="!data.ready" class="py-10 text-center text-muted">載入中…</div>
@@ -100,7 +113,7 @@ const showForm = ref(false)
     </div>
     <div v-else class="card divide-y divide-line overflow-hidden p-0">
       <NodeLegend />
-      <NodeRow v-for="n in roots" :key="n.id" :node="n" :collapsed="collapsed" @toggle="toggle" />
+      <NodeList :nodes="roots" :collapsed="collapsed" :sorting="sorting" @toggle="toggle" />
     </div>
 
     <NodeFormSheet v-model="showForm" :parent-id="null" />

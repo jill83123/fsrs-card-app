@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BarChart3, FilePlus2, FolderPlus, Pencil, ScanText } from '@lucide/vue'
+import { ArrowUpDown, BarChart3, Check, FilePlus2, FolderPlus, Pencil, ScanText } from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StudyEntry from '@/components/StudyEntry.vue'
 import NodeLegend from '@/components/NodeLegend.vue'
-import NodeRow from '@/components/NodeRow.vue'
+import NodeList from '@/components/NodeList.vue'
 import NodeFormSheet from '@/components/NodeFormSheet.vue'
 import CardList from '@/components/CardList.vue'
 import PillTabs from '@/components/PillTabs.vue'
@@ -25,9 +25,8 @@ const children = computed(() => childrenOf(data.nodes, id.value))
 const ownCards = computed(() => data.cardsByDeck.get(id.value) ?? [])
 const scopeCards = computed(() => data.cardsInScope(id.value))
 
-// a deck holds either cards or sub-decks; an empty one can take both
-const canAddCards = computed(() => children.value.length === 0)
-const canAddChildren = computed(() => ownCards.value.length === 0)
+// a deck holds either cards or sub-decks; adding a sub-deck to one with cards asks what to do with them
+const sorting = ref(false)
 
 const template = computed(() => effectiveTemplate(data.nodes, id.value))
 
@@ -40,7 +39,8 @@ function addCard() {
 }
 
 const tab = ref<'children' | 'cards'>('children')
-const showCards = computed(() => canAddCards.value || tab.value === 'cards')
+const hasChildren = computed(() => children.value.length > 0)
+const showCards = computed(() => !hasChildren.value || tab.value === 'cards')
 
 const collapsed = ref(new Set<string>())
 function toggle(nid: string) {
@@ -89,7 +89,7 @@ function onDeleted(parentId: string | null) {
 
     <!-- add actions -->
     <div class="mb-4 flex flex-wrap gap-2">
-      <template v-if="canAddCards">
+      <template v-if="!hasChildren">
         <button class="btn btn-primary" :title="templateLabel(template)" @click="addCard">
           <FilePlus2 :size="18" /> 新增卡片
         </button>
@@ -100,17 +100,27 @@ function onDeleted(parentId: string | null) {
           <ScanText :size="18" /> 圖片辨識
         </button>
       </template>
-      <button v-if="canAddChildren" class="btn btn-ghost" @click="showAdd = true">
+      <button class="btn btn-ghost" @click="showAdd = true">
         <FolderPlus :size="18" /> 子牌組
+      </button>
+      <button
+        v-if="children.length > 1 && !showCards"
+        class="btn"
+        :class="sorting ? 'btn-primary' : 'btn-ghost'"
+        @click="sorting = !sorting"
+      >
+        <Check v-if="sorting" :size="18" />
+        <ArrowUpDown v-else :size="18" />
+        {{ sorting ? '完成' : '排序' }}
       </button>
     </div>
 
     <PillTabs
-      v-if="!canAddCards"
+      v-if="hasChildren"
       v-model="tab"
       class="mb-4"
       :options="[
-        { value: 'children', label: `子項目（${children.length}）` },
+        { value: 'children', label: `子牌組（${children.length}）` },
         { value: 'cards', label: `全部卡片（${scopeCards.length}）` },
       ]"
     />
@@ -118,13 +128,7 @@ function onDeleted(parentId: string | null) {
     <div v-if="!showCards">
       <div v-if="children.length" class="card divide-y divide-line overflow-hidden p-0">
         <NodeLegend />
-        <NodeRow
-          v-for="c in children"
-          :key="c.id"
-          :node="c"
-          :collapsed="collapsed"
-          @toggle="toggle"
-        />
+        <NodeList :nodes="children" :collapsed="collapsed" :sorting="sorting" @toggle="toggle" />
       </div>
       <p v-else class="card text-center text-sm text-muted">
         這個牌組是空的，可以新增卡片或子牌組。
@@ -132,8 +136,8 @@ function onDeleted(parentId: string | null) {
     </div>
     <CardList
       v-else
-      :cards="canAddCards ? ownCards : scopeCards"
-      :show-deck="!canAddCards"
+      :cards="hasChildren ? scopeCards : ownCards"
+      :show-deck="hasChildren"
       :storage-key="node.id"
     />
 

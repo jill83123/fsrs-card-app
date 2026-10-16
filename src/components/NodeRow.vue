@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeftRight, ChevronDown, ChevronRight, Layers, Timer } from '@lucide/vue'
+import { ArrowLeftRight, ChevronDown, ChevronRight, GripVertical, Layers, Timer } from '@lucide/vue'
+import NodeList from './NodeList.vue'
 import { useTicker } from '@/composables/useTicker'
 import { formatCountdown } from '@/lib/date'
 import type { TreeNode } from '@/db/types'
@@ -9,8 +10,13 @@ import { deckColorCss } from '@/db/defaults'
 import { useData } from '@/stores/data'
 import { childrenOf } from '@/lib/tree'
 
-const props = defineProps<{ node: TreeNode; depth?: number; collapsed: Set<string> }>()
-const emit = defineEmits<{ toggle: [id: string] }>()
+const props = defineProps<{
+  node: TreeNode
+  depth?: number
+  collapsed: Set<string>
+  sorting?: boolean
+}>()
+const emit = defineEmits<{ toggle: [id: string]; grip: [e: PointerEvent] }>()
 
 const data = useData()
 const router = useRouter()
@@ -37,8 +43,18 @@ const subtitle = computed(() => {
     <div
       class="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2/60"
       :style="{ paddingLeft: `${16 + (depth ?? 0) * 20}px` }"
-      @click="router.push(`/node/${node.id}`)"
+      @click="!sorting && router.push(`/node/${node.id}`)"
     >
+      <button
+        v-if="sorting"
+        type="button"
+        class="-ml-2 flex size-8 shrink-0 touch-none items-center justify-center rounded-lg text-muted hover:bg-surface-2"
+        aria-label="拖曳排序"
+        @click.stop
+        @pointerdown.stop="emit('grip', $event)"
+      >
+        <GripVertical :size="18" />
+      </button>
       <span
         class="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink/70"
         :style="{ background: deckColorCss(node.color) }"
@@ -108,11 +124,12 @@ const subtitle = computed(() => {
       </span>
     </div>
     <template v-if="children.length && isOpen">
-      <div v-for="c in children" :key="c.id" class="border-t border-line">
-        <NodeRow
-          :node="c"
+      <div>
+        <NodeList
+          :nodes="children"
           :depth="(depth ?? 0) + 1"
           :collapsed="collapsed"
+          :sorting="sorting"
           @toggle="emit('toggle', $event)"
         />
       </div>

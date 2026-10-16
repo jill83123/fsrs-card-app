@@ -10,7 +10,6 @@ const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{ pick: [deckId: string] }>()
 const data = useData()
 
-// only decks without sub-decks can hold cards
 const targets = computed(() =>
   data.nodes
     .filter((n) => !data.nodes.some((c) => c.parentId === n.id))
