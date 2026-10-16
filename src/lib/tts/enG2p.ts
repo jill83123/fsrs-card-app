@@ -227,6 +227,8 @@ class Lexicon {
   }
 
   word(raw: string, ctx: Ctx, inPhrase: boolean): string | null {
+    // accented words (résumé, café) are not in the dictionaries: leave them to espeak
+    if (/[À-ɏ]/.test(raw)) return null
     let word = raw
     // capitalised words get a little extra stress, shouting gets more (misaki's cap_stresses)
     const stress = isLower(word) ? null : isUpper(word) ? 2 : 0.5
@@ -334,13 +336,13 @@ interface Token {
 
 // amounts keep their currency sign so espeak reads "$25" as "twenty-five dollars"
 const TOKEN_RE =
-  /([A-Za-z]+(?:['-][A-Za-z]+)*'?|[$£€]?\d[\d,]*(?:\.\d+)?(?:st|nd|rd|th|s)?|\S)(\s*)/g
+  /([A-Za-zÀ-ɏ]+(?:['-][A-Za-zÀ-ɏ]+)*'?|[$£€]?\d[\d,]*(?:\.\d+)?(?:st|nd|rd|th|s)?|\S)(\s*)/g
 
 function tokenize(text: string): Token[] {
   const clean = text.normalize('NFKC').replace(/[‘’]/g, "'").replace(/–/g, '—')
   return [...clean.trim().matchAll(TOKEN_RE)].map((m) => {
     const t = m[1]!
-    const kind = /^[A-Za-z]/.test(t) ? 'word' : PUNCTS.has(t) ? 'punct' : 'other'
+    const kind = /^[A-Za-zÀ-ɏ]/.test(t) ? 'word' : PUNCTS.has(t) ? 'punct' : 'other'
     return { text: t, space: m[2] ? ' ' : '', kind }
   })
 }
