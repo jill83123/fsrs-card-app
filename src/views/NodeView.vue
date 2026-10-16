@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowUpDown, BarChart3, Check, FilePlus2, FolderPlus, Pencil, ScanText } from '@lucide/vue'
+import { ArrowUpDown, BarChart3, Check, FilePlus2, FolderPlus, Pencil } from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StudyEntry from '@/components/StudyEntry.vue'
 import NodeLegend from '@/components/NodeLegend.vue'
@@ -92,12 +92,6 @@ function onDeleted(parentId: string | null) {
       <template v-if="!hasChildren">
         <button class="btn btn-primary" :title="templateLabel(template)" @click="addCard">
           <FilePlus2 :size="18" /> 新增卡片
-        </button>
-        <button
-          class="btn btn-ghost"
-          @click="router.push({ path: '/ocr', query: { deck: node.id } })"
-        >
-          <ScanText :size="18" /> 圖片辨識
         </button>
       </template>
       <button class="btn btn-ghost" @click="showAdd = true">

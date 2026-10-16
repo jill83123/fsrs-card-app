@@ -21,7 +21,6 @@ src/
     markdown.ts                markdown-it ＋ ||防劇透|| ＋ DOMPurify
     color.ts                   主色 → 色階
     tts/                       index（統一入口）、piper、webspeech
-    ocr.ts                     tesseract.js 包裝
     google/                    gis（token）、drive（REST）、sync（合併、備份）
     backup.ts                  匯出／匯入 JSON 快照
   stores/
@@ -40,7 +39,6 @@ src/
     StudyView                  正式複習／新學習
     PracticeSetupView          練習：選卡與選項
     PracticeView               練習進行
-    OcrView                    OCR 新增單字
     StatsView                  熱力圖、未來 7 天
     SettingsView               分組設定
 ```
@@ -56,7 +54,6 @@ src/
 | `/card/:id/edit` | 編輯卡片 |
 | `/study/:mode(review\|learn)?scope=` | 正式複習／新學習（scope 不帶＝全部） |
 | `/practice?scope=&cards=` | 練習設定 → 開始 |
-| `/ocr?deck=` | OCR |
 | `/stats` | 統計 |
 | `/settings` | 設定 |
 
@@ -72,8 +69,7 @@ src/
 8. **統計**。
 9. **設定頁**（全部分組＋還原預設）。
 10. **Google Drive 同步／備份**、本機匯出匯入。
-11. **OCR**。
-12. 型別檢查、lint、建置、瀏覽器實測。
+11. 型別檢查、lint、建置、瀏覽器實測。
 
 ## 驗收方式
 

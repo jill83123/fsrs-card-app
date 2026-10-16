@@ -31,7 +31,6 @@ const router = createRouter({
       meta: { focus: true },
     },
     { path: '/practice', name: 'practice', component: () => import('@/views/PracticeView.vue') },
-    { path: '/ocr', name: 'ocr', component: () => import('@/views/OcrView.vue') },
     {
       path: '/stats',
       name: 'stats',

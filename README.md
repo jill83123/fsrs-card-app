@@ -57,6 +57,5 @@ npm run lint       # oxlint + eslint
 | onnxruntime WASM（CPU／WebGPU） | 隨專案部署 | 約 14MB／27MB |
 | espeak-ng（韓文發音、英文字典查不到的字） | 隨專案部署 | 約 18MB |
 | 韓文聲音 `ko_KR-kss-medium` | huggingface.co | 約 63MB |
-| Tesseract 語言檔 | jsDelivr | 英文約 4MB，日／韓約 10MB+ |
 
 下載後都會快取在瀏覽器中，可以離線使用。合成過的發音也會保存下來，同一個字只會合成一次。

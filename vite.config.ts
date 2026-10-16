@@ -55,10 +55,9 @@ export default defineConfig({
             options: { cacheName: 'wasm', expiration: { maxEntries: 10 } },
           },
           {
-            // OCR data and CDN binaries; the TTS models (huggingface) are already stored by
-            // fetchCached, and caching them here too doubled the storage and memory use
-            urlPattern: ({ url }) =>
-              ['cdn.jsdelivr.net', 'tessdata.projectnaptha.com'].includes(url.hostname),
+            // CDN files such as the kuromoji dictionary; the TTS models (huggingface) are already
+            // stored by fetchCached, and caching them here too doubled the storage and memory use
+            urlPattern: ({ url }) => url.hostname === 'cdn.jsdelivr.net',
             handler: 'CacheFirst',
             options: {
               cacheName: 'cdn-assets',
