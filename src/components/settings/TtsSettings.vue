@@ -299,9 +299,9 @@ async function clearCache() {
         <button class="underline" @click="backfill.stop()">停止</button>
       </div>
     </SettingRow>
-    <button class="text-xs text-muted underline" @click="clearCache">
-      清除已下載的語音模型與發音快取
-    </button>
-    <p class="text-xs text-muted">發音設定只存在這台裝置，不會同步。</p>
+    <div class="space-y-1.5 text-xs text-muted">
+      <p>發音設定只存在這台裝置，不會同步。</p>
+      <button class="underline" @click="clearCache">清除已下載的語音模型與發音快取</button>
+    </div>
   </div>
 </template>
