@@ -3,6 +3,17 @@ import { langLabel } from '@/db/defaults'
 import { uid } from './id'
 import { emptySched, State } from './fsrs'
 
+/** The exact text of `word` inside a sentence (as a whole word for en), or undefined. */
+export function findWordMark(word: string, lang: Lang, sentence: string): string | undefined {
+  const w = word.trim()
+  if (!w) return undefined
+  if (lang === 'en') {
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return new RegExp(`(?<![A-Za-z])${escaped}(?![A-Za-z])`, 'i').exec(sentence)?.[0]
+  }
+  return sentence.includes(w) ? w : undefined
+}
+
 export const templateLabel = (t?: CardTemplate) =>
   !t || t.type === 'basic'
     ? '正反卡'
