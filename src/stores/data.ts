@@ -153,6 +153,15 @@ export const useData = defineStore('data', () => {
     return archivedNodes.value.map(build)
   })
 
+  /** ids inside a paused deck (the paused deck itself included) */
+  const pausedIds = computed(() => {
+    const paused = new Set<string>()
+    for (const n of nodes.value) {
+      if (n.paused) for (const id of subtreeIds(nodes.value, n.id)) paused.add(id)
+    }
+    return paused
+  })
+
   const nodeById = computed(() => new Map(nodes.value.map((n) => [n.id, n])))
   const cardById = computed(() => new Map(cards.value.map((c) => [c.id, c])))
   const cardsByDeck = computed(() => {
@@ -206,11 +215,13 @@ export const useData = defineStore('data', () => {
     // reverse cards are not limited per day, so they are counted apart
     let revNew = 0
     let revReviewDue = 0
+    const deckPaused = pausedIds.value.has(deckId)
     for (const c of list) {
       if (!isStudyable(c)) {
         if (!c.suspended) s.drafts++
         continue
       }
+      if (deckPaused) continue
       for (const side of sidesOf(c)) {
         const sched = schedOf(c, side)
         const st = sched.state
@@ -325,6 +336,11 @@ export const useData = defineStore('data', () => {
       for (const [i, id] of ids.entries())
         await db.nodes.update(id, { order: i + 1, updatedAt: stamp() })
     })
+    markLocalChange()
+  }
+
+  async function setPaused(id: string, paused: boolean) {
+    await db.nodes.update(id, { paused: paused || undefined, updatedAt: stamp() })
     markLocalChange()
   }
 
@@ -488,6 +504,13 @@ export const useData = defineStore('data', () => {
     await db.cards.put(copy)
     markLocalChange()
     return copy
+  }
+
+  async function addCards(cards: Card[]) {
+    const t = stamp()
+    const list = cards.map((c) => ({ ...c, updatedAt: t }))
+    await db.cards.bulkPut(list)
+    markLocalChange()
   }
 
   /**
@@ -670,10 +693,13 @@ export const useData = defineStore('data', () => {
     reorderNodes,
     deleteNode,
     setArchived,
+    setPaused,
+    pausedIds,
     listDeleted,
     restoreNode,
     purgeDeleted,
     saveCard,
+    addCards,
     syncRelations,
     patchCards,
     resetCards,
