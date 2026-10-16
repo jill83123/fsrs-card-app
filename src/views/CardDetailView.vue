@@ -135,8 +135,14 @@ async function remove() {
 }
 async function reset() {
   if (!card.value) return
-  if (!(await ui.confirm('重設這張卡片的學習進度？', { danger: true, confirmText: '重設' }))) return
-  await data.resetCards([card.value.id])
+  const res = await ui.confirmCheck('重設這張卡片的學習進度？', {
+    message: '卡片會回到「新卡」狀態。',
+    checkLabel: '同時刪除複習紀錄（統計也會一併移除）',
+    danger: true,
+    confirmText: '重設',
+  })
+  if (!res) return
+  await data.resetCards([card.value.id], res.checked)
 }
 async function rerate(g: Grade) {
   const log = latest.value

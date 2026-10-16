@@ -14,6 +14,8 @@ export interface DialogState {
   confirmText: string
   cancelText: string
   danger: boolean
+  /** an extra tick box under the message */
+  check?: { label: string; value: boolean }
   input?: { value: string; placeholder?: string }
   resolve: (v: string | boolean | null) => void
 }
@@ -49,6 +51,25 @@ export const useUi = defineStore('ui', () => {
     })
   }
 
+  /** Like `confirm`, with a tick box; resolves to its value, or null when cancelled. */
+  function confirmCheck(
+    title: string,
+    opts: { message?: string; confirmText?: string; danger?: boolean; checkLabel: string },
+  ): Promise<{ checked: boolean } | null> {
+    return new Promise((resolve) => {
+      const check = { label: opts.checkLabel, value: false }
+      dialog.value = {
+        title,
+        message: opts.message,
+        confirmText: opts.confirmText ?? '確定',
+        cancelText: '取消',
+        danger: opts.danger ?? false,
+        check,
+        resolve: (v) => resolve(v ? { checked: check.value } : null),
+      }
+    })
+  }
+
   function prompt(
     title: string,
     opts: { value?: string; placeholder?: string; confirmText?: string; message?: string } = {},
@@ -72,5 +93,5 @@ export const useUi = defineStore('ui', () => {
     d?.resolve(result)
   }
 
-  return { toasts, dialog, toast, dismiss, confirm, prompt, closeDialog }
+  return { toasts, dialog, toast, dismiss, confirm, confirmCheck, prompt, closeDialog }
 })

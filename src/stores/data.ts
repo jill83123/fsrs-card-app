@@ -198,8 +198,9 @@ export const useData = defineStore('data', () => {
       if (!c) continue
       const e = m.get(c.deckId) ?? { newDone: 0, reviewDone: 0, all: 0 }
       e.all++
-      // the reverse side is not counted against the daily limits
-      if (l.side !== 'r') {
+      // the reverse side is not counted against the daily limits; neither is a card that is
+      // new again (reset), which has gone back into the pool
+      if (l.side !== 'r' && c.sched.state !== State.New) {
         if (l.prev.state === State.New) e.newDone++
         else if (l.prev.state === State.Review) e.reviewDone++
       }
@@ -558,9 +559,16 @@ export const useData = defineStore('data', () => {
     markLocalChange()
   }
 
-  async function resetCards(ids: string[]) {
+  /** Put cards back to new; `clearLogs` also deletes their review logs (and so their stats). */
+  async function resetCards(ids: string[], clearLogs = false) {
     const t = stamp()
     await db.transaction('rw', db.cards, db.logs, async () => {
+      if (clearLogs)
+        await db.logs
+          .where('cardId')
+          .anyOf(ids)
+          .filter((l) => !l.deleted)
+          .modify({ deleted: true, updatedAt: t })
       for (const id of ids) {
         const c = await db.cards.get(id)
         if (!c) continue

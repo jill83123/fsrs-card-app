@@ -7,6 +7,8 @@ import { useData } from '@/stores/data'
 import { useTicker } from '@/composables/useTicker'
 import { formatCountdown } from '@/lib/date'
 import { decksInScope } from '@/lib/tree'
+import { emptyPick, setPick, type NewPick } from '@/lib/newPick'
+import NewPickSheet from './NewPickSheet.vue'
 
 const props = defineProps<{ scope: string | null }>()
 const data = useData()
@@ -47,6 +49,11 @@ const soleDeckName = computed(
   () => data.nodes.find((n) => n.id === pickable.value[0])?.name ?? '此牌組',
 )
 
+// which new cards to learn: chosen in the sheet each time, starting from the default
+const pick = ref<NewPick>(emptyPick())
+const showNewPick = ref(false)
+watch(showNewPick, (open) => open && (pick.value = emptyPick()))
+
 const stats = computed(() =>
   partial.value ? data.decksStats(picked.value) : data.scopeStats(props.scope),
 )
@@ -77,7 +84,10 @@ const allCountdown = computed(() =>
     學習範圍：{{ partial ? `${pickedCount} / ${pickable.length} 個牌組` : '全部' }}
     <ChevronRight :size="14" class="shrink-0" />
   </button>
-  <p v-else-if="pickable.length === 1" class="mb-2 flex items-center gap-1 text-xs font-medium text-muted">
+  <p
+    v-else-if="pickable.length === 1"
+    class="mb-2 flex items-center gap-1 text-xs font-medium text-muted"
+  >
     <Layers :size="14" class="shrink-0" />
     學習範圍：{{ soleDeckName }}
   </p>
@@ -95,7 +105,7 @@ const allCountdown = computed(() =>
     <button
       class="flex items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-primary-soft px-1 py-2.5 text-primary-strong transition active:scale-95 disabled:opacity-40 dark:text-ink"
       :disabled="!stats.newAvail"
-      @click="router.push({ path: '/study/learn', query: q })"
+      @click="showNewPick = true"
     >
       <Sparkles :size="16" class="shrink-0" />
       <span class="text-sm font-bold">新學習</span>
@@ -110,10 +120,19 @@ const allCountdown = computed(() =>
       <span class="text-sm font-bold">練習</span>
     </button>
   </div>
-  <p v-if="ready && countdown" class="mt-2! flex items-center gap-1 text-xs tabular-nums text-muted">
+  <p
+    v-if="ready && countdown"
+    class="mt-2! flex items-center gap-1 text-xs tabular-nums text-muted"
+  >
     <Timer :size="12" class="shrink-0" />
     {{ stats.learningWaiting }} 張卡片等待中，{{ allCountdown }} 後可複習全部
   </p>
   <div v-if="$slots.default" class="mt-3"><slot /></div>
+  <NewPickSheet
+    v-model="showNewPick"
+    v-model:pick="pick"
+    :decks="picked"
+    @start="(setPick(scope, pick), router.push({ path: '/study/learn', query: q }))"
+  />
   <DeckPickSheet v-model="showPick" v-model:excluded="excluded" :scope="scope" :decks="allDecks" />
 </template>

@@ -43,6 +43,10 @@ function submit() {
           <p v-if="ui.dialog.message" class="text-sm whitespace-pre-line text-muted">
             {{ ui.dialog.message }}
           </p>
+          <label v-if="ui.dialog.check" class="flex items-start gap-2 text-sm font-medium">
+            <input v-model="ui.dialog.check.value" type="checkbox" class="mt-0.5 size-4" />
+            {{ ui.dialog.check.label }}
+          </label>
           <input
             v-if="ui.dialog.input"
             ref="inputEl"
