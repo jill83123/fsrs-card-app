@@ -189,10 +189,9 @@
   - Naver 韓中詞典（韓文，額外加入的預設，可刪除）：`https://korean.dict.naver.com/kozhdict/#/search?query={word}`
 - 在複習、練習、預覽卡片時，可以點擊字典按鈕查詢。**因為這些網站都禁止被內嵌（iframe），所以一律開新分頁顯示查詢結果。**
 
-## 12. OCR 新增單字【已確認：Tesseract.js】
+## 12. OCR 新增單字【已移除】
 
-- 使用 Tesseract.js 在本機辨識，首次使用某語言時會下載語言檔（英文約 4MB，日文／韓文約 10MB 以上）。
-- 流程：選擇或拍攝圖片 → 選擇語言 → 辨識 → 顯示辨識結果，可以點選單字或直接編輯文字 → 勾選要加入的單字 → 批次建立成「未完成」的單字卡（之後再補上意思）。
+- 原本以 Tesseract.js 在本機辨識圖片文字並批次新增單字，已移除功能與 tesseract.js 依賴。
 
 ## 13. Google Drive 同步與備份【已確認：多裝置同步＋備份；自動、手動各保留 3 份】
 
@@ -251,5 +250,5 @@
 | TTS | Kokoro-82M（日文、英文）、Piper 官方聲音＋espeak-ng（韓文），皆以 onnxruntime-web 執行；Web Speech API 備用 |
 | OCR | tesseract.js 7 |
 | 雲端 | Google Identity Services ＋ Drive REST v3（appDataFolder） |
-| PWA | vite-plugin-pwa（提示更新，離線可用；TTS／OCR 模型與 WASM 使用 runtime 快取）。App 回到前景時與每小時檢查一次新版；發現新版時底部顯示「有新版本可用〔稍後〕〔重新整理〕」，不自動重新整理，避免中斷複習【已確認】。按「稍後」或沒處理時，關閉所有分頁後下次開啟會是新版。 |
+| PWA | vite-plugin-pwa（提示更新，離線可用；TTS 模型與 WASM 使用 runtime 快取）。App 回到前景時與每小時檢查一次新版；發現新版時底部顯示「有新版本可用〔稍後〕〔重新整理〕」，不自動重新整理，避免中斷複習【已確認】。按「稍後」或沒處理時，關閉所有分頁後下次開啟會是新版。 |
 | 部署 | GitHub Pages，使用 GitHub Actions 自動建置；`base: './'`，不需要寫死 repo 名稱 |
