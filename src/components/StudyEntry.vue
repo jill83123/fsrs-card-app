@@ -43,6 +43,9 @@ const pickable = computed(() =>
 )
 const pickedCount = computed(() => pickable.value.filter((id) => !excluded.value.has(id)).length)
 const showPick = ref(false)
+const soleDeckName = computed(
+  () => data.nodes.find((n) => n.id === pickable.value[0])?.name ?? '此牌組',
+)
 
 const stats = computed(() =>
   partial.value ? data.decksStats(picked.value) : data.scopeStats(props.scope),
@@ -58,6 +61,9 @@ const ready = computed(() => stats.value.dueAvail - stats.value.learningWaiting)
 const countdown = computed(() =>
   stats.value.learningWaiting ? formatCountdown(stats.value.nextDue - now.value) : '',
 )
+const allCountdown = computed(() =>
+  stats.value.learningWaiting ? formatCountdown(stats.value.lastDue - now.value) : '',
+)
 </script>
 
 <template>
@@ -71,9 +77,13 @@ const countdown = computed(() =>
     學習範圍：{{ partial ? `${pickedCount} / ${pickable.length} 個牌組` : '全部' }}
     <ChevronRight :size="14" class="shrink-0" />
   </button>
+  <p v-else-if="pickable.length === 1" class="mb-2 flex items-center gap-1 text-xs font-medium text-muted">
+    <Layers :size="14" class="shrink-0" />
+    學習範圍：{{ soleDeckName }}
+  </p>
   <div class="grid grid-cols-3 gap-2">
     <button
-      class="flex items-center justify-center gap-1.5 rounded-xl bg-primary px-2 py-2.5 text-white transition active:scale-95 disabled:opacity-40"
+      class="flex items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-primary px-1 py-2.5 text-white transition active:scale-95 disabled:opacity-40"
       :disabled="!stats.dueAvail"
       @click="router.push({ path: '/study/review', query: q })"
     >
@@ -83,7 +93,7 @@ const countdown = computed(() =>
       <span v-else class="text-xs tabular-nums opacity-90">{{ countdown }}</span>
     </button>
     <button
-      class="flex items-center justify-center gap-1.5 rounded-xl bg-primary-soft px-2 py-2.5 text-primary-strong transition active:scale-95 disabled:opacity-40 dark:text-ink"
+      class="flex items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-primary-soft px-1 py-2.5 text-primary-strong transition active:scale-95 disabled:opacity-40 dark:text-ink"
       :disabled="!stats.newAvail"
       @click="router.push({ path: '/study/learn', query: q })"
     >
@@ -92,7 +102,7 @@ const countdown = computed(() =>
       <span class="text-sm tabular-nums opacity-80">{{ stats.newAvail }}</span>
     </button>
     <button
-      class="flex items-center justify-center gap-1.5 rounded-xl bg-surface-2 px-2 py-2.5 text-ink transition active:scale-95 disabled:opacity-40"
+      class="flex items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-surface-2 px-1 py-2.5 text-ink transition active:scale-95 disabled:opacity-40"
       :disabled="!stats.total"
       @click="router.push({ path: '/practice', query: q })"
     >
@@ -100,9 +110,9 @@ const countdown = computed(() =>
       <span class="text-sm font-bold">練習</span>
     </button>
   </div>
-  <p v-if="ready && countdown" class="mt-2 flex items-center gap-1 text-xs tabular-nums text-muted">
+  <p v-if="ready && countdown" class="mt-2! flex items-center gap-1 text-xs tabular-nums text-muted">
     <Timer :size="12" class="shrink-0" />
-    另有 {{ stats.learningWaiting }} 張學習中，{{ countdown }} 後可複習
+    {{ stats.learningWaiting }} 張卡片等待中，{{ allCountdown }} 後可複習全部
   </p>
   <div v-if="$slots.default" class="mt-3"><slot /></div>
   <DeckPickSheet v-model="showPick" v-model:excluded="excluded" :scope="scope" :decks="allDecks" />
