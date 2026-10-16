@@ -5,7 +5,7 @@ import { db, markLocalChange, stamp } from '@/db'
 import type { Card, DeckColor, Relations, ReviewLogRecord, TreeNode, VocabCard } from '@/db/types'
 import { addDays, studyDayEnd, studyDayOf, studyDayStart } from '@/lib/date'
 import { uid } from '@/lib/id'
-import { activeSides, isStudyable, schedOf, type Side } from '@/lib/cards'
+import { activeSides, findWordMark, isStudyable, schedOf, type Side } from '@/lib/cards'
 import { childrenOf, decksInScope, effectiveLimits, effectiveReverse, subtreeIds } from '@/lib/tree'
 import { purgeExpired, type ArchivedDeck, type DeletedDeck } from '@/lib/purge'
 import { makeScheduler, State, toFsrs, fromFsrs, type Grade } from '@/lib/fsrs'
@@ -84,6 +84,7 @@ export const useData = defineStore('data', () => {
       allCards.value = v
       done()
     })
+    void migrateExampleMarks()
     void purgeExpired().then((n) => n && markLocalChange())
     watch(
       today,
@@ -106,6 +107,43 @@ export const useData = defineStore('data', () => {
       .filter((x) => x.kind !== 'deck')
       .modify({ kind: 'deck', updatedAt: stamp() })
     if (n) markLocalChange()
+  }
+
+  /**
+   * One-time, per device: mark the word in the examples of cards saved before examples were
+   * marked automatically. Runs once so a mark the user removed by hand does not come back.
+   */
+  async function migrateExampleMarks() {
+    const KEY = 'sr.exampleMarksMigrated'
+    try {
+      if (localStorage.getItem(KEY)) return
+      const t = stamp()
+      let changed = 0
+      await db.transaction('rw', db.cards, async () => {
+        await db.cards
+          .filter((c) => !c.deleted && c.type === 'vocab')
+          .modify((c) => {
+            if (c.type !== 'vocab') return
+            let touched = false
+            for (const e of c.examples) {
+              if (e.marks?.length) continue
+              const found = findWordMark(c.word, c.lang, e.sentence)
+              if (found) {
+                e.marks = [found]
+                touched = true
+              }
+            }
+            if (touched) {
+              c.updatedAt = t
+              changed++
+            }
+          })
+      })
+      localStorage.setItem(KEY, '1')
+      if (changed) markLocalChange()
+    } catch {
+      /* try again next time */
+    }
   }
 
   /** ids inside an archived deck (the archived deck itself included) */

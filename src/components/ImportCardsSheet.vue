@@ -10,7 +10,7 @@ import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { effectiveTemplate } from '@/lib/tree'
 import { uid } from '@/lib/id'
-import { newVocabCard } from '@/lib/cards'
+import { findWordMark, newVocabCard } from '@/lib/cards'
 import { importPrompt, parseImport, type ImportResult } from '@/lib/importCards'
 
 const props = defineProps<{ deckId: string }>()
@@ -70,7 +70,10 @@ async function run() {
     const c = newVocabCard(props.deckId, lang.value, r.word)
     c.meaning = r.meaning
     c.pos = r.pos
-    c.examples = r.examples.map((e) => ({ id: uid(), ...e }))
+    c.examples = r.examples.map((e) => {
+      const mark = findWordMark(r.word, lang.value, e.sentence)
+      return { id: uid(), ...e, ...(mark ? { marks: [mark] } : {}) }
+    })
     c.createdAt = base + i
     return c
   })

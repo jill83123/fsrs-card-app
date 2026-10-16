@@ -15,7 +15,7 @@ import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { LANGS } from '@/db/defaults'
 import type { BasicCard, Card, Example, Lang, VocabCard } from '@/db/types'
-import { isComplete, newBasicCard, newVocabCard } from '@/lib/cards'
+import { findWordMark, isComplete, newBasicCard, newVocabCard } from '@/lib/cards'
 import { uid } from '@/lib/id'
 import { moved, useDragSort } from '@/composables/useDragSort'
 import { pathTo } from '@/lib/tree'
@@ -205,15 +205,8 @@ const autoOff = new Set<string>()
 /** Mark the card's word in a sentence when it appears exactly (as a whole word for en). */
 function autoMark(ex: Example) {
   const v = vocab.value
-  const w = v?.word.trim()
-  if (!v || !w || ex.marks?.length || autoOff.has(ex.id)) return
-  let found: string | undefined
-  if (v.lang === 'en') {
-    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    found = new RegExp(`(?<![A-Za-z])${escaped}(?![A-Za-z])`, 'i').exec(ex.sentence)?.[0]
-  } else if (ex.sentence.includes(w)) {
-    found = w
-  }
+  if (!v || !v.word.trim() || ex.marks?.length || autoOff.has(ex.id)) return
+  const found = findWordMark(v.word, v.lang, ex.sentence)
   if (found) ex.marks = [found]
 }
 
