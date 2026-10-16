@@ -5,6 +5,7 @@ import type { Card, Example } from '@/db/types'
 import MarkdownView from './MarkdownView.vue'
 import SpeakButton from './SpeakButton.vue'
 import DictLinks from './DictLinks.vue'
+import ExampleText from './ExampleText.vue'
 import { useSettings } from '@/stores/settings'
 import { prefetchSpeech, speak } from '@/lib/tts'
 
@@ -13,6 +14,8 @@ const props = defineProps<{
   revealed: boolean
   /** vocab only: reverse = meaning → word */
   reverse?: boolean
+  /** show every example in the saved order, numbered, instead of one random pick */
+  listExamples?: boolean
 }>()
 
 const settings = useSettings()
@@ -34,7 +37,10 @@ const showExample = ref(false)
 const showAllExamples = ref(false)
 
 function reset() {
-  pick.value = examples.value.length ? Math.floor(Math.random() * examples.value.length) : 0
+  pick.value =
+    examples.value.length && !props.listExamples
+      ? Math.floor(Math.random() * examples.value.length)
+      : 0
   showExample.value = false
   showAllExamples.value = false
 }
@@ -116,7 +122,9 @@ watch(
         <MessageSquareQuote :size="16" /> 查看例句
       </button>
       <div v-else class="flex w-full items-start gap-1 rounded-2xl bg-surface-2 px-4 py-3">
-        <p class="flex-1">{{ picked.sentence }}</p>
+        <p class="flex-1">
+          <ExampleText :sentence="picked.sentence" :marks="picked.marks" />
+        </p>
         <SpeakButton :text="picked.sentence" :lang="card.lang" class="-my-1.5" />
       </div>
     </div>
@@ -141,10 +149,33 @@ watch(
         <p class="min-h-7 text-lg whitespace-pre-line">{{ card.meaning }}</p>
       </div>
 
-      <div v-if="picked" class="space-y-2">
+      <div v-if="listExamples && examples.length" class="space-y-2">
+        <div v-for="(e, i) in examples" :key="e.id" class="rounded-2xl bg-surface-2 px-4 py-3">
+          <div class="flex items-start gap-2">
+            <span
+              v-if="examples.length > 1"
+              class="w-4 shrink-0 pt-0.5 text-sm font-bold text-muted"
+            >
+              {{ i + 1 }}
+            </span>
+            <p class="flex-1"><ExampleText :sentence="e.sentence" :marks="e.marks" /></p>
+            <SpeakButton :text="e.sentence" :lang="card.lang" class="-my-1.5" />
+          </div>
+          <p
+            v-if="e.translation"
+            class="mt-1 text-sm text-muted"
+            :class="{ 'pl-6': examples.length > 1 }"
+          >
+            {{ e.translation }}
+          </p>
+        </div>
+      </div>
+      <div v-else-if="picked" class="space-y-2">
         <div class="rounded-2xl bg-surface-2 px-4 py-3">
           <div class="flex items-start gap-1">
-            <p class="flex-1">{{ picked.sentence }}</p>
+            <p class="flex-1">
+              <ExampleText :sentence="picked.sentence" :marks="picked.marks" />
+            </p>
             <SpeakButton :text="picked.sentence" :lang="card.lang" class="-my-1.5" />
           </div>
           <p v-if="picked.translation" class="mt-1 text-sm text-muted">{{ picked.translation }}</p>
@@ -160,7 +191,7 @@ watch(
           <div v-else class="space-y-2">
             <div v-for="e in others" :key="e.id" class="rounded-2xl bg-surface-2 px-4 py-3">
               <div class="flex items-start gap-1">
-                <p class="flex-1">{{ e.sentence }}</p>
+                <p class="flex-1"><ExampleText :sentence="e.sentence" :marks="e.marks" /></p>
                 <SpeakButton :text="e.sentence" :lang="card.lang" class="-my-1.5" />
               </div>
               <p v-if="e.translation" class="mt-1 text-sm text-muted">{{ e.translation }}</p>

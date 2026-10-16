@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { BookOpen, Eye, GripVertical, Plus, Sparkles, Trash2 } from '@lucide/vue'
+import { BookOpen, Eye, GripVertical, Highlighter, Plus, Sparkles, Trash2, X } from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PillTabs from '@/components/PillTabs.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -85,6 +85,7 @@ async function applyDict(picked: {
   const known = new Set(settings.synced.pos[v.lang].map((o) => o.id))
   for (const p of picked.pos) if (known.has(p) && !v.pos.includes(p)) v.pos.push(p)
   v.examples.push(...picked.examples)
+  picked.examples.forEach(autoMark)
   for (const kind of ['syn', 'ant', 'der'] as const)
     for (const w of picked.related[kind]) relEditor.value?.linkWord(kind, w)
   if (!v.reading.trim() && canAutoReading(v.lang)) {
@@ -191,6 +192,48 @@ const exDrag = useDragSort((from, to) => {
   if (v) v.examples = moved(v.examples, from, to)
 })
 
+/** Grow a textarea with its text, so a one-line sentence takes one line. */
+function fit(el: HTMLElement) {
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+const vAutosize = { mounted: fit, updated: fit }
+
+// examples whose automatic mark the user removed by hand: do not add it again
+const autoOff = new Set<string>()
+
+/** Mark the card's word in a sentence when it appears exactly (as a whole word for en). */
+function autoMark(ex: Example) {
+  const v = vocab.value
+  const w = v?.word.trim()
+  if (!v || !w || ex.marks?.length || autoOff.has(ex.id)) return
+  let found: string | undefined
+  if (v.lang === 'en') {
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    found = new RegExp(`(?<![A-Za-z])${escaped}(?![A-Za-z])`, 'i').exec(ex.sentence)?.[0]
+  } else if (ex.sentence.includes(w)) {
+    found = w
+  }
+  if (found) ex.marks = [found]
+}
+
+/** Color the text currently selected in this example's sentence box. */
+function markSelection(e: Event, ex: Example) {
+  const box = (e.currentTarget as HTMLElement)
+    .closest('[data-sort-item]')
+    ?.querySelector('textarea')
+  if (!box) return
+  const text = box.value.slice(box.selectionStart, box.selectionEnd).trim()
+  if (!text) return ui.toast('請先在例句中選取要標示的文字', 'info')
+  if (!ex.marks?.includes(text)) (ex.marks ??= []).push(text)
+}
+
+function unmark(ex: Example, text: string) {
+  autoOff.add(ex.id)
+  ex.marks = ex.marks?.filter((m) => m !== text)
+  if (!ex.marks?.length) delete ex.marks
+}
+
 function addExample() {
   vocab.value?.examples.push({ id: uid(), sentence: '', translation: '' })
 }
@@ -203,6 +246,11 @@ async function save(next = false) {
     return ui.toast(c.type === 'basic' ? '至少要填寫正面' : '至少要填寫單字', 'error')
   if (c.type === 'vocab') {
     c.examples = c.examples.filter((e) => e.sentence.trim() || e.translation.trim())
+    // marks whose text was edited away no longer apply
+    for (const e of c.examples) {
+      e.marks = e.marks?.filter((m) => e.sentence.includes(m))
+      if (!e.marks?.length) delete e.marks
+    }
     localStorage.setItem(LAST_LANG, c.lang)
   }
   const before = original.value ? (JSON.parse(original.value) as Card) : null
@@ -414,8 +462,54 @@ const previewRevealed = ref(false)
                   <Trash2 :size="16" />
                 </button>
               </div>
-              <textarea v-model="e.sentence" rows="2" class="input" placeholder="例句" />
-              <textarea v-model="e.translation" rows="2" class="input" placeholder="翻譯" />
+              <!-- sentence and translation share one box, so they read as a pair -->
+              <div
+                class="overflow-hidden rounded-xl border border-line bg-surface focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+              >
+                <textarea
+                  v-model="e.sentence"
+                  v-autosize
+                  rows="1"
+                  class="block w-full resize-none overflow-hidden bg-transparent px-3.5 py-2.5 outline-none placeholder:text-muted"
+                  placeholder="例句"
+                  @blur="autoMark(e)"
+                />
+                <textarea
+                  v-model="e.translation"
+                  v-autosize
+                  rows="1"
+                  class="block w-full resize-none overflow-hidden border-t border-dashed border-line bg-transparent px-3.5 py-2.5 text-muted outline-none placeholder:text-muted"
+                  placeholder="翻譯"
+                />
+              </div>
+              <div class="flex flex-wrap items-center gap-2 pt-1.5">
+                <button
+                  type="button"
+                  class="icon-btn size-8 shrink-0 bg-surface-2"
+                  aria-label="標示選取的文字"
+                  title="標示選取的文字"
+                  @mousedown.prevent
+                  @click="markSelection($event, e)"
+                >
+                  <Highlighter :size="15" />
+                </button>
+                <span
+                  v-if="!e.marks?.some((x) => e.sentence.includes(x))"
+                  class="text-xs text-muted"
+                >
+                  選取文字後點此標示單字
+                </span>
+                <span
+                  v-for="m in (e.marks ?? []).filter((x) => e.sentence.includes(x))"
+                  :key="m"
+                  class="chip chip-on gap-1 pr-1.5"
+                >
+                  {{ m }}
+                  <button type="button" :aria-label="`取消標示 ${m}`" @click="unmark(e, m)">
+                    <X :size="14" />
+                  </button>
+                </span>
+              </div>
             </div>
             <button type="button" class="btn btn-ghost w-full" @click="addExample">
               <Plus :size="18" /> 新增例句

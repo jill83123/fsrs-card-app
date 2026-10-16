@@ -216,34 +216,7 @@ function answer(ok: boolean) {
   next()
 }
 
-function onKey(e: KeyboardEvent) {
-  if (!running.value || !cur.value || e.target instanceof HTMLInputElement) return
-  if (cur.value.spell) {
-    if (checked.value && e.key === 'Enter') {
-      e.preventDefault()
-      confirmSpell()
-    }
-    return
-  }
-  if (!revealed.value && (e.key === ' ' || e.key === 'Enter')) {
-    e.preventDefault()
-    revealed.value = true
-  } else if (revealed.value) {
-    if (e.key === '1') {
-      e.preventDefault()
-      answer(false)
-    }
-    if (e.key === '2' || e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault()
-      answer(true)
-    }
-  }
-}
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKey)
-  stopSpeaking()
-})
+onBeforeUnmount(stopSpeaking)
 
 // ----- summary: cards that were forgotten --------------------------------
 const forgottenCards = computed(() =>
@@ -425,10 +398,7 @@ const progress = computed(() => {
     </div>
 
     <template v-if="curCard && cur">
-      <section
-        class="card flex min-h-[45dvh] flex-1 flex-col justify-center px-6 py-8"
-        @click="cur.spell || (revealed = true)"
-      >
+      <section class="card flex min-h-[45dvh] flex-1 flex-col justify-center px-6 py-8">
         <!-- spelling by listening: play the word and its example, show nothing -->
         <div v-if="listen && curCard.type === 'vocab'" class="space-y-6 text-center">
           <div class="flex items-start justify-center gap-8">

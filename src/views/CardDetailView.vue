@@ -235,7 +235,7 @@ const openHelp = ref<string | null>(null)
         <TriangleAlert :size="12" />
         未完成，需補齊內容
       </span>
-      <CardFace :card="card" :revealed="revealed" />
+      <CardFace :card="card" :revealed="revealed" list-examples />
     </section>
     <section v-if="related.length" class="card mb-3 space-y-3">
       <div v-for="g in related" :key="g.label">
