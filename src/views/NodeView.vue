@@ -61,6 +61,12 @@ function onDeleted(parentId: string | null) {
 <template>
   <div v-if="node">
     <PageHeader :title="node.name" :back="node.parentId ? `/node/${node.parentId}` : '/'">
+      <template v-if="path.length" #subtitle>
+        <template v-for="(p, i) in path" :key="p.id">
+          <RouterLink :to="`/node/${p.id}`" class="hover:text-primary">{{ p.name }}</RouterLink>
+          <span v-if="i < path.length - 1"> / </span>
+        </template>
+      </template>
       <template #right>
         <button class="icon-btn" aria-label="統計" @click="router.push(`/node/${node.id}/stats`)">
           <BarChart3 :size="18" />
@@ -71,20 +77,12 @@ function onDeleted(parentId: string | null) {
       </template>
     </PageHeader>
 
-    <nav
-      v-if="path.length"
-      class="-mt-2 mb-3 flex flex-wrap items-center justify-center gap-1 text-xs text-muted"
-    >
-      <template v-for="(p, i) in path" :key="p.id">
-        <RouterLink :to="`/node/${p.id}`" class="hover:text-primary">{{ p.name }}</RouterLink>
-        <span v-if="i < path.length - 1">/</span>
-      </template>
-    </nav>
+    <section class="card mb-2.5">
+      <StudyEntry :scope="node.id" />
+    </section>
 
-    <section class="card mb-4">
-      <StudyEntry :scope="node.id">
-        <CardStateBar v-if="scopeCards.length" :cards="scopeCards" compact />
-      </StudyEntry>
+    <section v-if="scopeCards.length" class="card mb-4">
+      <CardStateBar :cards="scopeCards" compact />
     </section>
 
     <!-- add actions -->

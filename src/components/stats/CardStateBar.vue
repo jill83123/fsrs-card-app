@@ -38,7 +38,7 @@ const segments = computed(() => {
     <div
       v-if="cards.length"
       class="flex gap-[2px] overflow-hidden"
-      :class="compact ? 'mb-2 h-1.5 rounded-full' : 'mb-3 h-3 rounded-[4px]'"
+      :class="compact ? 'mb-2 h-2.5 rounded-full' : 'mb-3 h-3 rounded-[4px]'"
     >
       <div
         v-for="s in segments.filter((x) => x.n)"
