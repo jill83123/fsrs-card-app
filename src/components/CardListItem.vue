@@ -58,19 +58,23 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
     >
       <Check v-if="selected" :size="14" />
     </span>
-    <div class="min-w-0 flex-1">
-      <div class="flex items-center gap-1.5">
-        <span
-          v-if="card.type === 'vocab'"
-          class="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-muted"
-        >
-          {{ langShort }}
-        </span>
+    <!-- badge gets its own column so the subtitle lines up under the word -->
+    <div class="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-1.5">
+      <span
+        v-if="card.type === 'vocab'"
+        class="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-muted"
+      >
+        {{ langShort }}
+      </span>
+      <div class="flex items-center gap-1.5" :class="card.type === 'vocab' ? '' : 'col-span-2'">
         <span class="truncate font-semibold">{{ cardTitle(card) || '（空白）' }}</span>
         <Star v-if="card.starred" :size="14" class="shrink-0 fill-warn text-warn" />
         <PauseCircle v-if="card.suspended" :size="14" class="shrink-0 text-muted" />
       </div>
-      <div class="flex min-h-5 items-center gap-1.5 text-sm text-muted">
+      <div
+        class="flex min-h-5 items-center gap-1.5 text-sm text-muted"
+        :class="card.type === 'vocab' ? 'col-start-2' : 'col-span-2'"
+      >
         <template v-if="complete">
           <span
             v-for="p in posTags"
