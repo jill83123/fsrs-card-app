@@ -26,21 +26,58 @@ export interface StudySession extends SessionSnapshot {
   history: { key: string; logId: string; snap: SessionSnapshot }[]
 }
 
-interface BuildInput {
-  mode: StudyMode
-  scope: string | null
-  /** Only these decks of the scope (all when omitted). */
-  decks?: string[]
-  nodes: TreeNode[]
+/** Narrows which new cards a learn session takes. */
+export interface NewFilter {
+  side: 'all' | 'f' | 'r'
+  /**
+   * Take exactly these cards (by id), whatever the daily limit says. When omitted the session
+   * takes the cards inside each deck's daily limit.
+   */
+  only?: Set<string>
+}
+
+interface NewInput {
   cardsByDeck: Map<string, Card[]>
-  dayEnd: number
   limitsOf: (deckId: string) => { newPerDay: number; reviewPerDay: number }
   doneToday: Map<string, { newDone: number; reviewDone: number }>
   newOrder: 'created' | 'random'
   /** which sides of a card are scheduled (reverse only in decks that turned it on) */
   sidesOf: (card: Card) => Side[]
+}
+
+interface BuildInput extends NewInput {
+  mode: StudyMode
+  scope: string | null
+  /** Only these decks of the scope (all when omitted). */
+  decks?: string[]
+  nodes: TreeNode[]
+  dayEnd: number
+  newFilter?: NewFilter
   /** decks that are paused: skipped */
   paused?: Set<string>
+}
+
+/** Queue keys of the new cards one deck contributes to a learn session. */
+export function newKeys(deckId: string, i: NewInput, f?: NewFilter): string[] {
+  const cards = (i.cardsByDeck.get(deckId) ?? []).filter(isStudyable)
+  let fresh = cards
+    .flatMap((c) =>
+      i.sidesOf(c).map((side) => ({ c, side, key: sideKey(c.id, side), sched: schedOf(c, side) })),
+    )
+    .filter((x) => x.sched.state === State.New && (!f || f.side === 'all' || f.side === x.side))
+  // a word's forward side comes before its reverse side
+  fresh =
+    i.newOrder === 'random'
+      ? shuffle(fresh)
+      : fresh.sort((a, b) => a.c.createdAt - b.c.createdAt || +(a.side === 'r') - +(b.side === 'r'))
+  const only = f?.only
+  if (only) return fresh.filter((x) => only.has(x.c.id)).map((x) => x.key)
+  // the reverse side is not limited per day
+  const limited = fresh.filter((x) => x.side === 'f')
+  const unlimited = fresh.filter((x) => x.side === 'r')
+  const done = i.doneToday.get(deckId) ?? { newDone: 0, reviewDone: 0 }
+  const room = Math.max(0, i.limitsOf(deckId).newPerDay - done.newDone)
+  return [...limited.slice(0, room), ...unlimited].map((x) => x.key)
 }
 
 export function buildSession(key: string, i: BuildInput): StudySession {
@@ -69,25 +106,18 @@ export function buildSession(key: string, i: BuildInput): StudySession {
       for (const x of due)
         if (x.sched.state !== State.Review) learning.push({ id: x.key, due: x.sched.due })
     } else {
-      let fresh = items.filter((x) => x.sched.state === State.New)
-      // a word's forward side comes before its reverse side
-      fresh =
-        i.newOrder === 'random'
-          ? shuffle(fresh)
-          : fresh.sort(
-              (a, b) => a.c.createdAt - b.c.createdAt || +(a.side === 'r') - +(b.side === 'r'),
-            )
-      // the reverse side is not limited per day
-      const limited = fresh.filter((x) => x.side === 'f')
-      const unlimited = fresh.filter((x) => x.side === 'r')
-      main.push(
-        ...limited.slice(0, Math.max(0, lim.newPerDay - done.newDone)).map((x) => x.key),
-        ...unlimited.map((x) => x.key),
-      )
+      main.push(...newKeys(deckId, i, i.newFilter))
     }
   }
   // interleave decks for reviews so one deck doesn't dominate
-  const ordered = i.mode === 'review' ? shuffle(main) : main
+  // and finish every forward card before the first reverse card
+  const ordered =
+    i.mode === 'review'
+      ? [
+          ...shuffle(main.filter((k) => parseKey(k).side === 'f')),
+          ...shuffle(main.filter((k) => parseKey(k).side === 'r')),
+        ]
+      : main
   learning.sort((a, b) => a.due - b.due)
   return {
     key,

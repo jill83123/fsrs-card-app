@@ -116,15 +116,14 @@ async function remove() {
 async function reset() {
   const ids = selectedIds.value
   if (!ids.length) return
-  if (
-    !(await ui.confirm(`重設 ${ids.length} 張卡片的進度？`, {
-      message: '卡片會回到「新卡」狀態。\n舊的複習紀錄會保留在統計中。',
-      danger: true,
-      confirmText: '重設',
-    }))
-  )
-    return
-  await data.resetCards(ids)
+  const res = await ui.confirmCheck(`重設 ${ids.length} 張卡片的進度？`, {
+    message: '卡片會回到「新卡」狀態。',
+    checkLabel: '同時刪除複習紀錄（統計也會一併移除）',
+    danger: true,
+    confirmText: '重設',
+  })
+  if (!res) return
+  await data.resetCards(ids, res.checked)
   ui.toast('已重設', 'success')
 }
 

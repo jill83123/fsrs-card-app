@@ -14,6 +14,7 @@ import { formatCountdown, formatInterval } from '@/lib/date'
 import { useTicker } from '@/composables/useTicker'
 import { isStudyable, parseKey, schedOf, sideKey } from '@/lib/cards'
 import { decksInScope, pickedDecks } from '@/lib/tree'
+import { getPick, isPickActive, toFilter } from '@/lib/newPick'
 import { prefetchSpeech, stopSpeaking } from '@/lib/tts'
 import {
   buildSession,
@@ -68,13 +69,17 @@ const progress = computed(() => {
 })
 
 function start() {
-  const key = `${mode.value}:${scope.value ?? '*'}:${decks.value?.join(',') ?? ''}:${data.today}`
+  const pick = mode.value === 'learn' ? getPick(scope.value) : undefined
+  const key = `${mode.value}:${scope.value ?? '*'}:${decks.value?.join(',') ?? ''}:${data.today}${
+    pick && isPickActive(pick) ? `:${JSON.stringify(pick)}` : ''
+  }`
   let s = getSession(key)
   if (!s || (!remaining(s) && !s.history.length)) {
     s = buildSession(key, {
       mode: mode.value,
       scope: scope.value,
       decks: decks.value,
+      newFilter: pick && toFilter(pick),
       nodes: data.nodes,
       cardsByDeck: data.cardsByDeck,
       dayEnd: data.dayEnd,
