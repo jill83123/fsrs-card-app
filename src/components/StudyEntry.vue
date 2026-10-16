@@ -94,7 +94,7 @@ const allCountdown = computed(() =>
   <div class="grid grid-cols-3 gap-2">
     <button
       class="flex items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-primary px-1 py-2.5 text-white transition active:scale-95 disabled:opacity-40"
-      :disabled="!stats.dueAvail"
+      :disabled="!stats.dueAvail && !stats.dueOver"
       @click="router.push({ path: '/study/review', query: q })"
     >
       <RotateCcw :size="16" class="shrink-0" />
@@ -104,7 +104,7 @@ const allCountdown = computed(() =>
     </button>
     <button
       class="flex items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-primary-soft px-1 py-2.5 text-primary-strong transition active:scale-95 disabled:opacity-40 dark:text-ink"
-      :disabled="!stats.newAvail"
+      :disabled="!stats.newAvail && !stats.newOver"
       @click="showNewPick = true"
     >
       <Sparkles :size="16" class="shrink-0" />
@@ -121,11 +121,19 @@ const allCountdown = computed(() =>
     </button>
   </div>
   <p
-    v-if="ready && countdown"
+    v-if="countdown"
     class="mt-2! flex items-center gap-1 text-xs tabular-nums text-muted"
   >
     <Timer :size="12" class="shrink-0" />
     {{ stats.learningWaiting }} 張卡片等待中，{{ allCountdown }} 後可複習全部
+  </p>
+  <p
+    v-if="stats.dueOver || stats.newOver"
+    class="mt-2! text-xs text-muted"
+  >
+    已達每日上限，還有 <template v-if="stats.dueOver">{{ stats.dueOver }} 張複習卡片</template
+    ><template v-if="stats.dueOver && stats.newOver">、</template
+    ><template v-if="stats.newOver">{{ stats.newOver }} 張新卡片</template>可繼續
   </p>
   <div v-if="$slots.default" class="mt-3"><slot /></div>
   <NewPickSheet

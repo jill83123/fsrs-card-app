@@ -11,7 +11,7 @@ import type { CardTemplate, DeckColor, Lang, TreeNode } from '@/db/types'
 import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
-import { effectiveReverse, effectiveTemplate, pathTo, validParents } from '@/lib/tree'
+import { effectiveLimits, effectiveReverse, effectiveTemplate, pathTo, validParents } from '@/lib/tree'
 import { templateLabel } from '@/lib/cards'
 import PillTabs from './PillTabs.vue'
 import { LANGS } from '@/db/defaults'
@@ -68,6 +68,9 @@ watch(
   (p) => {
     if (!p && form.cardType === 'inherit') form.cardType = 'basic'
   },
+)
+const inherited = computed(() =>
+  effectiveLimits(data.nodes, form.parentId, settings.synced.study),
 )
 const inheritedReverse = computed(() => effectiveReverse(data.nodes, form.parentId))
 const inheritedLabel = computed(() => templateLabel(effectiveTemplate(data.nodes, form.parentId)))
@@ -241,14 +244,14 @@ async function save() {
       </div>
 
       <div class="card space-y-4">
-        <p class="text-sm font-semibold">每日上限（覆寫全域設定）</p>
+        <p class="text-sm font-semibold">每日上限（未覆寫時沿用上層牌組）</p>
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="form.overrideNew" label="覆寫新卡上限" />
             <span class="text-sm">新卡</span>
           </div>
           <NumberStepper v-if="form.overrideNew" v-model="form.newPerDay" :max="9999" />
-          <span v-else class="text-sm text-muted">預設 {{ settings.synced.study.newPerDay }}</span>
+          <span v-else class="text-sm text-muted">沿用{{ inherited.newFrom ? `「${inherited.newFrom}」` : '全域預設' }}的 {{ inherited.newPerDay }}</span>
         </div>
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-3">
@@ -262,7 +265,7 @@ async function save() {
             :step="10"
           />
           <span v-else class="text-sm text-muted"
-            >預設 {{ settings.synced.study.reviewPerDay }}</span
+            >沿用{{ inherited.reviewFrom ? `「${inherited.reviewFrom}」` : '全域預設' }}的 {{ inherited.reviewPerDay }}</span
           >
         </div>
       </div>

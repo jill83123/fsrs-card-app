@@ -198,6 +198,15 @@ async function suspendCurrent() {
   advance()
 }
 
+/** Go past the daily review limit: only a reminder, the user may keep going. */
+function continueOver() {
+  const s = session.value
+  if (!s?.extra.length) return
+  s.main = [...s.extra]
+  s.extra = []
+  advance()
+}
+
 function exit() {
   stopSpeaking()
   router.push(scope.value ? `/node/${scope.value}` : '/')
@@ -340,10 +349,16 @@ const waitText = computed(() =>
     >
       <PartyPopper :size="44" class="text-primary" />
       <p class="text-xl font-bold">
-        {{ session?.done ? '完成了！' : '目前沒有要' + title + '的卡片' }}
+        {{ session?.done ? '完成了！' : session?.extra.length ? '已達今日複習上限' : '目前沒有要' + title + '的卡片' }}
       </p>
       <p v-if="session?.done" class="text-sm text-muted">這一輪共評分 {{ session.done }} 次</p>
+      <p v-if="session?.extra.length" class="text-sm text-muted">
+        還有 {{ session.extra.length }} 張到期卡片超過每日上限，要繼續也可以，只是提醒你。
+      </p>
       <div class="flex gap-2">
+        <button v-if="session?.extra.length" class="btn btn-ghost" @click="continueOver">
+          繼續複習
+        </button>
         <button v-if="session?.history.length" class="btn btn-ghost" @click="undo">
           <Undo2 :size="18" /> 撤銷
         </button>
