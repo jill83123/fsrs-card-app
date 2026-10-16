@@ -32,6 +32,15 @@ const langShort = computed(() =>
     ? LANGS.find((l) => l.id === (props.card as { lang: string }).lang)?.short
     : '',
 )
+const posTags = computed(() => {
+  const c = props.card
+  if (c.type !== 'vocab') return []
+  const opts = settings.synced.pos[c.lang]
+  // options deleted from settings are skipped; "名詞 n." shows as "n.", labels without one whole
+  return c.pos
+    .flatMap((id) => opts.find((o) => o.id === id)?.label ?? [])
+    .map((l) => l.match(/\s([A-Za-z0-9][A-Za-z0-9. -]*)$/)?.[1] ?? l)
+})
 const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
 </script>
 
@@ -61,9 +70,18 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
         <Star v-if="card.starred" :size="14" class="shrink-0 fill-warn text-warn" />
         <PauseCircle v-if="card.suspended" :size="14" class="shrink-0 text-muted" />
       </div>
-      <div class="truncate text-sm text-muted">
-        <span v-if="!complete" class="font-semibold text-warn">未完成</span>
-        <template v-else>{{ cardSubtitle(card) }}</template>
+      <div class="flex min-h-5 items-center gap-1.5 text-sm text-muted">
+        <template v-if="complete">
+          <span
+            v-for="p in posTags"
+            :key="p"
+            class="shrink-0 text-xs font-semibold text-primary"
+          >
+            {{ p }}
+          </span>
+        </template>
+        <span v-if="!complete" class="truncate text-xs font-semibold text-warn">未完成</span>
+        <span v-else class="truncate">{{ cardSubtitle(card) }}</span>
       </div>
     </div>
     <!-- schedule info on the right -->

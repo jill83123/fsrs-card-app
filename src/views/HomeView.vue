@@ -78,7 +78,7 @@ const sorting = ref(false)
         </div>
       </div>
       <StudyEntry :scope="null" />
-      <p v-if="stats.drafts" class="text-xs text-muted">
+      <p v-if="stats.drafts && !stats.dueAvail && !stats.learningWaiting" class="mt-1.5! text-xs text-muted">
         另有 {{ stats.drafts }} 張未完成的卡片不會進入學習。
       </p>
     </section>

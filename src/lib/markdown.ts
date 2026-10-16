@@ -38,6 +38,31 @@ md.inline.ruler.before('emphasis', 'spoiler', (state, silent) => {
   return true
 })
 
+/**
+ * CommonMark refuses `為**「見面」**` (punctuation next to a delimiter with a letter on the
+ * other side), which is everyday Chinese text, so bold ignores the flanking rules here.
+ */
+md.inline.ruler.before('emphasis', 'strong_loose', (state, silent) => {
+  const start = state.pos
+  const src = state.src
+  if (src.charCodeAt(start) !== 0x2a || src.charCodeAt(start + 1) !== 0x2a) return false
+  if (src.charCodeAt(start + 2) === 0x2a || /\s/.test(src.charAt(start + 2))) return false
+  const end = src.indexOf('**', start + 2)
+  if (end < 0 || end >= state.posMax || /\s/.test(src.charAt(end - 1))) return false
+  if (src.charCodeAt(end + 2) === 0x2a || src.slice(start + 2, end).includes('\n')) return false
+  if (!silent) {
+    state.push('strong_open', 'strong', 1)
+    const oldMax = state.posMax
+    state.pos = start + 2
+    state.posMax = end
+    state.md.inline.tokenize(state)
+    state.posMax = oldMax
+    state.push('strong_close', 'strong', -1)
+  }
+  state.pos = end + 2
+  return true
+})
+
 // open links in a new tab
 const defaultLinkOpen =
   md.renderer.rules.link_open ??

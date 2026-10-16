@@ -143,7 +143,13 @@ async function rate(g: Grade) {
     const { log, sched } = await data.applyRating(c.id, g, side)
     s.history.push({ key, logId: log.id, snap })
     s.done++
-    if (sched.state !== State.Review && sched.state !== State.New && sched.due < data.dayEnd) {
+    // new-card study ends with the first rating; its learning steps are done from 複習
+    if (
+      s.mode === 'review' &&
+      sched.state !== State.Review &&
+      sched.state !== State.New &&
+      sched.due < data.dayEnd
+    ) {
       s.learning.push({ id: key, due: sched.due })
     }
     s.current = null

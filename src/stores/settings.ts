@@ -32,7 +32,15 @@ function withDefaultPos(pos: Record<Lang, PosOption[]>) {
   for (const lang of Object.keys(DEFAULT_POS) as Lang[]) {
     const list = pos[lang]
     for (const d of DEFAULT_POS[lang]) {
-      if (!list.some((o) => o.id === d.id)) list.push({ ...d })
+      const saved = list.find((o) => o.id === d.id)
+      if (!saved) list.push({ ...d })
+      // undo the short-lived "名詞 n." wording of the ja/ko defaults
+      else if (
+        lang !== 'en' &&
+        /^[A-Za-z0-9][A-Za-z0-9. -]*$/.test(saved.label.slice(d.label.length + 1)) &&
+        saved.label.startsWith(d.label + ' ')
+      )
+        saved.label = d.label
     }
   }
   return pos

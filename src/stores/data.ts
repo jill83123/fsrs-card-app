@@ -20,6 +20,8 @@ export interface ScopeStats {
   learningWaiting: number
   /** earliest due time among the waiting learning cards (Infinity if none) */
   nextDue: number
+  /** latest due time among the waiting learning cards (0 if none) */
+  lastDue: number
   newTotal: number
   newAvail: number
   drafts: number
@@ -32,6 +34,7 @@ const emptyStats = (): ScopeStats => ({
   learning: 0,
   learningWaiting: 0,
   nextDue: Infinity,
+  lastDue: 0,
   newTotal: 0,
   newAvail: 0,
   drafts: 0,
@@ -224,6 +227,7 @@ export const useData = defineStore('data', () => {
             if (sched.due > now.value) {
               s.learningWaiting++
               s.nextDue = Math.min(s.nextDue, sched.due)
+              s.lastDue = Math.max(s.lastDue, sched.due)
             }
           }
         }
@@ -256,7 +260,12 @@ export const useData = defineStore('data', () => {
       const s = statsCache.value.get(id)
       if (!s) continue
       for (const k of Object.keys(acc) as (keyof ScopeStats)[]) {
-        acc[k] = k === 'nextDue' ? Math.min(acc[k], s[k]) : acc[k] + s[k]
+        acc[k] =
+          k === 'nextDue'
+            ? Math.min(acc[k], s[k])
+            : k === 'lastDue'
+              ? Math.max(acc[k], s[k])
+              : acc[k] + s[k]
       }
     }
     return acc
