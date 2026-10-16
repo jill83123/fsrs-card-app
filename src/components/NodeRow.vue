@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeftRight, ChevronDown, ChevronRight, GripVertical, Layers, Timer } from '@lucide/vue'
+import {
+  ArrowLeftRight,
+  ChevronDown,
+  ChevronRight,
+  GripVertical,
+  Layers,
+  PauseCircle,
+  Timer,
+} from '@lucide/vue'
 import NodeList from './NodeList.vue'
 import { useTicker } from '@/composables/useTicker'
 import { formatCountdown } from '@/lib/date'
@@ -25,6 +33,7 @@ const children = computed(() => childrenOf(data.nodes, props.node.id))
 const stats = computed(() => data.scopeStats(props.node.id))
 const progress = computed(() => data.scopeProgress(props.node.id))
 const isOpen = computed(() => !props.collapsed.has(props.node.id))
+const paused = computed(() => data.pausedIds.has(props.node.id))
 
 const now = useTicker()
 const ready = computed(() => stats.value.dueAvail - stats.value.learningWaiting)
@@ -42,6 +51,7 @@ const subtitle = computed(() => {
   <div>
     <div
       class="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2/60"
+      :class="{ 'opacity-60': paused }"
       :style="{ paddingLeft: `${16 + (depth ?? 0) * 20}px` }"
       @click="!sorting && router.push(`/node/${node.id}`)"
     >
@@ -64,6 +74,9 @@ const subtitle = computed(() => {
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 font-semibold">
           <span class="truncate">{{ node.name }}</span>
+          <PauseCircle v-if="paused" :size="14" class="shrink-0 text-muted" aria-label="已暫停">
+            <title>已暫停</title>
+          </PauseCircle>
           <!-- only where reverse is switched on; children inherit it without repeating the tag -->
           <ArrowLeftRight
             v-if="node.reverse"

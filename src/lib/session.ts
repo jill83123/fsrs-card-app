@@ -39,12 +39,15 @@ interface BuildInput {
   newOrder: 'created' | 'random'
   /** which sides of a card are scheduled (reverse only in decks that turned it on) */
   sidesOf: (card: Card) => Side[]
+  /** decks that are paused: skipped */
+  paused?: Set<string>
 }
 
 export function buildSession(key: string, i: BuildInput): StudySession {
   const main: string[] = []
   const learning: QueueItem[] = []
   for (const deckId of i.decks ?? decksInScope(i.nodes, i.scope)) {
+    if (i.paused?.has(deckId)) continue
     const cards = (i.cardsByDeck.get(deckId) ?? []).filter(isStudyable)
     const items = cards.flatMap((c) =>
       i.sidesOf(c).map((side) => ({ c, side, key: sideKey(c.id, side), sched: schedOf(c, side) })),

@@ -13,7 +13,7 @@ import { GRADES, previewIntervals, State, type Grade } from '@/lib/fsrs'
 import { formatCountdown, formatInterval } from '@/lib/date'
 import { useTicker } from '@/composables/useTicker'
 import { isStudyable, parseKey, schedOf, sideKey } from '@/lib/cards'
-import { pickedDecks } from '@/lib/tree'
+import { decksInScope, pickedDecks } from '@/lib/tree'
 import { prefetchSpeech, stopSpeaking } from '@/lib/tts'
 import {
   buildSession,
@@ -82,6 +82,7 @@ function start() {
       doneToday: data.doneToday,
       newOrder: settings.synced.study.newOrder,
       sidesOf: data.sidesOf,
+      paused: data.pausedIds,
     })
     putSession(s)
   }
@@ -98,12 +99,13 @@ function advance(learnAhead = false, avoid?: string) {
   clearTimeout(waitTimer)
   revealed.value = false
   waitUntil.value = null
+  const inScope = new Set(decks.value ?? decksInScope(data.nodes, scope.value))
   for (;;) {
     const r = pickNext(s, Date.now(), avoid, learnAhead)
     if (r.kind === 'card') {
       const c = data.cardById.get(parseKey(r.id).id)
-      // skip cards deleted, suspended or emptied since the session started
-      if (!c || !isStudyable(c)) continue
+      // skip cards deleted, suspended, emptied, paused or moved out of scope since the session started
+      if (!c || !isStudyable(c) || !inScope.has(c.deckId) || data.pausedIds.has(c.deckId)) continue
       s.current = r.id
       finished.value = false
       prefetchNext(s)

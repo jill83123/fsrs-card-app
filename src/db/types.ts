@@ -32,6 +32,8 @@ export interface TreeNode extends SyncFields {
   order: number
   /** hidden from lists and study together with its sub-decks; review history is kept */
   archived?: boolean
+  /** shown in lists but not studied, together with its sub-decks; cards keep their own state */
+  paused?: boolean
   limits?: DeckLimits
   /** decks only; absent = inherit from the nearest ancestor (basic card at the top) */
   defaultCard?: CardTemplate

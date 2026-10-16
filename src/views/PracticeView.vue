@@ -52,6 +52,12 @@ const decks = computed(() =>
     ? allDecks.value.filter((id) => !excluded.value.has(id))
     : undefined,
 )
+const scopeLabel = computed(() => {
+  if (pickable.value.length === 1) {
+    return data.nodes.find((n) => n.id === pickable.value[0])?.name ?? '全部'
+  }
+  return decks.value ? `${pickedCount.value} / ${pickable.value.length} 個牌組` : '全部'
+})
 const showPick = ref(false)
 // keep the choice in the URL so a reload keeps it
 watch(decks, (d) => {
@@ -69,7 +75,9 @@ const mode = ref<'flip' | 'spell'>('flip')
 
 const pool = computed(() =>
   (decks.value ? data.cardsInDecks(decks.value) : data.cardsInScope(scope.value)).filter(
-    (c) => isComplete(c) && (includeSuspended.value || !c.suspended),
+    (c) =>
+      isComplete(c) &&
+      (includeSuspended.value || (!c.suspended && !data.pausedIds.has(c.deckId))),
   ),
 )
 const filtered = computed(() => applyFilter(pool.value, filter.value, data.scheduler, data.now))
@@ -258,18 +266,24 @@ const progress = computed(() => {
     <PageHeader title="練習模式" subtitle="不影響複習排程" />
 
     <section class="card mb-4 space-y-4">
-      <button
-        v-if="pickable.length > 1"
-        type="button"
-        class="flex w-full items-center justify-between gap-3"
-        @click="showPick = true"
-      >
-        <span class="text-sm font-semibold">練習範圍</span>
-        <span class="flex items-center gap-1 text-sm text-muted">
-          {{ decks ? `${pickedCount} / ${pickable.length} 個牌組` : '全部' }}
-          <ChevronRight :size="16" class="shrink-0" />
-        </span>
-      </button>
+      <div class="space-y-4 border-b border-line pb-4">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between gap-3"
+          :disabled="pickable.length <= 1"
+          @click="showPick = true"
+        >
+          <span class="text-sm font-semibold">練習範圍</span>
+          <span class="flex min-w-0 items-center gap-1 text-sm text-muted">
+            <span class="truncate">{{ scopeLabel }}</span>
+            <ChevronRight v-if="pickable.length > 1" :size="16" class="shrink-0" />
+          </span>
+        </button>
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold">包含暫停的卡片與牌組</span>
+          <ToggleSwitch v-model="includeSuspended" />
+        </div>
+      </div>
       <div>
         <label class="label">順序</label>
         <PillTabs
@@ -310,10 +324,6 @@ const progress = computed(() => {
             { value: 'mixed', label: '混合' },
           ]"
         />
-      </div>
-      <div class="flex items-center justify-between">
-        <span class="text-sm font-semibold">包含暫停的卡片</span>
-        <ToggleSwitch v-model="includeSuspended" />
       </div>
     </section>
 

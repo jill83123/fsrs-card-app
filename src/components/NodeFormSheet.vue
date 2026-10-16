@@ -42,6 +42,7 @@ const form = reactive({
   cardLang: '' as Lang | '',
   /** the effective setting; saved as an override only when it differs from the parent's */
   reverse: false,
+  paused: false,
 })
 
 watch(open, (v) => {
@@ -58,6 +59,7 @@ watch(open, (v) => {
   form.cardType = n?.defaultCard?.type ?? (form.parentId ? 'inherit' : 'basic')
   form.cardLang = n?.defaultCard?.lang ?? ''
   form.reverse = effectiveReverse(data.nodes, n ? n.id : form.parentId)
+  form.paused = !!n?.paused
 })
 
 // a top-level deck has nothing to inherit from
@@ -135,9 +137,12 @@ async function save() {
       limits,
       defaultCard,
       reverse,
+      // undefined clears the field
+      paused: form.paused || undefined,
     })
     saved = {
       ...props.node,
+      paused: form.paused || undefined,
       name,
       color: form.color,
       parentId: form.parentId,
@@ -260,6 +265,16 @@ async function save() {
             >預設 {{ settings.synced.study.reviewPerDay }}</span
           >
         </div>
+      </div>
+
+      <div v-if="node" class="card space-y-2">
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-sm font-semibold">暫停牌組</span>
+          <ToggleSwitch v-model="form.paused" label="暫停牌組" />
+        </div>
+        <p class="text-xs text-muted">
+          暫停期間不出學習（含子牌組），列表仍會顯示；卡片各自的狀態不變。練習可用開關納入。
+        </p>
       </div>
 
       <button class="btn btn-primary w-full" type="submit">儲存</button>

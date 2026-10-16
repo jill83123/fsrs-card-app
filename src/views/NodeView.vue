@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowUpDown, BarChart3, Check, FilePlus2, FolderPlus, Pencil } from '@lucide/vue'
+import { ArrowUpDown, BarChart3, Check, FilePlus2, FolderPlus, Pencil, Upload } from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StudyEntry from '@/components/StudyEntry.vue'
 import NodeLegend from '@/components/NodeLegend.vue'
 import NodeList from '@/components/NodeList.vue'
 import NodeFormSheet from '@/components/NodeFormSheet.vue'
+import ImportCardsSheet from '@/components/ImportCardsSheet.vue'
 import CardList from '@/components/CardList.vue'
 import PillTabs from '@/components/PillTabs.vue'
 import CardStateBar from '@/components/stats/CardStateBar.vue'
@@ -52,6 +53,7 @@ function toggle(nid: string) {
 
 const showEdit = ref(false)
 const showAdd = ref(false)
+const showImport = ref(false)
 
 function onDeleted(parentId: string | null) {
   router.replace(parentId ? `/node/${parentId}` : '/')
@@ -77,7 +79,7 @@ function onDeleted(parentId: string | null) {
       </template>
     </PageHeader>
 
-    <section class="card mb-2.5">
+    <section class="card" :class="scopeCards.length ? 'mb-2.5' : 'mb-4'">
       <StudyEntry :scope="node.id" />
     </section>
 
@@ -90,6 +92,9 @@ function onDeleted(parentId: string | null) {
       <template v-if="!hasChildren">
         <button class="btn btn-primary" :title="templateLabel(template)" @click="addCard">
           <FilePlus2 :size="18" /> 新增卡片
+        </button>
+        <button class="btn btn-ghost" @click="showImport = true">
+          <Upload :size="18" /> JSON 匯入
         </button>
       </template>
       <button class="btn btn-ghost" @click="showAdd = true">
@@ -135,6 +140,7 @@ function onDeleted(parentId: string | null) {
 
     <NodeFormSheet v-model="showEdit" :node="node" @deleted="onDeleted" />
     <NodeFormSheet v-model="showAdd" :parent-id="node.id" />
+    <ImportCardsSheet v-model="showImport" :deck-id="node.id" />
   </div>
   <div v-else-if="data.ready" class="py-20 text-center text-muted">
     找不到這個項目。<RouterLink to="/" class="text-primary">回首頁</RouterLink>
