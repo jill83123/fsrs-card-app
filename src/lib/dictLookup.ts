@@ -9,6 +9,7 @@
 import type { Example, Lang } from '@/db/types'
 import { DEFAULT_POS } from '@/db/defaults'
 import { uid } from '@/lib/id'
+import type { RelatedWords } from '@/lib/relations'
 
 export interface DictResult {
   /** one line per sense */
@@ -16,10 +17,14 @@ export interface DictResult {
   /** default part-of-speech ids */
   pos: string[]
   examples: Example[]
+  /** synonyms, antonyms and derived words from English Wiktionary (empty when unavailable) */
+  related: RelatedWords
+  /** where each part of the result came from, one line per source */
+  sources: string[]
   /** sources that failed or fell back to a weaker one */
   warnings: string[]
 }
-type Found = Omit<DictResult, 'warnings'>
+type Found = Omit<DictResult, 'warnings' | 'related'>
 
 interface WikiExample {
   example?: string
@@ -211,6 +216,7 @@ async function viaEnglishWiktionary(w: string, lang: Lang): Promise<Found | null
       sentence: x.sentence,
       translation: zhExamples[i] ?? x.english,
     })),
+    sources: ['意思、例句：英文版 Wiktionary', '中文翻譯：MyMemory 機器翻譯'],
   }
 }
 
@@ -290,7 +296,7 @@ async function googleDict(w: string): Promise<{ lines: string[]; pos: string[] }
 async function lookupEnglish(w: string, warnings: string[]): Promise<Found | null> {
   const [g, wk] = await Promise.allSettled([googleDict(w), fetchEntries(w, 'en')])
   const wiki = wk.status === 'fulfilled' ? parseEnglishWiki(wk.value, 'en', w) : null
-  if (wk.status === 'rejected') warnings.push(`英文 Wiktionary 無法使用，沒有取得例句（${NET}）`)
+  if (wk.status === 'rejected') warnings.push(`英文版 Wiktionary 無法使用，沒有取得例句（${NET}）`)
 
   if (g.status === 'fulfilled' && g.value) {
     const pos = [...g.value.pos]
@@ -301,6 +307,10 @@ async function lookupEnglish(w: string, warnings: string[]): Promise<Found | nul
       meaning: g.value.lines.join('\n'),
       pos: pos.slice(0, 2),
       examples: sources.map((x, i) => ({ id: uid(), sentence: x.sentence, translation: zh[i]! })),
+      sources: [
+        '意思、詞性：Google 翻譯詞典',
+        ...(sources.length ? ['例句：英文版 Wiktionary（翻譯由機器翻譯產生）'] : []),
+      ],
     }
   }
   if (g.status === 'rejected') warnings.push(`Google 翻譯無法使用，改用備用來源（${NET}）`)
@@ -460,7 +470,56 @@ async function zhWiktionary(w: string, lang: 'ja' | 'ko'): Promise<Found | null>
     meaning: senses.join('\n'),
     pos: pos.slice(0, 2),
     examples: examples.map((x) => ({ id: uid(), ...x })),
+    sources: ['意思、詞性、例句：中文版 Wiktionary'],
   }
+}
+
+const WIKI_SECTION: Record<Lang, string> = { en: 'English', ja: 'Japanese', ko: 'Korean' }
+const REL_LIMIT = { syn: 10, ant: 10, der: 12 }
+
+/** Synonyms, antonyms and derived words listed on English Wiktionary; empty when unavailable. */
+export async function lookupRelated(word: string, lang: Lang): Promise<RelatedWords> {
+  const out: RelatedWords = { syn: [], ant: [], der: [] }
+  try {
+    const w = word.trim()
+    const res = await fetch(
+      `https://en.wiktionary.org/w/api.php?action=parse&prop=text&format=json&formatversion=2&origin=*&disableeditsection=1&redirects=1&page=${encodeURIComponent(w)}`,
+    )
+    if (!res.ok) return out
+    const j = (await res.json()) as { parse?: { text?: string } }
+    if (!j.parse?.text) return out
+    const doc = new DOMParser().parseFromString(j.parse.text, 'text/html')
+    const root = doc.querySelector('.mw-parser-output') ?? doc.body
+    const seen = new Set([w.toLowerCase()])
+    const add = (kind: keyof RelatedWords, a: Element) => {
+      const t = (a.getAttribute('title') ?? a.textContent ?? '').trim()
+      if (!t || t.includes(':') || t.length > 24 || out[kind].length >= REL_LIMIT[kind]) return
+      if (kind === 'der' && /\s/.test(t)) return
+      const k = t.toLowerCase()
+      if (seen.has(`${kind}:${k}`) || k === w.toLowerCase()) return
+      seen.add(`${kind}:${k}`)
+      out[kind].push(t)
+    }
+    let inLang = false
+    let derived = false
+    for (const el of root.children) {
+      const h = el.matches('h2, h3, h4, h5, h6')
+        ? el
+        : el.querySelector(':scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6')
+      if (h) {
+        if (h.tagName === 'H2') inLang = h.id === WIKI_SECTION[lang]
+        derived = /^Derived_terms/.test(h.id)
+        continue
+      }
+      if (!inLang) continue
+      el.querySelectorAll('.nyms.synonym a').forEach((a) => add('syn', a))
+      el.querySelectorAll('.nyms.antonym a').forEach((a) => add('ant', a))
+      if (derived) el.querySelectorAll('[lang] a').forEach((a) => add('der', a))
+    }
+  } catch {
+    /* related words are optional */
+  }
+  return out
 }
 
 /**
@@ -471,6 +530,7 @@ export async function lookupWord(word: string, lang: Lang): Promise<DictResult |
   const w = word.trim()
   const warnings: string[] = []
   let result: Found | null = null
+  const related = lookupRelated(w, lang)
 
   if (lang === 'en') {
     result = await lookupEnglish(w, warnings)
@@ -502,12 +562,21 @@ export async function lookupWord(word: string, lang: Lang): Promise<DictResult |
           meaning: lines.join('\n'),
           pos: english?.pos ?? [],
           examples: english?.examples ?? [],
+          sources: [
+            ...(google ? ['意思：Google 翻譯（機器翻譯）'] : []),
+            ...(english?.sources ?? []),
+          ],
         }
         warnings.push(`${reason}，改用備用來源（Google 翻譯＋英文字典，為機器翻譯，可能較不精準）`)
       }
     }
   }
-  return result ? { ...result, warnings } : null
+  if (!result) return null
+  const rel = await related
+  const sources = [...result.sources]
+  if (rel.syn.length || rel.ant.length || rel.der.length)
+    sources.push('同義詞、反義詞、衍伸詞：英文版 Wiktionary')
+  return { ...result, related: rel, sources, warnings }
 }
 
 /** Translate one sentence into Traditional Chinese; empty string when the service fails. */

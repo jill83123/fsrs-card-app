@@ -78,6 +78,11 @@ export interface BasicCard extends CardBase {
   back: string
 }
 
+/** synonyms, antonyms, derived words */
+export type RelKind = 'syn' | 'ant' | 'der'
+/** ids of the vocab cards related to a card; links are kept on both cards */
+export type Relations = Partial<Record<RelKind, string[]>>
+
 export interface VocabCard extends CardBase {
   type: 'vocab'
   lang: Lang
@@ -87,6 +92,7 @@ export interface VocabCard extends CardBase {
   pos: string[]
   examples: Example[]
   note: string
+  rel?: Relations
 }
 
 export type Card = BasicCard | VocabCard
