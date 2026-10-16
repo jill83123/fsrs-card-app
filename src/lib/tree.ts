@@ -64,6 +64,24 @@ export function effectiveReverse(nodes: TreeNode[], id: string | null): boolean 
   )
 }
 
+/** A deck's daily limits: its own, else the nearest ancestor's, else the global default. */
+export function effectiveLimits(
+  nodes: TreeNode[],
+  id: string | null,
+  def: { newPerDay: number; reviewPerDay: number },
+) {
+  const path = id ? pathTo(nodes, id).reverse() : []
+  const newFrom = path.find((n) => n.limits?.newPerDay !== undefined)
+  const reviewFrom = path.find((n) => n.limits?.reviewPerDay !== undefined)
+  return {
+    newPerDay: newFrom?.limits?.newPerDay ?? def.newPerDay,
+    reviewPerDay: reviewFrom?.limits?.reviewPerDay ?? def.reviewPerDay,
+    /** the deck each value comes from; undefined = the global default */
+    newFrom: newFrom?.name,
+    reviewFrom: reviewFrom?.name,
+  }
+}
+
 /** The card template a deck uses: its own, else the nearest ancestor's; undefined = basic. */
 export function effectiveTemplate(nodes: TreeNode[], id: string | null): CardTemplate | undefined {
   if (!id) return undefined

@@ -22,6 +22,8 @@ export interface StudySession extends SessionSnapshot {
   key: string
   mode: StudyMode
   scope: string | null
+  /** due reviews beyond the daily limit: offered afterwards, never forced */
+  extra: string[]
   done: number
   history: { key: string; logId: string; snap: SessionSnapshot }[]
 }
@@ -83,6 +85,7 @@ export function newKeys(deckId: string, i: NewInput, f?: NewFilter): string[] {
 export function buildSession(key: string, i: BuildInput): StudySession {
   const main: string[] = []
   const learning: QueueItem[] = []
+  const extra: string[] = []
   for (const deckId of i.decks ?? decksInScope(i.nodes, i.scope)) {
     if (i.paused?.has(deckId)) continue
     const cards = (i.cardsByDeck.get(deckId) ?? []).filter(isStudyable)
@@ -99,10 +102,9 @@ export function buildSession(key: string, i: BuildInput): StudySession {
       // the reverse side is not limited per day
       const limited = reviews.filter((x) => x.side === 'f')
       const unlimited = reviews.filter((x) => x.side === 'r')
-      main.push(
-        ...limited.slice(0, Math.max(0, lim.reviewPerDay - done.reviewDone)).map((x) => x.key),
-        ...unlimited.map((x) => x.key),
-      )
+      const room = Math.max(0, lim.reviewPerDay - done.reviewDone)
+      main.push(...limited.slice(0, room).map((x) => x.key), ...unlimited.map((x) => x.key))
+      extra.push(...limited.slice(room).map((x) => x.key))
       for (const x of due)
         if (x.sched.state !== State.Review) learning.push({ id: x.key, due: x.sched.due })
     } else {
@@ -125,6 +127,7 @@ export function buildSession(key: string, i: BuildInput): StudySession {
     scope: i.scope,
     main: ordered,
     learning,
+    extra: shuffle(extra),
     current: null,
     done: 0,
     history: [],

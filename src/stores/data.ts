@@ -6,7 +6,7 @@ import type { Card, DeckColor, Relations, ReviewLogRecord, TreeNode, VocabCard }
 import { addDays, studyDayEnd, studyDayOf, studyDayStart } from '@/lib/date'
 import { uid } from '@/lib/id'
 import { activeSides, isStudyable, schedOf, type Side } from '@/lib/cards'
-import { childrenOf, decksInScope, effectiveReverse, subtreeIds } from '@/lib/tree'
+import { childrenOf, decksInScope, effectiveLimits, effectiveReverse, subtreeIds } from '@/lib/tree'
 import { purgeExpired, type ArchivedDeck, type DeletedDeck } from '@/lib/purge'
 import { makeScheduler, State, toFsrs, fromFsrs, type Grade } from '@/lib/fsrs'
 import { useSettings } from './settings'
@@ -15,6 +15,9 @@ export interface ScopeStats {
   total: number
   due: number
   dueAvail: number
+  /** due / new cards beyond the daily limit (still allowed, only a reminder) */
+  dueOver: number
+  newOver: number
   learning: number
   /** learning cards due later today (not yet reviewable) */
   learningWaiting: number
@@ -31,6 +34,8 @@ const emptyStats = (): ScopeStats => ({
   total: 0,
   due: 0,
   dueAvail: 0,
+  dueOver: 0,
+  newOver: 0,
   learning: 0,
   learningWaiting: 0,
   nextDue: Infinity,
@@ -183,11 +188,7 @@ export const useData = defineStore('data', () => {
   const scheduler = computed(() => makeScheduler(settings.synced.fsrs))
 
   function limitsOf(deckId: string) {
-    const d = nodeById.value.get(deckId)
-    return {
-      newPerDay: d?.limits?.newPerDay ?? settings.synced.study.newPerDay,
-      reviewPerDay: d?.limits?.reviewPerDay ?? settings.synced.study.reviewPerDay,
-    }
+    return effectiveLimits(nodes.value, deckId, settings.synced.study)
   }
 
   /** Reviews already done today, per deck. */
@@ -252,6 +253,11 @@ export const useData = defineStore('data', () => {
       Math.min(reviewDue - revReviewDue, Math.max(0, lim.reviewPerDay - done.reviewDone)) +
       revReviewDue +
       s.learning
+    s.dueOver = Math.max(
+      0,
+      reviewDue - revReviewDue - Math.max(0, lim.reviewPerDay - done.reviewDone),
+    )
+    s.newOver = Math.max(0, s.newTotal - revNew - Math.max(0, lim.newPerDay - done.newDone))
     s.newAvail = Math.min(s.newTotal - revNew, Math.max(0, lim.newPerDay - done.newDone)) + revNew
     return s
   }

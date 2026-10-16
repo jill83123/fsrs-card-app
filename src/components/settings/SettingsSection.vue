@@ -52,7 +52,7 @@ async function reset() {
     </button>
     <div v-if="open" class="space-y-5 border-t border-line px-5 pt-5 pb-5">
       <slot />
-      <div v-if="resettable" class="flex justify-end">
+      <div v-if="resettable" class="flex justify-end border-t border-line pt-4">
         <button class="pill pill-idle bg-surface-2 py-1.5 text-xs" @click="reset">
           <RotateCcw :size="13" /> 還原預設
         </button>
