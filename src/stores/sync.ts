@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { CHANGE_EVENT, getMeta, lastLocalChange } from '@/db'
-import { cachedToken, clearToken, preloadGis, requestToken, revokeToken } from '@/lib/google/gis'
+import {
+  cachedToken,
+  clearToken,
+  preloadGis,
+  requestToken,
+  requestTokenSilently,
+  revokeToken,
+} from '@/lib/google/gis'
 import {
   createFile,
   deleteFile,
@@ -35,7 +42,11 @@ const LS_CONFLICT = 'sr.google.conflict'
 /** Re-merge at most this many times when another device uploads while we sync. */
 const MAX_RETRIES = 3
 /** Without local edits, pull other devices' changes at most this often. */
-const PULL_INTERVAL = 10 * 60_000
+const PULL_INTERVAL = 2 * 60_000
+/** After a local edit, wait this long (collecting further edits) before uploading. */
+const PUSH_DELAY = 5_000
+/** While the app is open and visible, check for remote changes this often. */
+const POLL_INTERVAL = 60_000
 
 export type SyncStatus = 'off' | 'idle' | 'dirty' | 'syncing' | 'reauth' | 'offline' | 'error'
 
@@ -111,6 +122,12 @@ export const useSync = defineStore('sync', () => {
     const t = cachedToken()
     if (t) return t
     if (!interactive) {
+      // no click to open a popup from: try Google's silent refresh, else ask for a click
+      const silent = await requestTokenSilently(clientId.value)
+      if (silent) {
+        needsAuth.value = false
+        return silent
+      }
       needsAuth.value = true
       return null
     }
@@ -355,7 +372,7 @@ export const useSync = defineStore('sync', () => {
       localChange.value = (e as CustomEvent<number>).detail
       if (!connected.value || !settings.device.sync.auto) return
       clearTimeout(debounce)
-      debounce = setTimeout(() => void syncNow(false), 20_000)
+      debounce = setTimeout(() => void syncNow(false), PUSH_DELAY)
     })
     document.addEventListener('visibilitychange', () => {
       if (!connected.value || !settings.device.sync.auto) return
@@ -366,6 +383,11 @@ export const useSync = defineStore('sync', () => {
         syncIfNeeded()
       }
     })
+    setInterval(() => {
+      if (connected.value && settings.device.sync.auto && document.visibilityState === 'visible') {
+        syncIfNeeded()
+      }
+    }, POLL_INTERVAL)
     window.addEventListener('online', () => {
       if (connected.value && settings.device.sync.auto) syncIfNeeded()
     })
