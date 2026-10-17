@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Check } from '@lucide/vue'
 import BottomSheet from './BottomSheet.vue'
 import type { Example, Lang } from '@/db/types'
-import { REL_KINDS, type RelatedWords } from '@/lib/relations'
+import { DICT_REL_KINDS, type RelatedWords } from '@/lib/relations'
 import type { DictResult } from '@/lib/dictLookup'
 import { useSettings } from '@/stores/settings'
 
@@ -54,7 +54,7 @@ const nothing = computed(
     !pickedMeanings.value.length &&
     !pickedPos.value.length &&
     !pickedExamples.value.length &&
-    !REL_KINDS.some((k) => pickedRelated.value[k.id].length),
+    !DICT_REL_KINDS.some((k) => pickedRelated.value[k.id].length),
 )
 
 function apply() {
@@ -131,7 +131,7 @@ function apply() {
       </section>
 
       <section
-        v-for="k in REL_KINDS"
+        v-for="k in DICT_REL_KINDS"
         v-show="result.related[k.id].length"
         :key="k.id"
         class="space-y-2"

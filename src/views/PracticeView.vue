@@ -440,6 +440,7 @@ const progress = computed(() => {
         :key="c.id"
         :card="c"
         selectable
+        hide-answer
         :selected="isSel(c.id)"
         show-deck
         @click="toggle(c.id)"

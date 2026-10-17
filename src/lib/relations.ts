@@ -4,13 +4,16 @@ export const REL_KINDS: { id: RelKind; label: string }[] = [
   { id: 'syn', label: '同義詞' },
   { id: 'ant', label: '反義詞' },
   { id: 'der', label: '衍伸詞' },
+  { id: 'conf', label: '易混淆' },
 ]
 
-export interface RelatedWords {
-  syn: string[]
-  ant: string[]
-  der: string[]
-}
+/** kinds the online dictionary can suggest (confusable words are always picked by hand) */
+export type DictRelKind = Exclude<RelKind, 'conf'>
+export const DICT_REL_KINDS = REL_KINDS.filter(
+  (k): k is { id: DictRelKind; label: string } => k.id !== 'conf',
+)
+
+export type RelatedWords = Record<DictRelKind, string[]>
 
 export const normWord = (w: string) => w.trim().toLowerCase()
 
