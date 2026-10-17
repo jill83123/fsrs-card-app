@@ -1,33 +1,86 @@
-/* Google Identity Services token flow (no backend, drive.appdata scope only). */
+/*
+ * Google sign-in for Drive sync (drive.appdata scope only).
+ *
+ * Authorization code flow: Google's popup returns a one-time code, a small Cloudflare Worker
+ * (see worker/) exchanges it for an access token plus a long-lived refresh token, because the
+ * exchange needs the client secret. After that the access token is renewed with a plain fetch
+ * to the Worker, so no window opens.
+ */
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata'
 const TOKEN_KEY = 'sr.google.token'
+const REFRESH_KEY = 'sr.google.refresh'
+
+let workerUrl = ''
+let clientId = ''
+let clientIdFor = ''
+let configPromise: Promise<void> | null = null
+
+/** Set the Worker address (entered in the settings); the Google client ID comes from it. */
+export function setWorkerUrl(url: string) {
+  const next = url.trim().replace(/\/+$/, '')
+  if (next === workerUrl) return
+  workerUrl = next
+  clientId = ''
+  clientIdFor = ''
+  configPromise = null
+}
+
+/** Fetch the Google client ID the Worker is configured with (a public value). */
+function loadConfig(): Promise<void> {
+  if (!workerUrl) return Promise.reject(new Error('尚未設定同步服務網址'))
+  if (clientId && clientIdFor === workerUrl) return Promise.resolve()
+  const url = workerUrl
+  configPromise ??= (async () => {
+    try {
+      const res = await fetch(`${url}/config`, { signal: AbortSignal.timeout(15_000) })
+      const data = (await res.json()) as { clientId?: string }
+      if (!res.ok || !data.clientId) throw new Error()
+      clientId = data.clientId
+      clientIdFor = url
+    } catch {
+      throw new Error('無法連到同步服務，請檢查網址與網路')
+    } finally {
+      configPromise = null
+    }
+  })()
+  return configPromise
+}
 
 interface StoredToken {
   token: string
   expiresAt: number
 }
 
-interface TokenResponse {
+interface WorkerTokens {
   access_token?: string
   expires_in?: number
+  refresh_token?: string
+  scope?: string
   error?: string
   error_description?: string
 }
 
-interface TokenClient {
-  requestAccessToken(o?: { prompt?: string }): void
+interface CodeResponse {
+  code?: string
+  scope?: string
+  error?: string
+  error_description?: string
+}
+
+interface CodeClient {
+  requestCode(): void
 }
 
 interface GoogleOAuth2 {
-  initTokenClient(o: {
+  initCodeClient(o: {
     client_id: string
     scope: string
-    callback: (r: TokenResponse) => void
+    ux_mode: 'popup'
+    select_account?: boolean
+    callback: (r: CodeResponse) => void
     error_callback?: (e: { type: string; message?: string }) => void
-  }): TokenClient
-  revoke(token: string, done?: () => void): void
-  hasGrantedAllScopes(r: TokenResponse, ...scopes: string[]): boolean
+  }): CodeClient
 }
 
 declare global {
@@ -65,102 +118,140 @@ export function cachedToken(): string | null {
   }
 }
 
+export function hasRefreshToken(): boolean {
+  return Boolean(localStorage.getItem(REFRESH_KEY))
+}
+
+/** Forget the access token only; the refresh token stays so the next call can renew it. */
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-/** Load the Google script ahead of time so a later click can open the popup immediately. */
+/** Load the Google script and client ID ahead of time so a later click can open the popup immediately. */
 export function preloadGis() {
   void loadGis().catch(() => {})
+  if (workerUrl) void loadConfig().catch(() => {})
 }
 
-let client: TokenClient | null = null
-let clientFor = ''
+function storeAccessToken(t: WorkerTokens) {
+  const stored: StoredToken = {
+    token: t.access_token!,
+    expiresAt: Date.now() + (t.expires_in ?? 3600) * 1000,
+  }
+  localStorage.setItem(TOKEN_KEY, JSON.stringify(stored))
+}
+
+async function callWorker(
+  path: string,
+  body: object,
+): Promise<{ status: number; data: WorkerTokens }> {
+  const res = await fetch(`${workerUrl}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  })
+  const data = (await res.json().catch(() => ({}))) as WorkerTokens
+  return { status: res.status, data }
+}
+
+async function exchangeCode(code: string): Promise<string> {
+  let r
+  try {
+    r = await callWorker('/token', { code })
+  } catch {
+    throw new Error('無法連到同步授權服務（Worker），請檢查同步服務網址與網路')
+  }
+  if (!r.data.access_token) throw new Error(r.data.error_description || r.data.error || '授權失敗')
+  if (!r.data.scope?.split(' ').includes(SCOPE)) {
+    throw new Error(
+      '沒有取得雲端硬碟權限，請重新連線，並在 Google 授權畫面勾選「應用程式資料」的權限',
+    )
+  }
+  if (!r.data.refresh_token) {
+    // Google only hands out a refresh token the first time access is granted
+    throw new Error(
+      'Google 沒有提供長效授權。請到 https://myaccount.google.com/permissions 移除這個 App 的存取權，再重新連線',
+    )
+  }
+  localStorage.setItem(REFRESH_KEY, r.data.refresh_token)
+  storeAccessToken(r.data)
+  return r.data.access_token
+}
+
 let pending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null
 
-function getClient(clientId: string): TokenClient {
-  if (client && clientFor === clientId) return client
-  clientFor = clientId
-  client = window.google!.accounts.oauth2.initTokenClient({
-    client_id: clientId,
-    scope: SCOPE,
-    callback: (r) => {
-      const p = pending
-      pending = null
-      if (!p) return
-      if (r.error || !r.access_token) {
-        p.reject(new Error(r.error_description || r.error || '授權失敗'))
-        return
-      }
-      // Google lets the user untick individual permissions on the consent screen
-      if (!window.google!.accounts.oauth2.hasGrantedAllScopes(r, SCOPE)) {
-        p.reject(
-          new Error(
-            '沒有取得雲端硬碟權限，請重新連線，並在 Google 授權畫面勾選「應用程式資料」的權限',
-          ),
-        )
-        return
-      }
-      const stored: StoredToken = {
-        token: r.access_token,
-        expiresAt: Date.now() + (r.expires_in ?? 3600) * 1000,
-      }
-      localStorage.setItem(TOKEN_KEY, JSON.stringify(stored))
-      p.resolve(r.access_token)
-    },
-    error_callback: (e) => {
-      const p = pending
-      pending = null
-      p?.reject(
-        new Error(
-          e.type === 'popup_closed'
-            ? '已取消登入'
-            : e.type === 'popup_failed_to_open'
-              ? '瀏覽器擋住了 Google 登入視窗，請再按一次，或允許這個網站開啟彈出式視窗'
-              : e.message || e.type,
-        ),
-      )
-    },
-  })
-  return client
-}
-
-function openPopup(clientId: string, selectAccount: boolean, prompt?: string) {
+function openPopup(selectAccount: boolean) {
   return new Promise<string>((resolve, reject) => {
     pending?.reject(new Error('已取消登入'))
     pending = { resolve, reject }
-    getClient(clientId).requestAccessToken({
-      prompt: prompt ?? (selectAccount ? 'select_account' : ''),
-    })
+    const settle = (fn: (p: NonNullable<typeof pending>) => void) => {
+      const p = pending
+      pending = null
+      if (p) fn(p)
+    }
+    window
+      .google!.accounts.oauth2.initCodeClient({
+        client_id: clientId,
+        scope: SCOPE,
+        ux_mode: 'popup',
+        select_account: selectAccount,
+        callback: (r) => {
+          if (r.error || !r.code) {
+            settle((p) => p.reject(new Error(r.error_description || r.error || '授權失敗')))
+            return
+          }
+          exchangeCode(r.code).then(
+            (t) => settle((p) => p.resolve(t)),
+            (e) => settle((p) => p.reject(e instanceof Error ? e : new Error(String(e)))),
+          )
+        },
+        error_callback: (e) =>
+          settle((p) =>
+            p.reject(
+              new Error(
+                e.type === 'popup_closed'
+                  ? '已取消登入'
+                  : e.type === 'popup_failed_to_open'
+                    ? '瀏覽器擋住了 Google 登入視窗，請再按一次，或允許這個網站開啟彈出式視窗'
+                    : e.message || e.type,
+              ),
+            ),
+          ),
+      })
+      .requestCode()
   })
 }
 
-let silentFailedAt = 0
-const SILENT_RETRY = 60_000
-const SILENT_TIMEOUT = 10_000
+let refreshing: Promise<string | null> | null = null
 
 /**
- * Try to get a new token without any user gesture (prompt: 'none'). Works only when the
- * browser lets Google's window open and the user is still signed in and has already granted
- * access; otherwise resolves null and the caller falls back to a click.
+ * Renew the access token with the stored refresh token; no window, no user gesture.
+ * Resolves null when there is no refresh token or Google rejected it (then it is dropped and
+ * the user must sign in again). Throws on network trouble, which is worth retrying later.
  */
-export async function requestTokenSilently(clientId: string): Promise<string | null> {
-  if (!clientId || Date.now() - silentFailedAt < SILENT_RETRY) return null
-  try {
-    await loadGis()
-    const attempt = openPopup(clientId, false, 'none')
-    const mine = pending
-    const timer = setTimeout(() => {
-      if (pending === mine) {
-        pending = null
-        mine?.reject(new Error('timeout'))
+export function refreshAccessToken(): Promise<string | null> {
+  const refresh = localStorage.getItem(REFRESH_KEY)
+  if (!refresh || !workerUrl) return Promise.resolve(null)
+  refreshing ??= (async () => {
+    try {
+      const r = await callWorker('/refresh', { refresh_token: refresh })
+      if (r.data.access_token) {
+        storeAccessToken(r.data)
+        return r.data.access_token
       }
-    }, SILENT_TIMEOUT)
-    return await attempt.finally(() => clearTimeout(timer))
-  } catch {
-    silentFailedAt = Date.now()
-    return null
-  }
+      if (r.status === 400 || r.status === 401) {
+        // invalid_grant: revoked, expired (e.g. app still in "Testing"), or password changed
+        localStorage.removeItem(REFRESH_KEY)
+        clearToken()
+        return null
+      }
+      throw new Error(r.data.error || `HTTP ${r.status}`)
+    } finally {
+      refreshing = null
+    }
+  })()
+  return refreshing
 }
 
 /**
@@ -168,14 +259,20 @@ export async function requestTokenSilently(clientId: string): Promise<string | n
  * block popups opened after an await. When the script is already loaded (see preloadGis)
  * the popup opens without any await.
  */
-export function requestToken(clientId: string, selectAccount = false): Promise<string> {
-  if (!clientId) return Promise.reject(new Error('尚未設定 Google OAuth Client ID'))
-  if (window.google?.accounts?.oauth2) return openPopup(clientId, selectAccount)
-  return loadGis().then(() => openPopup(clientId, selectAccount))
+export function requestToken(selectAccount = false): Promise<string> {
+  if (!workerUrl) return Promise.reject(new Error('請先在設定填入同步服務網址'))
+  if (window.google?.accounts?.oauth2 && clientId && clientIdFor === workerUrl) {
+    return openPopup(selectAccount)
+  }
+  return Promise.all([loadGis(), loadConfig()]).then(() => openPopup(selectAccount))
 }
 
 export async function revokeToken() {
-  const t = cachedToken()
+  const refresh = localStorage.getItem(REFRESH_KEY)
+  const access = cachedToken()
+  localStorage.removeItem(REFRESH_KEY)
   clearToken()
-  if (t && window.google?.accounts?.oauth2) window.google.accounts.oauth2.revoke(t)
+  // revoking either token ends the whole grant; failures here don't matter
+  const token = refresh ?? access
+  if (token && workerUrl) await callWorker('/revoke', { token }).catch(() => {})
 }

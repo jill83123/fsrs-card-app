@@ -1,0 +1,11 @@
+name = "fsrs-sync-auth"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Google OAuth client ID, not a secret. Fill in before deploying.
+GOOGLE_CLIENT_ID = "xxxx.apps.googleusercontent.com"
+# Origins allowed to call this Worker, comma separated
+ALLOWED_ORIGINS = "https://username.github.io"
+
+# The client secret is NOT stored here. Set it with:  npx wrangler secret put GOOGLE_CLIENT_SECRET

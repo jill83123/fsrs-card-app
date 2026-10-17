@@ -3,6 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    # the Worker in worker/ is deployed separately with wrangler
+    paths-ignore: ['worker/**']
   workflow_dispatch:
 
 permissions:
@@ -25,9 +27,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-        env:
-          # Optional: set this repository variable to prefill the Google OAuth Client ID
-          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

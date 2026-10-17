@@ -172,7 +172,8 @@ export interface TtsLangSettings {
 export interface DeviceSettings {
   tts: Record<Lang, TtsLangSettings> & { autoPlay: boolean; kokoroBackend: 'wasm' | 'webgpu' }
   sync: {
-    clientId: string
+    /** address of the Cloudflare Worker in worker/ (it also supplies the Google client ID) */
+    workerUrl: string
     auto: boolean
   }
 }

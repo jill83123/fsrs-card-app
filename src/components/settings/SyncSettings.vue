@@ -1,17 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import {
-  CloudDownload,
-  CloudUpload,
-  LogOut,
-  RefreshCw,
-  RotateCcw,
-  Trash2,
-  TriangleAlert,
-} from '@lucide/vue'
+import { CloudDownload, CloudUpload, LogOut, RefreshCw, Trash2, TriangleAlert } from '@lucide/vue'
 import ToggleSwitch from '../ToggleSwitch.vue'
 import SettingRow from './SettingRow.vue'
-import { defaultDevice } from '@/db/defaults'
 import { useSettings } from '@/stores/settings'
 import { describeConflict, useSync } from '@/stores/sync'
 import { useUi } from '@/stores/ui'
@@ -23,8 +14,6 @@ const sync = useSync()
 const ui = useUi()
 const working = ref(false)
 const origin = computed(() => location.origin)
-// Client ID built in at deploy time (VITE_GOOGLE_CLIENT_ID); empty when none was set
-const defaultClientId = defaultDevice().sync.clientId
 
 async function run(fn: () => Promise<unknown>, ok?: string) {
   working.value = true
@@ -106,61 +95,24 @@ onMounted(() => {
         <p>可以在多台裝置之間同步，並每天自動備份。</p>
         <p>這個 App 看不到你 Drive 裡的其他檔案。</p>
       </div>
-      <SettingRow label="OAuth Client ID" stacked>
-        <template v-if="defaultClientId" #aside>
-          <button
-            v-if="settings.device.sync.clientId.trim() !== defaultClientId"
-            class="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary"
-            @click="settings.device.sync.clientId = defaultClientId"
-          >
-            <RotateCcw :size="12" /> 使用預設值
-          </button>
-        </template>
+      <SettingRow label="同步服務網址" stacked>
         <input
-          v-model="settings.device.sync.clientId"
+          v-model="settings.device.sync.workerUrl"
           class="input text-sm"
-          placeholder="xxxxxxxx.apps.googleusercontent.com"
+          placeholder="https://fsrs-sync-auth.xxxx.workers.dev"
         />
-        <div v-if="defaultClientId" class="space-y-0.5 text-xs text-muted">
-          <p>已內建預設的 Client ID，但只有加入測試使用者的特定帳號可以使用。</p>
-          <p>其他帳號登入會被 Google 拒絕，請依下方步驟自行取得 OAuth Client ID。</p>
+        <div class="space-y-0.5 text-xs text-muted">
+          <p>填入自己部署的 Cloudflare Worker 網址，Google 登入設定由它提供。</p>
+          <p>
+            Google Cloud 與 Worker 的設定步驟請看 README 的「Google Drive 同步」，Google 用戶端 ID
+            的「已授權的 JavaScript 來源」要包含
+            <code class="break-all">{{ origin }}</code>
+          </p>
         </div>
-        <details class="text-xs text-muted">
-          <summary class="cursor-pointer font-semibold">如何取得 Client ID？</summary>
-          <ol class="mt-2 list-decimal space-y-1.5 pl-5">
-            <li>到 Google Cloud Console 建立專案。</li>
-            <li>
-              啟用 Google Drive API：「API 和服務」→「程式庫」，搜尋「Google Drive
-              API」並按「啟用」。
-            </li>
-            <li>
-              設定 OAuth 同意畫面（Google Auth Platform）：
-              <ul class="mt-1 list-disc space-y-1 pl-4">
-                <li>「品牌」：填寫應用程式名稱與電子郵件。</li>
-                <li>「目標對象」：選「外部」，並在「測試使用者」加入自己的 Google 帳號。</li>
-                <li class="space-y-0.5">
-                  <p>
-                    「資料存取」→「新增或移除範圍」：搜尋並勾選
-                    <code class="break-all">https://www.googleapis.com/auth/drive.appdata</code>
-                  </p>
-                  <p>找不到時，貼到下方「手動新增範圍」。</p>
-                  <p>按「更新」後再按「儲存」。</p>
-                  <p>這個權限只能存取 App 專用的隱藏資料夾，看不到雲端硬碟裡的其他檔案。</p>
-                </li>
-              </ul>
-            </li>
-            <li>
-              「用戶端」→「建立用戶端」，類型選「網頁應用程式」，在「已授權的 JavaScript
-              來源」加入：<code class="break-all">{{ origin }}</code>
-            </li>
-            <li>把產生的用戶端 ID 貼到上方，按「連線 Google Drive」。</li>
-            <li>Google 授權畫面列出雲端硬碟權限時，確認它有勾選。</li>
-          </ol>
-        </details>
       </SettingRow>
       <button
         class="btn btn-primary w-full"
-        :disabled="!settings.device.sync.clientId.trim() || working"
+        :disabled="!settings.device.sync.workerUrl.trim() || working"
         @click="connect"
       >
         連線 Google Drive

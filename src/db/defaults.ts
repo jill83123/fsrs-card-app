@@ -130,7 +130,7 @@ export const defaultDevice = (): DeviceSettings => ({
     kokoroBackend: 'wasm',
   },
   sync: {
-    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
+    workerUrl: '',
     auto: true,
   },
 })

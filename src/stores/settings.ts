@@ -101,8 +101,6 @@ export const useSettings = defineStore('settings', () => {
       const raw = localStorage.getItem(DEVICE_KEY)
       if (raw) Object.assign(device, mergeDefaults(defaultDevice(), JSON.parse(raw)))
       migrateTts()
-      // an empty Client ID saved before one was built in should still pick up the default
-      if (!device.sync.clientId.trim()) device.sync.clientId = defaultDevice().sync.clientId
     } catch {
       /* ignore broken storage */
     }
