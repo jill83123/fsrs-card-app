@@ -82,8 +82,8 @@ export interface BasicCard extends CardBase {
   back: string
 }
 
-/** synonyms, antonyms, derived words */
-export type RelKind = 'syn' | 'ant' | 'der'
+/** synonyms, antonyms, derived words, easily confused words */
+export type RelKind = 'syn' | 'ant' | 'der' | 'conf'
 /** ids of the vocab cards related to a card; links are kept on both cards */
 export type Relations = Partial<Record<RelKind, string[]>>
 

@@ -9,6 +9,7 @@ import { activeSides, findWordMark, isStudyable, schedOf, type Side } from '@/li
 import { childrenOf, decksInScope, effectiveLimits, effectiveReverse, subtreeIds } from '@/lib/tree'
 import { purgeExpired, type ArchivedDeck, type DeletedDeck } from '@/lib/purge'
 import { makeScheduler, State, toFsrs, fromFsrs, type Grade } from '@/lib/fsrs'
+import { REL_KINDS } from '@/lib/relations'
 import { useSettings } from './settings'
 
 export interface ScopeStats {
@@ -565,7 +566,7 @@ export const useData = defineStore('data', () => {
   async function syncRelations(selfId: string, prev: Relations = {}, next: Relations = {}) {
     const t = stamp()
     await db.transaction('rw', db.cards, async () => {
-      for (const kind of ['syn', 'ant', 'der'] as const) {
+      for (const { id: kind } of REL_KINDS) {
         const before = new Set(prev[kind] ?? [])
         const after = new Set(next[kind] ?? [])
         const touch = async (id: string, add: boolean) => {

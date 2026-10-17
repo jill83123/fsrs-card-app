@@ -4,7 +4,7 @@ import { Shuffle, Square, SquareCheck } from '@lucide/vue'
 import BottomSheet from './BottomSheet.vue'
 import PillTabs from './PillTabs.vue'
 import { useData } from '@/stores/data'
-import { cardSubtitle, cardTitle, isStudyable, schedOf, type Side } from '@/lib/cards'
+import { cardTitle, isStudyable, schedOf, type Side } from '@/lib/cards'
 import { State } from '@/lib/fsrs'
 import { ymd } from '@/lib/date'
 import { emptyPick, toFilter, type NewPick } from '@/lib/newPick'
@@ -197,7 +197,6 @@ const sideLabel = (sides: Side[]) =>
             />
             <span class="min-w-0 flex-1">
               <span class="block truncate text-sm font-medium">{{ cardTitle(x.card) }}</span>
-              <span class="block truncate text-xs text-muted">{{ cardSubtitle(x.card) }}</span>
             </span>
             <span class="shrink-0 text-right text-xs text-muted tabular-nums">
               <span v-if="sideLabel(x.sides)" class="block">{{ sideLabel(x.sides) }}</span>

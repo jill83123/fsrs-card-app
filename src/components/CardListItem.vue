@@ -15,6 +15,8 @@ const props = defineProps<{
   selectable?: boolean
   selected?: boolean
   showDeck?: boolean
+  /** hide the meaning and part of speech so they can't be glimpsed while picking cards to practise */
+  hideAnswer?: boolean
 }>()
 defineEmits<{ click: [] }>()
 const data = useData()
@@ -72,6 +74,7 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
         <PauseCircle v-if="card.suspended" :size="14" class="shrink-0 text-muted" />
       </div>
       <div
+        v-if="!hideAnswer || !complete"
         class="flex min-h-5 items-center gap-1.5 text-sm text-muted"
         :class="card.type === 'vocab' ? 'col-start-2' : 'col-span-2'"
       >
