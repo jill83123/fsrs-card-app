@@ -57,6 +57,12 @@ watch(showNewPick, (open) => open && (pick.value = emptyPick()))
 const stats = computed(() =>
   partial.value ? data.decksStats(picked.value) : data.scopeStats(props.scope),
 )
+// only once today's allowance of a kind is used up; cards beyond it are not worth mentioning before
+const limitReached = computed(
+  () =>
+    (stats.value.dueOver > 0 && !stats.value.dueAvail) ||
+    (stats.value.newOver > 0 && !stats.value.newAvail),
+)
 const q = computed(() => ({
   ...(props.scope ? { scope: props.scope } : {}),
   ...(partial.value ? { decks: picked.value.join(',') } : {}),
@@ -127,10 +133,7 @@ const allCountdown = computed(() =>
     <Timer :size="12" class="shrink-0" />
     {{ stats.learningWaiting }} 張卡片等待中，{{ allCountdown }} 後可複習全部
   </p>
-  <p
-    v-if="stats.dueOver || stats.newOver"
-    class="mt-2! text-xs text-muted"
-  >
+  <p v-if="limitReached" class="mt-2! text-xs text-muted">
     已達每日上限，還有 <template v-if="stats.dueOver">{{ stats.dueOver }} 張複習卡片</template
     ><template v-if="stats.dueOver && stats.newOver">、</template
     ><template v-if="stats.newOver">{{ stats.newOver }} 張新卡片</template>可繼續

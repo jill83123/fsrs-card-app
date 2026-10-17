@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Check,
@@ -26,6 +26,10 @@ import { cardSubtitle, cardTitle, isComplete } from '@/lib/cards'
 import { isMeaningCorrect, isSpellingCorrect, pickExample } from '@/lib/spelling'
 import { activeFilterCount, applyFilter, defaultFilter } from '@/lib/filter'
 import { shuffle } from '@/lib/id'
+import { State } from '@/lib/fsrs'
+import { addDays } from '@/lib/date'
+import { db } from '@/db'
+import type { ReviewLogRecord } from '@/db/types'
 import { decksInScope, pickedDecks } from '@/lib/tree'
 import { speak, stopSpeaking } from '@/lib/tts'
 
@@ -80,8 +84,57 @@ const pool = computed(() =>
       (includeSuspended.value || (!c.suspended && !data.pausedIds.has(c.deckId))),
   ),
 )
-const filtered = computed(() => applyFilter(pool.value, filter.value, data.scheduler, data.now))
-const hasVocab = computed(() => filtered.value.some((c) => c.type === 'vocab'))
+// restrict to cards studied on a day: first-time learned, or reviewed
+const studyDay = ref<'any' | 'today' | 'yesterday' | '3' | '7' | '30' | 'custom'>('any')
+const studyKind = ref<'all' | 'new' | 'review'>('all')
+const customFrom = ref('')
+const customTo = ref('')
+/** inclusive study-day range, or null for no restriction */
+const dayRange = computed<[string, string] | null>(() => {
+  const t = data.today
+  switch (studyDay.value) {
+    case 'any':
+      return null
+    case 'today':
+      return [t, t]
+    case 'yesterday':
+      return [addDays(t, -1), addDays(t, -1)]
+    case 'custom': {
+      const from = customFrom.value || '0000-00-00'
+      const to = customTo.value || t
+      return from <= to ? [from, to] : [to, from]
+    }
+    default:
+      return [addDays(t, 1 - Number(studyDay.value)), t]
+  }
+})
+const dayLogs = shallowRef<ReviewLogRecord[]>([])
+watch(
+  [dayRange, () => data.todayLogs],
+  async ([range]) => {
+    if (!range) {
+      dayLogs.value = []
+      return
+    }
+    const logs = await db.logs.where('studyDay').between(range[0], range[1], true, true).toArray()
+    if (dayRange.value === range) dayLogs.value = logs.filter((l) => !l.deleted)
+  },
+  { immediate: true },
+)
+const dayIds = computed(() => {
+  const ids = new Set<string>()
+  for (const l of dayLogs.value) {
+    const isNew = l.prev.state === State.New
+    if (studyKind.value === 'all' || (studyKind.value === 'new') === isNew) ids.add(l.cardId)
+  }
+  return ids
+})
+const filtered = computed(() => {
+  const list = applyFilter(pool.value, filter.value, data.scheduler, data.now)
+  return studyDay.value === 'any' ? list : list.filter((c) => dayIds.value.has(c.id))
+})
+// based on the whole pool so the play options don't vanish while the filter yields nothing
+const hasVocab = computed(() => pool.value.some((c) => c.type === 'vocab'))
 
 const selected = ref(new Set<string>())
 const touched = ref(false)
@@ -283,6 +336,38 @@ const progress = computed(() => {
           <span class="text-sm font-semibold">包含暫停的卡片與牌組</span>
           <ToggleSwitch v-model="includeSuspended" />
         </div>
+      </div>
+      <div>
+        <label class="label">學習紀錄</label>
+        <PillTabs
+          v-model="studyDay"
+          size="sm"
+          :options="[
+            { value: 'any', label: '不限' },
+            { value: 'today', label: '今天' },
+            { value: 'yesterday', label: '昨天' },
+            { value: '3', label: '3 天' },
+            { value: '7', label: '7 天' },
+            { value: '30', label: '30 天' },
+            { value: 'custom', label: '自訂' },
+          ]"
+        />
+        <div v-if="studyDay === 'custom'" class="mt-2 flex items-center gap-2 text-sm">
+          <input v-model="customFrom" type="date" class="input py-2" :max="data.today" />
+          <span class="text-muted">到</span>
+          <input v-model="customTo" type="date" class="input py-2" :max="data.today" />
+        </div>
+        <PillTabs
+          v-if="studyDay !== 'any'"
+          v-model="studyKind"
+          size="sm"
+          class="mt-2"
+          :options="[
+            { value: 'all', label: '全部' },
+            { value: 'new', label: '新學習' },
+            { value: 'review', label: '複習' },
+          ]"
+        />
       </div>
       <div>
         <label class="label">順序</label>

@@ -71,8 +71,9 @@ async function run() {
     c.meaning = r.meaning
     c.pos = r.pos
     c.examples = r.examples.map((e) => {
+      if (e.marks?.length) return { id: uid(), ...e }
       const mark = findWordMark(r.word, lang.value, e.sentence)
-      return { id: uid(), ...e, ...(mark ? { marks: [mark] } : {}) }
+      return { id: uid(), sentence: e.sentence, translation: e.translation, ...(mark ? { marks: [mark] } : {}) }
     })
     c.createdAt = base + i
     return c
@@ -111,7 +112,8 @@ async function run() {
         />
         <ul class="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
           <li>必填：word（單字）、meaning（意思）。</li>
-          <li>可省略：pos（詞性）、examples（例句，每筆 sentence + translation）。</li>
+          <li>可省略：pos（詞性）、examples（例句，每筆 sentence + translation + marks）。</li>
+          <li>marks 是例句中該單字實際出現的字（含過去式等變化），省略時由程式自動比對。</li>
           <li>詞性請寫選項名稱，如「名詞 n.」。</li>
           <li>英文詞性可只寫「名詞」或「n.」。</li>
         </ul>

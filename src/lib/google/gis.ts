@@ -125,12 +125,42 @@ function getClient(clientId: string): TokenClient {
   return client
 }
 
-function openPopup(clientId: string, selectAccount: boolean) {
+function openPopup(clientId: string, selectAccount: boolean, prompt?: string) {
   return new Promise<string>((resolve, reject) => {
     pending?.reject(new Error('已取消登入'))
     pending = { resolve, reject }
-    getClient(clientId).requestAccessToken({ prompt: selectAccount ? 'select_account' : '' })
+    getClient(clientId).requestAccessToken({
+      prompt: prompt ?? (selectAccount ? 'select_account' : ''),
+    })
   })
+}
+
+let silentFailedAt = 0
+const SILENT_RETRY = 60_000
+const SILENT_TIMEOUT = 10_000
+
+/**
+ * Try to get a new token without any user gesture (prompt: 'none'). Works only when the
+ * browser lets Google's window open and the user is still signed in and has already granted
+ * access; otherwise resolves null and the caller falls back to a click.
+ */
+export async function requestTokenSilently(clientId: string): Promise<string | null> {
+  if (!clientId || Date.now() - silentFailedAt < SILENT_RETRY) return null
+  try {
+    await loadGis()
+    const attempt = openPopup(clientId, false, 'none')
+    const mine = pending
+    const timer = setTimeout(() => {
+      if (pending === mine) {
+        pending = null
+        mine?.reject(new Error('timeout'))
+      }
+    }, SILENT_TIMEOUT)
+    return await attempt.finally(() => clearTimeout(timer))
+  } catch {
+    silentFailedAt = Date.now()
+    return null
+  }
 }
 
 /**
