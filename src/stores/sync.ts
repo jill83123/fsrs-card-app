@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CHANGE_EVENT, getMeta, lastLocalChange } from '@/db'
 import {
   cachedToken,
   clearToken,
+  hasRefreshToken,
   preloadGis,
+  refreshAccessToken,
   requestToken,
-  requestTokenSilently,
   revokeToken,
+  setWorkerUrl,
 } from '@/lib/google/gis'
 import {
   createFile,
@@ -91,6 +93,7 @@ export const useSync = defineStore('sync', () => {
   const settings = useSettings()
   const ui = useUi()
   const connected = ref(localStorage.getItem(LS_CONNECTED) === '1')
+  watch(() => settings.device.sync.workerUrl, setWorkerUrl, { immediate: true })
   if (connected.value) preloadGis()
   const lastSync = ref(readNum(LS_LAST_SYNC))
   const localChange = ref(lastLocalChange())
@@ -114,24 +117,34 @@ export const useSync = defineStore('sync', () => {
     return 'idle'
   })
 
-  const clientId = computed(() => settings.device.sync.clientId.trim())
-
   // a popup may only open straight from a click, so never request one after an await:
   // every caller below reaches requestToken synchronously from its click handler
   async function token(interactive: boolean): Promise<string | null> {
     const t = cachedToken()
     if (t) return t
-    if (!interactive) {
-      // no click to open a popup from: try Google's silent refresh, else ask for a click
-      const silent = await requestTokenSilently(clientId.value)
-      if (silent) {
-        needsAuth.value = false
-        return silent
+    if (hasRefreshToken()) {
+      // renewing needs no window, so it works with or without a click
+      let renewed: string | null = null
+      try {
+        renewed = await refreshAccessToken()
+      } catch (e) {
+        // network trouble: keep the refresh token and try again on the next sync
+        if (interactive) throw e
+        return null
       }
+      if (renewed) {
+        needsAuth.value = false
+        return renewed
+      }
+      needsAuth.value = true
+      if (interactive) throw new Error('Google 授權已失效，請再按一次重新登入')
+      return null
+    }
+    if (!interactive) {
       needsAuth.value = true
       return null
     }
-    const fresh = await requestToken(clientId.value)
+    const fresh = await requestToken()
     needsAuth.value = false
     return fresh
   }
@@ -160,7 +173,7 @@ export const useSync = defineStore('sync', () => {
   async function connect() {
     error.value = null
     try {
-      await requestToken(clientId.value, true)
+      await requestToken(true)
       connected.value = true
       needsAuth.value = false
       localStorage.setItem(LS_CONNECTED, '1')
