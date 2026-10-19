@@ -55,6 +55,10 @@ const limit = ref(80)
 const shown = computed(() => filtered.value.slice(0, limit.value))
 const filterCount = computed(() => activeFilterCount(filter.value))
 
+// same dashes as .leader, a touch darker than --line
+const dash =
+  'linear-gradient(to right, color-mix(in srgb, var(--line) 75%, var(--muted)) 3px, transparent 3px)'
+
 const selecting = ref(false)
 const selected = ref(new Set<string>())
 const selectedIds = computed(() =>
@@ -135,7 +139,8 @@ async function moveTo(deckId: string) {
 
 async function fillReadings() {
   const targets = filtered.value.filter(
-    (c) => selected.value.has(c.id) && c.type === 'vocab' && !c.reading.trim() && canAutoReading(c.lang),
+    (c) =>
+      selected.value.has(c.id) && c.type === 'vocab' && !c.reading.trim() && canAutoReading(c.lang),
   )
   if (!targets.length) return ui.toast('選取的卡片沒有需要補讀音的單字', 'info')
   let done = 0
@@ -191,15 +196,23 @@ function practice() {
     </div>
 
     <div class="space-y-2">
-      <CardListItem
-        v-for="c in shown"
-        :key="c.id"
-        :card="c"
-        :show-deck="showDeck"
-        :selectable="selecting"
-        :selected="selected.has(c.id)"
-        @click="onItem(c)"
-      />
+      <template v-for="(c, i) in shown" :key="c.id">
+        <div
+          v-if="i > 0 && i % 5 === 0"
+          class="flex items-center gap-2 pt-2 text-[11px] text-muted"
+        >
+          <span class="leader flex-1" :style="{ backgroundImage: dash }" />
+          <span>{{ i }}</span>
+          <span class="leader flex-1" :style="{ backgroundImage: dash }" />
+        </div>
+        <CardListItem
+          :card="c"
+          :show-deck="showDeck"
+          :selectable="selecting"
+          :selected="selected.has(c.id)"
+          @click="onItem(c)"
+        />
+      </template>
       <button v-if="filtered.length > limit" class="btn btn-ghost w-full" @click="limit += 100">
         顯示更多（還有 {{ filtered.length - limit }} 張）
       </button>

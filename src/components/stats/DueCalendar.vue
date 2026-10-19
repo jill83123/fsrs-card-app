@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
+import ChartTip from './ChartTip.vue'
+import { useTip } from './useTip'
 import { formatDayLabel, parseYmd } from '@/lib/date'
 
 /** consecutive days, the first one being today */
@@ -38,24 +40,19 @@ const cells = computed(() => {
   return out
 })
 
-const total = computed(() => props.days.reduce((a, d) => a + d.n, 0))
-const lastDay = computed(() => props.days.at(-1)?.day ?? '')
-const hovered = ref<{ day: string; n: number } | null>(null)
-watch(
-  () => props.days,
-  () => (hovered.value = null),
-)
+const { root, tip, show, hide } = useTip()
 const isToday = (day: string) => day === props.days[0]?.day
+const tipText = (day: string) => (isToday(day) ? '今天（含逾期）' : formatDayLabel(day))
 // keep the label readable on the darkest steps
 const strongText = (l: number) => l >= 3
 </script>
 
 <template>
-  <div>
+  <div ref="root" class="relative">
     <div class="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] text-muted">
       <span v-for="w in ['一', '二', '三', '四', '五', '六', '日']" :key="w">{{ w }}</span>
     </div>
-    <div class="grid grid-cols-7 gap-1" @mouseleave="hovered = null">
+    <div class="grid grid-cols-7 gap-1" @mouseleave="hide">
       <template v-for="(c, i) in cells" :key="c?.day ?? `blank-${i}`">
         <div v-if="!c" />
         <div
@@ -66,9 +63,8 @@ const strongText = (l: number) => l >= 3
             strongText(c.level) ? 'text-white' : 'text-ink',
           ]"
           :style="{ background: levelColor(c.level) }"
-          :title="`${formatDayLabel(c.day)}：${c.n} 張`"
-          @mouseenter="hovered = c"
-          @click="hovered = c"
+          @mouseenter="show($event, tipText(c.day))"
+          @click="show($event, tipText(c.day))"
         >
           <span class="text-[10px]" :class="strongText(c.level) ? 'text-white/80' : 'text-muted'">{{
             c.label
@@ -79,17 +75,6 @@ const strongText = (l: number) => l >= 3
         </div>
       </template>
     </div>
-    <p class="mt-2 text-xs text-muted">
-      <template v-if="hovered"
-        >{{ isToday(hovered.day) ? '今天（含逾期）' : formatDayLabel(hovered.day) }}：{{
-          hovered.n
-        }}
-        張</template
-      >
-      <template v-else
-        >到 {{ formatDayLabel(lastDay) }} 共 {{ total }} 張 ·
-        今天包含已逾期的卡片；不含新卡。</template
-      >
-    </p>
+    <ChartTip :tip="tip" />
   </div>
 </template>
