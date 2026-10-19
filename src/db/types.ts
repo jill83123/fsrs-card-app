@@ -39,6 +39,8 @@ export interface TreeNode extends SyncFields {
   defaultCard?: CardTemplate
   /** decks only; vocab cards also get a meaning → word schedule. absent = inherit (off at the top) */
   reverse?: boolean
+  /** decks only; how this deck's card list is sorted (synced, so every device shows the same order) */
+  cardSort?: { key: string; desc: boolean }
 }
 
 export type DeckColor = 'blue' | 'yellow' | 'pink' | 'orange' | 'green' | 'purple' | 'gray'
@@ -74,6 +76,8 @@ interface CardBase extends SyncFields {
   sched: SchedState
   /** schedule of the reverse (meaning → word) side; absent = never reviewed (new) */
   rsched?: SchedState
+  /** position in the hand-sorted card list (ascending); absent = after the sorted ones, by creation time */
+  order?: number
 }
 
 export interface BasicCard extends CardBase {

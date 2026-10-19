@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   CheckSquare,
@@ -20,7 +20,14 @@ import CardListItem from './CardListItem.vue'
 import CardFilterSheet from './CardFilterSheet.vue'
 import MoveDeckSheet from './MoveDeckSheet.vue'
 import type { Card } from '@/db/types'
-import { activeFilterCount, applyFilter, defaultFilter, type CardFilter } from '@/lib/filter'
+import {
+  activeFilterCount,
+  applyFilter,
+  defaultFilter,
+  isSortKey,
+  type CardFilter,
+} from '@/lib/filter'
+import { moved, useDragSort } from '@/composables/useDragSort'
 import { useData } from '@/stores/data'
 import { useUi } from '@/stores/ui'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
@@ -30,13 +37,28 @@ const data = useData()
 const ui = useUi()
 const router = useRouter()
 
+// the sort lives on the deck (synced); everything else in the filter is just for this visit
+const savedSort = computed(() => {
+  const s = props.storageKey ? data.nodeById.get(props.storageKey)?.cardSort : undefined
+  return s && isSortKey(s.key) ? { key: s.key, desc: s.desc } : undefined
+})
+
 function loadFilter(): CardFilter {
-  if (!props.storageKey) return defaultFilter()
+  const base = defaultFilter()
+  if (savedSort.value) {
+    base.sort = savedSort.value.key
+    base.desc = savedSort.value.desc
+  }
+  if (!props.storageKey) return base
   try {
     const raw = sessionStorage.getItem(`sr.filter.${props.storageKey}`)
-    return raw ? { ...defaultFilter(), ...JSON.parse(raw) } : defaultFilter()
+    if (!raw) return base
+    const rest = JSON.parse(raw)
+    delete rest.sort
+    delete rest.desc
+    return { ...base, ...rest }
   } catch {
-    return defaultFilter()
+    return base
   }
 }
 
@@ -48,12 +70,88 @@ watch(
   },
   { deep: true },
 )
+// save a changed sort to the deck, and follow it when another device changes it
+watch(
+  () => [filter.value.sort, filter.value.desc] as const,
+  ([key, desc]) => {
+    const s = savedSort.value
+    if (!props.storageKey || (s ? s.key === key && s.desc === desc : key === 'created' && desc))
+      return
+    void data.updateNode(props.storageKey, { cardSort: { key, desc } })
+  },
+)
+watch(savedSort, (s) => {
+  if (s && (s.key !== filter.value.sort || s.desc !== filter.value.desc)) {
+    filter.value.sort = s.key
+    filter.value.desc = s.desc
+  }
+})
 
 const showFilter = ref(false)
-const filtered = computed(() => applyFilter(props.cards, filter.value, data.scheduler, data.now))
+const sorted = computed(() => applyFilter(props.cards, filter.value, data.scheduler, data.now))
+
+// hand-sorting: show the new order at once instead of waiting for the database round trip
+const local = ref<string[] | null>(null)
+watch(
+  () => props.cards.map((c) => `${c.id}:${c.order ?? ''}`).join(),
+  () => (local.value = null),
+)
+const filtered = computed(() => {
+  if (!local.value) return sorted.value
+  const byId = new Map(sorted.value.map((c) => [c.id, c]))
+  return local.value.map((id) => byId.get(id)).filter((c): c is Card => !!c)
+})
 const limit = ref(80)
 const shown = computed(() => filtered.value.slice(0, limit.value))
 const filterCount = computed(() => activeFilterCount(filter.value))
+
+const manual = computed(() => filter.value.sort === 'manual')
+const dragReady = computed(
+  () => manual.value && !selecting.value && !filterCount.value && !filter.value.q.trim(),
+)
+const drag = useDragSort((from, to) => {
+  const ids = moved(
+    filtered.value.map((c) => c.id),
+    from,
+    to,
+  )
+  local.value = ids
+  void data.reorderCards(ids)
+})
+
+// press and hold a card to pick it up; moving before the hold ends is a normal scroll
+const HOLD_MS = 350
+let holdTimer = 0
+let holdFrom = { x: 0, y: 0 }
+let justHeld = false
+
+function pressStart(e: PointerEvent, index: number) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+  const el = e.currentTarget as HTMLElement
+  holdFrom = { x: e.clientX, y: e.clientY }
+  clearTimeout(holdTimer)
+  holdTimer = window.setTimeout(() => {
+    justHeld = true
+    holdTimer = 0
+    navigator.vibrate?.(15)
+    drag.start(e, index, el)
+  }, HOLD_MS)
+}
+function pressMove(e: PointerEvent) {
+  if (holdTimer && Math.hypot(e.clientX - holdFrom.x, e.clientY - holdFrom.y) > 8) pressCancel()
+}
+function pressCancel() {
+  clearTimeout(holdTimer)
+  holdTimer = 0
+  // the click that ends a hold must not open the card
+  setTimeout(() => (justHeld = false), 60)
+}
+// once a card is picked up the touch must not scroll the page
+function blockScroll(e: TouchEvent) {
+  if (drag.active() && e.cancelable) e.preventDefault()
+}
+onMounted(() => window.addEventListener('touchmove', blockScroll, { passive: false }))
+onBeforeUnmount(() => window.removeEventListener('touchmove', blockScroll))
 
 // same dashes as .leader, a touch darker than --line
 const dash =
@@ -83,6 +181,7 @@ function exitSelect() {
 }
 
 function onItem(c: Card) {
+  if (justHeld) return
   if (selecting.value) toggle(c.id)
   else {
     try {
@@ -196,23 +295,41 @@ function practice() {
     </div>
 
     <div class="space-y-2">
-      <template v-for="(c, i) in shown" :key="c.id">
+      <p v-if="manual && !dragReady && !selecting" class="px-1 text-xs text-muted">
+        清除搜尋與篩選後，才能拖拉調整順序
+      </p>
+      <div
+        v-for="(c, i) in shown"
+        :key="c.id"
+        data-sort-item
+        :class="drag.dragging(i) && 'rounded-xl shadow-lg'"
+        :style="drag.style(i)"
+      >
         <div
           v-if="i > 0 && i % 5 === 0"
-          class="flex items-center gap-2 pt-2 text-[11px] text-muted"
+          class="mb-2 flex items-center gap-2 pt-2 text-[11px] text-muted"
         >
           <span class="leader flex-1" :style="{ backgroundImage: dash }" />
           <span>{{ i }}</span>
           <span class="leader flex-1" :style="{ backgroundImage: dash }" />
         </div>
-        <CardListItem
-          :card="c"
-          :show-deck="showDeck"
-          :selectable="selecting"
-          :selected="selected.has(c.id)"
-          @click="onItem(c)"
-        />
-      </template>
+        <div
+          :class="dragReady && 'select-none'"
+          @pointerdown="dragReady && pressStart($event, i)"
+          @pointermove="pressMove"
+          @pointerup="pressCancel"
+          @pointercancel="pressCancel"
+          @contextmenu="dragReady && $event.preventDefault()"
+        >
+          <CardListItem
+            :card="c"
+            :show-deck="showDeck"
+            :selectable="selecting"
+            :selected="selected.has(c.id)"
+            @click="onItem(c)"
+          />
+        </div>
+      </div>
       <button v-if="filtered.length > limit" class="btn btn-ghost w-full" @click="limit += 100">
         顯示更多（還有 {{ filtered.length - limit }} 張）
       </button>

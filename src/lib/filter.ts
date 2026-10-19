@@ -5,7 +5,7 @@ import { retrievability, State } from './fsrs'
 
 export type TriState = 'any' | 'yes' | 'no'
 export type FamBucket = 'any' | 'new' | 'low' | 'mid' | 'high' | 'top'
-export type SortKey = 'created' | 'updated' | 'due' | 'familiarity' | 'alpha'
+export type SortKey = 'created' | 'updated' | 'due' | 'familiarity' | 'alpha' | 'manual'
 
 export interface CardFilter {
   q: string
@@ -50,7 +50,10 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'due', label: '到期日' },
   { value: 'familiarity', label: '熟悉度' },
   { value: 'alpha', label: '正面文字' },
+  { value: 'manual', label: '自訂排序（長按調整）' },
 ]
+
+export const isSortKey = (k: unknown): k is SortKey => SORT_OPTIONS.some((o) => o.value === k)
 
 const tri = (t: TriState, v: boolean) => t === 'any' || (t === 'yes') === v
 
@@ -101,6 +104,14 @@ export function applyFilter(cards: Card[], f: CardFilter, fsrs: FSRS, now = Date
     return true
   })
 
+  if (f.sort === 'manual') {
+    return out.sort(
+      (a, b) =>
+        (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) ||
+        a.createdAt - b.createdAt,
+    )
+  }
+
   const dir = f.desc ? -1 : 1
   const key = (c: Card): number | string => {
     switch (f.sort) {
@@ -112,7 +123,7 @@ export function applyFilter(cards: Card[], f: CardFilter, fsrs: FSRS, now = Date
         return c.sched.state === State.New ? Number.MAX_SAFE_INTEGER : c.sched.due
       case 'familiarity':
         return fam(c) ?? -1
-      case 'alpha':
+      default:
         return cardTitle(c).toLowerCase()
     }
   }

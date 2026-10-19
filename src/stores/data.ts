@@ -385,6 +385,18 @@ export const useData = defineStore('data', () => {
     markLocalChange()
   }
 
+  /** Store the hand-made card order; only cards whose position changed are touched (and so synced). */
+  async function reorderCards(ids: string[]) {
+    const t = stamp()
+    await db.transaction('rw', db.cards, async () => {
+      for (const [i, id] of ids.entries()) {
+        const c = await db.cards.get(id)
+        if (c && c.order !== i + 1) await db.cards.update(id, { order: i + 1, updatedAt: t })
+      }
+    })
+    markLocalChange()
+  }
+
   async function setPaused(id: string, paused: boolean) {
     await db.nodes.update(id, { paused: paused || undefined, updatedAt: stamp() })
     markLocalChange()
@@ -744,6 +756,7 @@ export const useData = defineStore('data', () => {
     createNode,
     updateNode,
     reorderNodes,
+    reorderCards,
     deleteNode,
     setArchived,
     setPaused,
