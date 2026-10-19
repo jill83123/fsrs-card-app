@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronRight, Dumbbell, Layers, RotateCcw, Sparkles, Timer } from '@lucide/vue'
+import { ChevronRight, CircleAlert, Dumbbell, Layers, RotateCcw, Sparkles, Timer } from '@lucide/vue'
 import DeckPickSheet from './DeckPickSheet.vue'
 import { useData } from '@/stores/data'
 import { useTicker } from '@/composables/useTicker'
@@ -56,12 +56,6 @@ watch(showNewPick, (open) => open && (pick.value = emptyPick()))
 
 const stats = computed(() =>
   partial.value ? data.decksStats(picked.value) : data.scopeStats(props.scope),
-)
-// only once today's allowance of a kind is used up; cards beyond it are not worth mentioning before
-const limitReached = computed(
-  () =>
-    (stats.value.dueOver > 0 && !stats.value.dueAvail) ||
-    (stats.value.newOver > 0 && !stats.value.newAvail),
 )
 const q = computed(() => ({
   ...(props.scope ? { scope: props.scope } : {}),
@@ -126,18 +120,32 @@ const allCountdown = computed(() =>
       <span class="text-sm font-bold">練習</span>
     </button>
   </div>
-  <p
-    v-if="countdown"
-    class="mt-2! flex items-center gap-1 text-xs tabular-nums text-muted"
+  <div
+    v-if="countdown || (stats.dueOver > 0 && !stats.dueAvail) || (stats.newOver > 0 && !stats.newAvail)"
+    class="mt-2! space-y-2"
   >
-    <Timer :size="12" class="shrink-0" />
-    {{ stats.learningWaiting }} 張卡片等待中，{{ allCountdown }} 後可複習全部
-  </p>
-  <p v-if="limitReached" class="mt-2! text-xs text-muted">
-    已達每日上限，還有 <template v-if="stats.dueOver">{{ stats.dueOver }} 張複習卡片</template
-    ><template v-if="stats.dueOver && stats.newOver">、</template
-    ><template v-if="stats.newOver">{{ stats.newOver }} 張新卡片</template>可繼續
-  </p>
+    <p
+      v-if="countdown"
+      class="flex items-center gap-1 text-xs tabular-nums text-muted"
+    >
+      <Timer :size="12" class="shrink-0" />
+      {{ stats.learningWaiting }} 張卡片等待中，{{ allCountdown }} 後可複習全部
+    </p>
+    <p
+      v-if="stats.dueOver > 0 && !stats.dueAvail"
+      class="flex items-center gap-1 text-xs font-medium text-warn"
+    >
+      <CircleAlert :size="12" class="shrink-0" />
+      複習已達每日上限，還有 {{ stats.dueOver }} 張可繼續
+    </p>
+    <p
+      v-if="stats.newOver > 0 && !stats.newAvail"
+      class="flex items-center gap-1 text-xs font-medium text-warn"
+    >
+      <CircleAlert :size="12" class="shrink-0" />
+      新學習已達每日上限，還有 {{ stats.newOver }} 張可繼續
+    </p>
+  </div>
   <div v-if="$slots.default" class="mt-3"><slot /></div>
   <NewPickSheet
     v-model="showNewPick"
