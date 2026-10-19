@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
+import ChartTip from './ChartTip.vue'
+import { useTip } from './useTip'
 
 export interface Bar {
   key: string
   /** axis label under the bar; '' leaves the slot empty */
   label: string
   n: number
-  /** shown under the chart while the bar is hovered / tapped */
-  title: string
+  /** shown in a floating bubble while the bar is hovered / tapped */
+  tip: string
   strong?: boolean
 }
 
@@ -16,27 +18,22 @@ const props = withDefaults(defineProps<{ bars: Bar[]; height?: number }>(), { he
 const max = computed(() => Math.max(1, ...props.bars.map((b) => b.n)))
 // numbers above every bar only while they still fit
 const showValues = computed(() => props.bars.length <= 10)
-const hovered = ref<Bar | null>(null)
-watch(
-  () => props.bars,
-  () => (hovered.value = null),
-)
+const { root, tip, show, hide } = useTip()
 </script>
 
 <template>
-  <div>
+  <div ref="root" class="relative">
     <div
       class="flex items-end"
       :class="bars.length > 10 ? 'gap-[3px]' : 'gap-2'"
-      @mouseleave="hovered = null"
+      @mouseleave="hide"
     >
       <div
         v-for="b in bars"
         :key="b.key"
         class="flex min-w-0 flex-1 cursor-default flex-col items-center gap-1"
-        :title="b.title"
-        @mouseenter="hovered = b"
-        @click="hovered = b"
+        @mouseenter="show($event, b.tip)"
+        @click="show($event, b.tip)"
       >
         <span v-if="showValues" class="text-xs font-semibold">{{ b.n }}</span>
         <div
@@ -44,7 +41,6 @@ watch(
           :class="[
             b.strong ? 'bg-primary' : 'bg-primary-soft',
             bars.length > 10 ? 'rounded-b-[2px]' : 'rounded-t-xl rounded-b-md',
-            hovered === b && 'ring-1 ring-ink/40',
           ]"
           :style="{ height: `${Math.max(3, (b.n / max) * height)}px` }"
         />
@@ -53,9 +49,6 @@ watch(
         }}</span>
       </div>
     </div>
-    <p class="mt-2 text-xs text-muted">
-      <template v-if="hovered">{{ hovered.title }}</template>
-      <slot v-else />
-    </p>
+    <ChartTip :tip="tip" />
   </div>
 </template>

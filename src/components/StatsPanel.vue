@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { liveQuery } from 'dexie'
+import { ChevronLeft, ChevronRight } from '@lucide/vue'
+import { useRouter } from 'vue-router'
+import CardListItem from '@/components/CardListItem.vue'
 import SelectBox from '@/components/SelectBox.vue'
 import PillTabs from '@/components/PillTabs.vue'
 import BarChart, { type Bar } from '@/components/stats/BarChart.vue'
 import BarRows from '@/components/stats/BarRows.vue'
 import DonutChart from '@/components/stats/DonutChart.vue'
+import ChartTip from '@/components/stats/ChartTip.vue'
 import DueCalendar from '@/components/stats/DueCalendar.vue'
+import { useTip } from '@/components/stats/useTip'
 import StatsSection from '@/components/stats/StatsSection.vue'
 import { CHART_BLUE } from '@/components/stats/colors'
 import { useData } from '@/stores/data'
@@ -18,16 +23,16 @@ import {
   formatDayLabel,
   parseYmd,
   studyDayEnd,
-  studyDayOf,
   studyDayStart,
   weekdayLabel,
 } from '@/lib/date'
-import { cardTitle, isLearned, isStudyable } from '@/lib/cards'
-import { GRADES, Rating, retrievability, State } from '@/lib/fsrs'
+import { isLearned, isStudyable } from '@/lib/cards'
+import { GRADES, Rating, State } from '@/lib/fsrs'
 
 /** deck id to limit the stats to its subtree; null = everything */
 const props = defineProps<{ scope: string | null }>()
 const data = useData()
+const router = useRouter()
 const settings = useSettings()
 
 const scopeCards = computed(() => (props.scope ? data.cardsInScope(props.scope) : data.cards))
@@ -40,10 +45,19 @@ interface RecentLog {
   rating: number
   prevState: State
 }
+function addTo(m: Map<string, Set<string>>, day: string, cardId: string) {
+  let set = m.get(day)
+  if (!set) m.set(day, (set = new Set()))
+  set.add(cardId)
+}
 const logs = useLiveQuery<{
   counts: Map<string, number>
   /** per study day: how many times each grade (Again..Easy) was pressed */
   ratings: Map<string, number[]>
+  /** per study day: how many different cards were reviewed (cards first learned that day excluded) */
+  reviewedPerDay: Map<string, number>
+  /** per study day: how many different new cards were studied for the first time */
+  learnedPerDay: Map<string, number>
   recent: RecentLog[]
 }>(
   () =>
@@ -52,6 +66,8 @@ const logs = useLiveQuery<{
       const recentStart = addDays(data.today, -(RECENT_DAYS - 1))
       const counts = new Map<string, number>()
       const ratings = new Map<string, number[]>()
+      const seenNew = new Map<string, Set<string>>()
+      const seenOld = new Map<string, Set<string>>()
       const recent: RecentLog[] = []
       await db.logs.orderBy('studyDay').each((l) => {
         if (l.deleted || (ids && !ids.has(l.cardId))) return
@@ -59,12 +75,36 @@ const logs = useLiveQuery<{
         let r = ratings.get(l.studyDay)
         if (!r) ratings.set(l.studyDay, (r = [0, 0, 0, 0]))
         if (l.rating >= Rating.Again && l.rating <= Rating.Easy) r[l.rating - 1]!++
+        addTo(l.prev.state === State.New ? seenNew : seenOld, l.studyDay, l.cardId)
         if (l.studyDay >= recentStart)
-          recent.push({ day: l.studyDay, rating: l.rating, prevState: l.prev.state })
+          recent.push({
+            day: l.studyDay,
+            rating: l.rating,
+            prevState: l.prev.state,
+          })
       })
-      return { counts, ratings, recent }
+      const sizes = (m: Map<string, Set<string>>) =>
+        new Map([...m].map(([day, set]) => [day, set.size]))
+      return {
+        counts,
+        ratings,
+        reviewedPerDay: new Map(
+          [...seenOld].map(([day, set]) => [
+            day,
+            [...set].filter((id) => !seenNew.get(day)?.has(id)).length,
+          ]),
+        ),
+        learnedPerDay: sizes(seenNew),
+        recent,
+      }
     }),
-  { counts: new Map(), ratings: new Map(), recent: [] },
+  {
+    counts: new Map(),
+    ratings: new Map(),
+    reviewedPerDay: new Map(),
+    learnedPerDay: new Map(),
+    recent: [],
+  },
   [scopeIds, () => data.today],
 )
 const counts = computed(() => logs.value.counts)
@@ -73,8 +113,12 @@ const recentLogs = computed(() => logs.value.recent)
 // --- heatmap -----------------------------------------------------------------
 // range: the last 53 weeks, or one calendar year
 const year = ref<'recent' | number>('recent')
-const hovered = ref<{ day: string; n: number } | null>(null)
-watch([year, () => props.scope], () => (hovered.value = null))
+const heatKind = ref<'review' | 'learned'>('review')
+const heat = computed(() =>
+  heatKind.value === 'review' ? logs.value.reviewedPerDay : logs.value.learnedPerDay,
+)
+const { root: heatRoot, tip: heatTip, show: showHeatTip, hide: hideHeatTip } = useTip()
+watch([year, heatKind, () => props.scope], hideHeatTip)
 const RECENT_WEEKS = 53
 const mondayOf = (day: string) => addDays(day, -((parseYmd(day).getDay() + 6) % 7))
 const range = computed(() => {
@@ -113,7 +157,7 @@ const weeks = computed(() => {
       const day = addDays(gridStart, w * 7 + d)
       col.push({
         day,
-        n: counts.value.get(day) ?? 0,
+        n: heat.value.get(day) ?? 0,
         hidden: day < first || day > last || day > data.today,
       })
     }
@@ -149,7 +193,7 @@ const monthLabels = computed(() => {
 // recent / current year: show the latest weeks; past years: start from January
 const scroller = ref<HTMLElement>()
 watch(
-  [() => counts.value, year, scroller],
+  [heat, year, scroller],
   async () => {
     await nextTick()
     const el = scroller.value
@@ -160,37 +204,16 @@ watch(
   { immediate: true },
 )
 
-const totalReviews = computed(() => visibleDays.value.reduce((a, c) => a + c.n, 0))
-const activeDays = computed(() => visibleDays.value.filter((c) => c.n).length)
-
 // --- headline numbers ----------------------------------------------------------
-const streak = computed(() => {
-  let n = 0
-  let day = data.today
-  if (!counts.value.get(day)) day = addDays(day, -1)
-  while (counts.value.get(day)) {
-    n++
-    day = addDays(day, -1)
-  }
-  return n
-})
-const longestStreak = computed(() => {
-  let best = 0
-  let run = 0
-  let prev = ''
-  for (const day of counts.value.keys()) {
-    run = prev && addDays(prev, 1) === day ? run + 1 : 1
-    best = Math.max(best, run)
-    prev = day
-  }
-  return best
-})
-const dailyAverage = computed(() => recentLogs.value.length / RECENT_DAYS)
-
 const totals = computed(() => ({
   cards: scopeCards.value.length,
   learned: scopeCards.value.filter(isLearned).length,
 }))
+
+const headline = computed(() => [
+  { label: '卡片總數', value: totals.value.cards },
+  { label: '已學習', value: totals.value.learned },
+])
 
 // --- retention -------------------------------------------------------------------
 // true retention: reviews of cards already in the review state that weren't forgotten
@@ -210,6 +233,16 @@ const retention = computed(() => [
   { label: '近 30 天', ...retentionSince(30) },
 ])
 const targetRetention = computed(() => settings.synced.fsrs.retention)
+// a short verdict on the last 30 days against the target; too few reviews says nothing
+const RETENTION_MIN_REVIEWS = 20
+const retentionComment = computed(() => {
+  const { n, rate } = retentionSince(30)
+  if (rate === null || n < RETENTION_MIN_REVIEWS) return ''
+  const gap = rate - targetRetention.value
+  if (gap >= 0) return '記得很牢，繼續保持！'
+  if (gap >= -0.05) return '接近目標了，再努力一點點。'
+  return '最近忘記得有點多，多花點時間複習吧。'
+})
 const pctText = (r: number) => `${(r * 100).toFixed(1).replace(/\.0$/, '')}%`
 
 // --- forecast ----------------------------------------------------------------------
@@ -230,58 +263,10 @@ const forecastWeek = computed<Bar[]>(() =>
     key: day,
     label: i === 0 ? '今天' : weekdayLabel(day),
     n,
-    title: `${i === 0 ? '今天（含逾期）' : formatDayLabel(day)}：${n} 張`,
+    tip: i === 0 ? '今天（含逾期）' : formatDayLabel(day),
     strong: i === 0,
   })),
 )
-const forecastWeekTotal = computed(() => forecastWeek.value.reduce((a, b) => a + b.n, 0))
-
-// --- added / newly learned per day -----------------------------------------------
-const trendKind = ref<'added' | 'learned'>('added')
-const trendDays = computed(() =>
-  Array.from({ length: RECENT_DAYS }, (_, i) => addDays(data.today, i - (RECENT_DAYS - 1))),
-)
-const addedByDay = computed(() => {
-  const hour = settings.synced.study.rolloverHour
-  const m = new Map<string, number>()
-  for (const c of scopeCards.value) {
-    const day = studyDayOf(c.createdAt, hour)
-    m.set(day, (m.get(day) ?? 0) + 1)
-  }
-  return m
-})
-const learnedByDay = computed(() => {
-  const m = new Map<string, number>()
-  for (const l of recentLogs.value)
-    if (l.prevState === State.New) m.set(l.day, (m.get(l.day) ?? 0) + 1)
-  return m
-})
-const trendSum = (m: Map<string, number>) =>
-  trendDays.value.reduce((a, d) => a + (m.get(d) ?? 0), 0)
-const trendOptions = computed(() => [
-  { value: 'added' as const, label: `新增卡片（${trendSum(addedByDay.value)}）` },
-  { value: 'learned' as const, label: `新學卡片（${trendSum(learnedByDay.value)}）` },
-])
-const trend = computed<Bar[]>(() => {
-  const m = trendKind.value === 'added' ? addedByDay.value : learnedByDay.value
-  const verb = trendKind.value === 'added' ? '新增' : '新學'
-  return trendDays.value.map((day, i) => {
-    const d = parseYmd(day)
-    const n = m.get(day) ?? 0
-    const last = i === RECENT_DAYS - 1
-    return {
-      key: day,
-      label: last
-        ? '今天'
-        : (RECENT_DAYS - 1 - i) % 7 === 0
-          ? `${d.getMonth() + 1}/${d.getDate()}`
-          : '',
-      n,
-      title: `${formatDayLabel(day)}：${verb} ${n} 張`,
-      strong: last,
-    }
-  })
-})
 
 // --- ratings ---------------------------------------------------------------------------
 const RATING_PERIODS = [
@@ -335,51 +320,46 @@ const stabilityRows = computed(() => {
     color: `color-mix(in oklab, var(--primary) ${[30, 48, 66, 84, 100][i]}%, var(--surface-2))`,
   }))
 })
-const stabilityTotal = computed(() => stabilityRows.value.reduce((a, r) => a + r.n, 0))
 
 // --- hardest cards -------------------------------------------------------------------------
-const hardCards = computed(() =>
+// hardest cards by FSRS difficulty (1-10, about 5 on average); needs a few reviews so one
+// early answer can't decide it
+const HARD_MIN_REPS = 3
+const HARD_LEVELS = [
+  { min: 8, label: '很難', color: 'var(--danger)' },
+  { min: 6.5, label: '偏難', color: 'var(--warn)' },
+]
+const hardLevel = (difficulty: number) => HARD_LEVELS.find((l) => difficulty >= l.min)
+const hardAll = computed(() =>
   scopeCards.value
-    .filter((c) => c.sched.lapses > 0)
-    .sort((a, b) => b.sched.lapses - a.sched.lapses || b.sched.difficulty - a.sched.difficulty)
-    .slice(0, 10)
-    .map((c) => ({
-      card: c,
-      deck: data.nodeById.get(c.deckId)?.name,
-      fam: retrievability(data.scheduler, c.sched, data.now),
-    })),
+    .filter(
+      (c) =>
+        c.sched.state !== State.New &&
+        c.sched.reps >= HARD_MIN_REPS &&
+        hardLevel(c.sched.difficulty),
+    )
+    .sort((a, b) => b.sched.difficulty - a.sched.difficulty),
 )
-const multiDeck = computed(() => new Set(scopeCards.value.map((c) => c.deckId)).size > 1)
+const HARD_PAGE_SIZE = 10
+const hardPage = ref(0)
+const hardPages = computed(() => Math.max(1, Math.ceil(hardAll.value.length / HARD_PAGE_SIZE)))
+// the list shrinks when cards improve or the scope changes
+watch(hardPages, (n) => (hardPage.value = Math.min(hardPage.value, n - 1)))
+watch(
+  () => props.scope,
+  () => (hardPage.value = 0),
+)
+const hardCards = computed(() =>
+  hardAll.value.slice(hardPage.value * HARD_PAGE_SIZE, (hardPage.value + 1) * HARD_PAGE_SIZE),
+)
 </script>
 
 <template>
   <div>
-    <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-muted">今日複習</p>
-        <p class="text-2xl font-bold">{{ counts.get(data.today) ?? 0 }}</p>
-      </div>
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-muted">近 30 天日均</p>
-        <p class="text-2xl font-bold">
-          {{ dailyAverage.toFixed(1).replace(/\.0$/, '') }}
-        </p>
-      </div>
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-muted">連續天數</p>
-        <p class="text-2xl font-bold">{{ streak }}</p>
-      </div>
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-muted">最長連續</p>
-        <p class="text-2xl font-bold">{{ longestStreak }}</p>
-      </div>
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-muted">卡片總數</p>
-        <p class="text-2xl font-bold">{{ totals.cards }}</p>
-      </div>
-      <div class="card p-4">
-        <p class="text-xs font-semibold text-muted">已學習</p>
-        <p class="text-2xl font-bold">{{ totals.learned }}</p>
+    <div class="mb-5 grid grid-cols-2 gap-3">
+      <div v-for="h in headline" :key="h.label" class="card p-4">
+        <p class="text-xs font-semibold text-muted">{{ h.label }}</p>
+        <p class="text-2xl font-bold">{{ h.value }}</p>
       </div>
     </div>
 
@@ -389,23 +369,22 @@ const multiDeck = computed(() => new Set(scopeCards.value.map((c) => c.deckId)).
           <div v-for="r in retention" :key="r.label" class="rounded-xl bg-surface-2 p-3">
             <p class="text-xs font-semibold text-muted">{{ r.label }}</p>
             <p class="text-2xl font-bold">{{ r.rate === null ? '—' : pctText(r.rate) }}</p>
-            <p class="text-xs text-muted">
-              {{ r.n }} 次複習
-              <template v-if="r.rate !== null">
-                · 比目標{{ r.rate >= targetRetention ? '高' : '低' }}
-                {{ pctText(Math.abs(r.rate - targetRetention)) }}
-              </template>
-            </p>
           </div>
         </div>
-        <div class="mt-3 space-y-0.5 text-xs text-muted">
-          <p>目標保留率 {{ pctText(targetRetention) }}。只計算複習卡，按「重來」算忘記。</p>
-          <p>明顯低於目標：間隔太長。高出很多：複習得太頻繁。</p>
-        </div>
+        <p v-if="retentionComment" class="mt-3 text-xs text-muted">{{ retentionComment }}</p>
       </StatsSection>
 
-      <StatsSection id="heatmap" title="複習熱力圖">
-        <template #actions>
+      <StatsSection id="heatmap" title="學習熱力圖">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <PillTabs
+            v-model="heatKind"
+            size="sm"
+            class="max-w-44 flex-1"
+            :options="[
+              { value: 'review', label: '複習' },
+              { value: 'learned', label: '新學' },
+            ]"
+          />
           <div class="w-32">
             <SelectBox v-model="year" class="py-1.5 text-sm">
               <option v-for="o in yearOptions" :key="o.value" :value="o.value">
@@ -413,44 +392,45 @@ const multiDeck = computed(() => new Set(scopeCards.value.map((c) => c.deckId)).
               </option>
             </SelectBox>
           </div>
-        </template>
-        <div ref="scroller" class="overflow-x-auto pb-2">
-          <div class="inline-flex flex-col gap-1">
-            <div class="flex gap-[3px] pl-6 text-[10px] text-muted">
-              <span
-                v-for="(m, i) in monthLabels"
-                :key="i"
-                class="w-3 shrink-0 overflow-visible whitespace-nowrap"
-                >{{ m }}</span
-              >
-            </div>
-            <div class="flex gap-[3px]">
-              <div class="flex w-5 flex-col gap-[3px] text-[10px] leading-3 text-muted">
-                <span v-for="(d, i) in ['一', '', '三', '', '五', '', '日']" :key="i" class="h-3">{{
-                  d
-                }}</span>
+        </div>
+        <div ref="heatRoot" class="relative">
+          <div ref="scroller" class="overflow-x-auto pb-2" @scroll.passive="hideHeatTip">
+            <div class="inline-flex flex-col gap-1">
+              <div class="flex gap-[3px] pl-6 text-[10px] text-muted">
+                <span
+                  v-for="(m, i) in monthLabels"
+                  :key="i"
+                  class="w-3 shrink-0 overflow-visible whitespace-nowrap"
+                  >{{ m }}</span
+                >
               </div>
-              <div v-for="(col, i) in weeks" :key="i" class="flex flex-col gap-[3px]">
-                <div
-                  v-for="c in col"
-                  :key="c.day"
-                  class="size-3 rounded-[3px]"
-                  :class="{ invisible: c.hidden, 'ring-1 ring-ink/50': c.day === data.today }"
-                  :style="{ background: levelColor(level(c.n)) }"
-                  :title="`${c.day}：${c.n} 次`"
-                  @mouseenter="hovered = c"
-                  @click="hovered = c"
-                />
+              <div class="flex gap-[3px]">
+                <div class="flex w-5 flex-col gap-[3px] text-[10px] leading-3 text-muted">
+                  <span
+                    v-for="(d, i) in ['一', '', '三', '', '五', '', '日']"
+                    :key="i"
+                    class="h-3"
+                    >{{ d }}</span
+                  >
+                </div>
+                <div v-for="(col, i) in weeks" :key="i" class="flex flex-col gap-[3px]">
+                  <div
+                    v-for="c in col"
+                    :key="c.day"
+                    class="size-3 rounded-[3px]"
+                    :class="{ invisible: c.hidden, 'ring-1 ring-ink/50': c.day === data.today }"
+                    :style="{ background: levelColor(level(c.n)) }"
+                    @mouseenter="showHeatTip($event, `${formatDayLabel(c.day)}：${c.n} 張`)"
+                    @mouseleave="hideHeatTip"
+                    @click="showHeatTip($event, `${formatDayLabel(c.day)}：${c.n} 張`)"
+                  />
+                </div>
               </div>
             </div>
           </div>
+          <ChartTip :tip="heatTip" />
         </div>
-        <div class="mt-2 flex items-center justify-between gap-2 text-xs text-muted">
-          <span>{{
-            hovered
-              ? `${formatDayLabel(hovered.day)}：${hovered.n} 次`
-              : `共 ${totalReviews} 次 · ${activeDays} 天有複習`
-          }}</span>
+        <div class="mt-2 flex items-center justify-end gap-2 text-xs text-muted">
           <span class="flex items-center gap-1">
             少
             <span
@@ -477,19 +457,8 @@ const multiDeck = computed(() => new Set(scopeCards.value.map((c) => c.deckId)).
             />
           </div>
         </template>
-        <BarChart v-if="forecastDays === 7" :bars="forecastWeek">
-          共 {{ forecastWeekTotal }} 張 · 今天包含已逾期的卡片；不含新卡。
-        </BarChart>
+        <BarChart v-if="forecastDays === 7" :bars="forecastWeek" />
         <DueCalendar v-else :days="forecast" />
-      </StatsSection>
-
-      <StatsSection id="trend" title="近 30 天新增與學習">
-        <PillTabs v-model="trendKind" size="sm" class="mb-4" :options="trendOptions" />
-        <BarChart :bars="trend">
-          {{
-            trendKind === 'added' ? '每天新增到牌組的卡片數。' : '每天第一次學習的新卡數。'
-          }}點選長條可看當天數字。
-        </BarChart>
       </StatsSection>
 
       <StatsSection id="ratings" title="評分分布">
@@ -520,44 +489,73 @@ const multiDeck = computed(() => new Set(scopeCards.value.map((c) => c.deckId)).
           />
         </div>
         <DonutChart :slices="ratingRows" />
-        <div class="mt-3 space-y-0.5 text-xs text-muted">
-          <p>含新卡與學習中的評分。</p>
-          <p>「重來」偏多時，可以考慮少加一點新卡。</p>
-        </div>
       </StatsSection>
 
       <StatsSection id="stability" title="熟練程度">
         <BarRows :rows="stabilityRows" />
         <div class="mt-3 space-y-0.5 text-xs text-muted">
-          <p>依記憶穩定度分組：大約多久之後，記得的機率會降到 90%。</p>
-          <p>共 {{ stabilityTotal }} 張已學過的卡片。</p>
+          <p>大約多久之後，記得的機率會降到 90%。</p>
         </div>
       </StatsSection>
 
       <StatsSection id="hard" title="難記的卡片">
-        <div v-if="hardCards.length" class="-mx-1 flex flex-col">
-          <RouterLink
-            v-for="(h, i) in hardCards"
-            :key="h.card.id"
-            :to="`/card/${h.card.id}`"
-            class="flex items-center gap-3 rounded-xl px-1 py-2 transition hover:bg-surface-2"
-          >
-            <span class="w-5 shrink-0 text-center text-xs font-semibold text-muted">{{
-              i + 1
+        <template #actions>
+          <div class="flex items-center gap-3 text-xs text-muted">
+            <span v-for="l in HARD_LEVELS" :key="l.label" class="flex items-center gap-1.5">
+              <span class="size-2 rounded-full" :style="{ background: l.color }" />{{ l.label }}
+            </span>
+          </div>
+        </template>
+        <div v-if="hardCards.length" class="space-y-1.5">
+          <div v-for="(c, i) in hardCards" :key="c.id" class="flex items-center gap-2">
+            <span class="w-5 shrink-0 text-right text-xs font-semibold text-muted tabular-nums">{{
+              hardPage * HARD_PAGE_SIZE + i + 1
             }}</span>
-            <div class="min-w-0 flex-1">
-              <p class="truncate font-semibold">{{ cardTitle(h.card) || '（空白）' }}</p>
-              <p class="truncate text-[11px] text-muted">
-                <span v-if="multiDeck && h.deck" class="mr-3">{{ h.deck }}</span>
-                <span v-if="h.fam !== null">熟悉度 {{ Math.round(h.fam * 100) }}%</span>
-              </p>
-            </div>
-            <span class="shrink-0 text-sm font-semibold tabular-nums"
-              >忘記 {{ h.card.sched.lapses }} 次</span
+            <CardListItem
+              class="min-w-0 flex-1"
+              :card="c"
+              compact
+              :note="hardLevel(c.sched.difficulty)?.label"
+              :note-color="hardLevel(c.sched.difficulty)?.color"
+              @click="router.push(`/card/${c.id}`)"
+            />
+          </div>
+          <!-- invisible copies of a row keep a short last page as tall as a full one,
+               so the page buttons stay where they were -->
+          <template v-if="hardPages > 1">
+            <div
+              v-for="n in HARD_PAGE_SIZE - hardCards.length"
+              :key="`pad-${n}`"
+              class="invisible flex items-center gap-2"
+              aria-hidden="true"
             >
-          </RouterLink>
+              <span class="w-5 shrink-0" />
+              <CardListItem class="min-w-0 flex-1" :card="hardCards[0]!" compact tabindex="-1" />
+            </div>
+          </template>
+          <div v-if="hardPages > 1" class="flex items-center justify-center gap-3 pt-2">
+            <button
+              class="icon-btn size-9"
+              aria-label="上一頁"
+              :disabled="hardPage === 0"
+              @click="hardPage--"
+            >
+              <ChevronLeft :size="18" />
+            </button>
+            <span class="text-xs text-muted tabular-nums"
+              >{{ hardPage + 1 }} / {{ hardPages }}</span
+            >
+            <button
+              class="icon-btn size-9"
+              aria-label="下一頁"
+              :disabled="hardPage >= hardPages - 1"
+              @click="hardPage++"
+            >
+              <ChevronRight :size="18" />
+            </button>
+          </div>
         </div>
-        <p v-else class="text-sm text-muted">還沒有忘記過的卡片。</p>
+        <p v-else class="text-sm text-muted">沒有特別難記的卡片。</p>
       </StatsSection>
     </div>
   </div>
