@@ -10,8 +10,8 @@ export function useDragSort(onMove: (from: number, to: number) => void) {
   let rects: DOMRect[] = []
   let startY = 0
 
-  function start(e: PointerEvent, index: number) {
-    const handle = e.currentTarget as HTMLElement
+  function start(e: PointerEvent, index: number, el?: HTMLElement) {
+    const handle = el ?? (e.currentTarget as HTMLElement)
     const item = handle.closest<HTMLElement>('[data-sort-item]')
     const parent = item?.parentElement
     if (!item || !parent) return

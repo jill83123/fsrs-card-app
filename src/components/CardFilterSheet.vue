@@ -53,6 +53,7 @@ function reset() {
             <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
           </SelectBox>
           <button
+            v-if="f.sort !== 'manual'"
             class="btn btn-ghost shrink-0 px-3 py-2 text-xs font-medium"
             @click="f.desc = !f.desc"
           >
