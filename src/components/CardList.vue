@@ -220,7 +220,7 @@ async function reset() {
   const ids = selectedIds.value
   if (!ids.length) return
   const res = await ui.confirmCheck(`重設 ${ids.length} 張卡片的進度？`, {
-    message: '卡片會回到「新卡」狀態。',
+    message: '卡片會回到「尚未學習」狀態。',
     checkLabel: '同時刪除複習紀錄（統計也會一併移除）',
     danger: true,
     confirmText: '重設',

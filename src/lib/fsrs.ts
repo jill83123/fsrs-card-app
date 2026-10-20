@@ -24,7 +24,7 @@ export const GRADES: { grade: Grade; label: string; key: string; tone: string }[
 ]
 
 export const STATE_LABEL: Record<State, string> = {
-  [State.New]: '新卡',
+  [State.New]: '尚未學習',
   [State.Learning]: '學習中',
   [State.Review]: '複習',
   [State.Relearning]: '重新學習',
