@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { liveQuery } from 'dexie'
 import {
@@ -35,6 +35,8 @@ import { isComplete } from '@/lib/cards'
 import { REL_KINDS } from '@/lib/relations'
 import { pathTo } from '@/lib/tree'
 import { useLiveQuery } from '@/composables/useLiveQuery'
+import { useTip } from '@/components/stats/useTip'
+import ChartTip from '@/components/stats/ChartTip.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -93,6 +95,12 @@ const logs = useLiveQuery<ReviewLogRecord[]>(
   [id],
 )
 
+const LOG_FIRST = 3
+const LOG_PAGE = 5
+const logLimit = ref(LOG_FIRST)
+watch(id, () => (logLimit.value = LOG_FIRST))
+const shownLogs = computed(() => logs.value.slice(0, logLimit.value))
+
 const deckPath = computed(() =>
   card.value
     ? pathTo(data.nodes, card.value.deckId)
@@ -136,7 +144,7 @@ async function remove() {
 async function reset() {
   if (!card.value) return
   const res = await ui.confirmCheck('重設這張卡片的學習進度？', {
-    message: '卡片會回到「新卡」狀態。',
+    message: '卡片會回到「尚未學習」狀態。',
     checkLabel: '同時刪除複習紀錄（統計也會一併移除）',
     danger: true,
     confirmText: '重設',
@@ -165,16 +173,12 @@ const info = computed(() => {
   const c = card.value
   if (!c) return []
   const s = c.sched
-  const rows: [string, string][] = [
-    ['狀態', STATE_LABEL[s.state]],
-    ['熟悉度', fam.value === null ? '—' : `${Math.round(fam.value * 100)}%`],
-  ]
-  if (s.state !== State.New) {
-    rows.push(
-      ['下次複習', formatDateTime(s.due)],
-      ['穩定度', `${s.stability.toFixed(1)} 天`],
-      ['難度', s.difficulty.toFixed(2)],
-    )
+  const rows: [string, string][] = [['狀態', STATE_LABEL[s.state]]]
+  const isNew = s.state === State.New
+  if (!isNew) rows.push(['下次複習', formatDateTime(s.due)])
+  rows.push(['熟悉度', fam.value === null ? '—' : `${Math.round(fam.value * 100)}%`])
+  if (!isNew) {
+    rows.push(['穩定度', `${s.stability.toFixed(1)} 天`], ['難度', s.difficulty.toFixed(2)])
   }
   rows.push(
     ['複習次數', String(s.reps)],
@@ -184,34 +188,15 @@ const info = computed(() => {
   return rows
 })
 
-// one short line per item
-const INFO_HELP: Record<string, string[]> = {
-  狀態: [
-    '新卡：還沒學過',
-    '學習中：剛開始學，當天會依學習步驟再出現幾次',
-    '複習：已進入長期排程',
-    '重新學習：複習時忘記了，當天會再練幾次',
-  ],
-  熟悉度: [
-    '現在還記得這張卡的機率，會隨時間慢慢下降。',
-    '剛複習完一定是 100%（當天都算剛複習）。',
-    '代表「現在記不記得」，不是掌握得多牢。',
-    '新卡沒有熟悉度。',
-  ],
-  下次複習: ['熟悉度預計降到目標熟悉度（預設 90%）的時間。'],
-  穩定度: [
-    '記憶能維持多久：過了這麼多天，熟悉度約降到 90%。',
-    '數字越大記得越牢；答對會變大，忘記會變小。',
-  ],
-  難度: [
-    '這張卡對你有多難，範圍 1–10。',
-    '常按「重來」或「困難」會變高。',
-    '越難的卡，穩定度成長越慢。',
-  ],
-  複習次數: ['這張卡被評分的總次數。'],
-  遺忘次數: ['已進入複習狀態後，又按「重來」（忘記）的次數。'],
+// plain-language hint per item, shown in a floating bubble
+const INFO_HELP: Record<string, string> = {
+  狀態: ['尚未學習：還沒練習過', '學習中：剛開始學', '複習：已進入長期排程', '重新學習：忘記後重學'].join('\n'),
+  熟悉度: ['現在還記得的機率，會隨時間下降。', '剛複習完是 100%。'].join('\n'),
+  穩定度: '記憶能撐多久。',
+  難度: '這張卡對你有多難（1–10）。',
+  遺忘次數: '學會後又按「重來」的次數。',
 }
-const openHelp = ref<string | null>(null)
+const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
 </script>
 
 <template>
@@ -317,33 +302,25 @@ const openHelp = ref<string | null>(null)
       </button>
     </div>
 
-    <section class="card mb-5">
+    <section ref="infoRoot" class="card relative mb-5">
       <dl class="space-y-3 text-sm">
-        <div v-for="[k, v] in info" :key="k">
-          <div class="flex items-center gap-2">
-            <dt class="shrink-0 text-muted">
-              <button
-                v-if="INFO_HELP[k]"
-                class="flex items-center gap-1"
-                :aria-expanded="openHelp === k"
-                @click="openHelp = openHelp === k ? null : k"
-              >
-                {{ k }}
-                <CircleHelp :size="14" :class="openHelp === k ? 'text-primary' : 'opacity-60'" />
-              </button>
-              <template v-else>{{ k }}</template>
-            </dt>
-            <span class="leader min-w-4 flex-1" aria-hidden="true" />
-            <dd class="shrink-0 font-semibold">{{ v }}</dd>
-          </div>
-          <dd
-            v-if="openHelp === k"
-            class="mt-2 space-y-0.5 rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted"
-          >
-            <p v-for="line in INFO_HELP[k]" :key="line">{{ line }}</p>
-          </dd>
+        <div v-for="[k, v] in info" :key="k" class="flex items-center gap-2">
+          <dt class="shrink-0 text-muted">
+            <button
+              v-if="INFO_HELP[k]"
+              class="flex items-center gap-1"
+              @click="showInfoTip($event, INFO_HELP[k], 110)"
+            >
+              {{ k }}
+              <CircleHelp :size="14" class="opacity-60" />
+            </button>
+            <template v-else>{{ k }}</template>
+          </dt>
+          <span class="leader min-w-4 flex-1" aria-hidden="true" />
+          <dd class="shrink-0 font-semibold">{{ v }}</dd>
         </div>
       </dl>
+      <ChartTip :tip="infoTip" />
     </section>
 
     <section class="card">
@@ -378,7 +355,7 @@ const openHelp = ref<string | null>(null)
         </div>
       </div>
       <ul v-if="logs.length" class="leader-divide text-sm">
-        <li v-for="l in logs" :key="l.id" class="flex items-center justify-between py-2">
+        <li v-for="l in shownLogs" :key="l.id" class="flex items-center justify-between py-2">
           <span class="text-muted">{{ formatDateTime(l.review) }}</span>
           <span class="flex items-center gap-3">
             <span v-if="l.side === 'r'" class="chip">反向</span>
@@ -390,6 +367,13 @@ const openHelp = ref<string | null>(null)
         </li>
       </ul>
       <p v-else class="text-sm text-muted">還沒有複習紀錄</p>
+      <button
+        v-if="logs.length > logLimit"
+        class="mt-2 w-full py-2 text-xs text-muted"
+        @click="logLimit += LOG_PAGE"
+      >
+        顯示更多（還有 {{ logs.length - logLimit }} 筆）
+      </button>
     </section>
 
     <MoveDeckSheet v-model="showMove" :current="card.deckId" @pick="moveTo" />

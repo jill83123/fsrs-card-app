@@ -122,7 +122,7 @@ const allCountdown = computed(() =>
   </div>
   <div
     v-if="countdown || (stats.dueOver > 0 && !stats.dueAvail) || (stats.newOver > 0 && !stats.newAvail)"
-    class="mt-2! space-y-2"
+    class="mt-3! space-y-1.5"
   >
     <p
       v-if="countdown"
