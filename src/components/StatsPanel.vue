@@ -113,10 +113,16 @@ const recentLogs = computed(() => logs.value.recent)
 // --- heatmap -----------------------------------------------------------------
 // range: the last 53 weeks, or one calendar year
 const year = ref<'recent' | number>('recent')
-const heatKind = ref<'review' | 'learned'>('review')
-const heat = computed(() =>
-  heatKind.value === 'review' ? logs.value.reviewedPerDay : logs.value.learnedPerDay,
-)
+const heatKind = ref<'all' | 'review' | 'learned'>('all')
+const heat = computed(() => {
+  const { reviewedPerDay, learnedPerDay } = logs.value
+  if (heatKind.value === 'review') return reviewedPerDay
+  if (heatKind.value === 'learned') return learnedPerDay
+  // a card is counted once per day (reviewed excludes cards also learned that day)
+  const all = new Map(reviewedPerDay)
+  for (const [day, n] of learnedPerDay) all.set(day, (all.get(day) ?? 0) + n)
+  return all
+})
 const { root: heatRoot, tip: heatTip, show: showHeatTip, hide: hideHeatTip } = useTip()
 watch([year, heatKind, () => props.scope], hideHeatTip)
 const RECENT_WEEKS = 53
@@ -381,6 +387,7 @@ const hardCards = computed(() =>
             size="sm"
             class="max-w-44 flex-1"
             :options="[
+              { value: 'all', label: '全部' },
               { value: 'review', label: '複習' },
               { value: 'learned', label: '新學' },
             ]"

@@ -28,7 +28,7 @@ const pct = (n: number) => (total.value ? Math.round((n / total.value) * 100) : 
             minWidth: r.n ? '3px' : 0,
           }"
         />
-        <span class="font-semibold tabular-nums">{{ r.n }}</span>
+        <span v-if="r.n" class="font-semibold tabular-nums">{{ r.n }}</span>
       </div>
       <span class="w-10 shrink-0 text-right text-xs text-muted tabular-nums">{{ pct(r.n) }}%</span>
     </div>
