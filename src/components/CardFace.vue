@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ChevronDown, MessageSquareQuote } from '@lucide/vue'
+import { ChevronDown, Lightbulb, MessageSquareQuote } from '@lucide/vue'
 import type { Card, Example } from '@/db/types'
 import MarkdownView from './MarkdownView.vue'
 import SpeakButton from './SpeakButton.vue'
@@ -35,6 +35,20 @@ const examples = computed<Example[]>(() =>
 const pick = ref(0)
 const showExample = ref(false)
 const showAllExamples = ref(false)
+const showHint = ref(false)
+
+// reverse front: first letter + one blank per remaining letter, spaces kept.
+// Japanese hints from the reading, so kanji aren't given away and length means sounds
+const wordHint = computed(() => {
+  const c = props.card
+  if (c.type !== 'vocab') return []
+  const source = c.lang === 'ja' && c.reading?.trim() ? c.reading.replace(/\s+/g, '') : c.word
+  // words → slots; a slot is the revealed first letter, or '' for a blank
+  return source
+    .trim()
+    .split(/\s+/)
+    .map((w) => Array.from(w).map((ch, i) => (i === 0 ? ch : '')))
+})
 
 function reset() {
   pick.value =
@@ -43,6 +57,7 @@ function reset() {
       : 0
   showExample.value = false
   showAllExamples.value = false
+  showHint.value = false
 }
 watch(() => [props.card.id, props.reverse], reset)
 
@@ -114,6 +129,27 @@ watch(
         <span v-for="p in posLabels" :key="p" class="chip">{{ p }}</span>
       </div>
       <p class="min-h-14 text-xl whitespace-pre-line">{{ card.meaning }}</p>
+    </div>
+
+    <!-- word hint on the reverse front: only shown after tapping -->
+    <div v-if="!revealed && reverse" class="flex flex-col items-center">
+      <button v-if="!showHint" class="btn btn-ghost text-sm" @click.stop="showHint = true">
+        <Lightbulb :size="16" /> 查看提示
+      </button>
+      <div
+        v-else
+        class="flex w-full flex-wrap items-end justify-center gap-x-6 gap-y-2 rounded-2xl bg-surface-2 px-4 py-3"
+      >
+        <span v-for="(w, wi) in wordHint" :key="wi" class="flex items-end gap-1.5">
+          <span
+            v-for="(ch, ci) in w"
+            :key="ci"
+            class="inline-flex h-9 min-w-5 pb-1 items-end justify-center border-b-2 border-muted/50 text-2xl leading-none font-semibold"
+          >
+            {{ ch }}
+          </span>
+        </span>
+      </div>
     </div>
 
     <!-- example hint on the front -->
