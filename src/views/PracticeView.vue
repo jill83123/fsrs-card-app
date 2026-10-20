@@ -561,11 +561,13 @@ const progress = computed(() => {
                 { label: '意思', text: typedMeaning, ok: meaningOk },
               ]"
               :key="r.label"
-              class="flex items-baseline gap-3"
+              class="relative px-10"
             >
-              <span class="w-8 shrink-0 text-xs text-muted">{{ r.label }}</span>
+              <span class="absolute top-1/2 left-0 -translate-y-1/2 text-xs text-muted">
+                {{ r.label }}
+              </span>
               <span
-                class="flex-1 text-lg font-semibold break-all"
+                class="block text-lg font-semibold break-all"
                 :style="{ color: r.ok ? 'var(--success)' : 'var(--danger)' }"
               >
                 {{ r.text.trim() || '（空白）' }}
