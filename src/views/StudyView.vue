@@ -239,6 +239,8 @@ watch(
   () => data.ready && start(),
 )
 onBeforeUnmount(() => {
+  // leaving from the finished screen by any route (top-left ✕, browser back) ends the session
+  if (finished.value && session.value) dropSession(session.value.key)
   clearTimeout(waitTimer)
   stopSpeaking()
 })
