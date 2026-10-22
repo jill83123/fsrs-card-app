@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/chiron-hei-hk';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -34,8 +35,8 @@
 
 @theme inline {
   --font-sans:
-    'Inter Variable', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Hiragino Sans',
-    'Noto Sans JP', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
+    'Inter Variable', 'Chiron Hei HK Variable', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei',
+    'Hiragino Sans', 'Noto Sans JP', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
   --color-primary: var(--primary);
   --color-primary-soft: color-mix(in oklab, var(--primary) 14%, var(--surface));
   --color-primary-strong: color-mix(in oklab, var(--primary) 75%, var(--ink));
