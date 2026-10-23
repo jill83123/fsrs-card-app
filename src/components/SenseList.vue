@@ -6,10 +6,9 @@ const props = defineProps<{
   large?: boolean
 }>()
 
-// short meanings sit in two columns split on the card's center line: parts of speech (as tags) end
-// there on the left, meanings start there on the right, so the block stays balanced under the word.
-// A long meaning would wrap in the narrow right half, and one without a part of speech would sit
-// off to the right, so then each one is stacked and centered
+// short meanings sit in two columns (parts of speech as tags on the left, meanings on the right)
+// and the whole block is centered under the word. A long meaning would wrap awkwardly, and one
+// without a part of speech would leave its column empty, so then each one is stacked and centered
 const stacked = computed(() =>
   props.rows.some((r) => r.meaning.includes('\n') || r.meaning.length > 8 || !r.pos.length),
 )
@@ -26,7 +25,7 @@ const stacked = computed(() =>
   </div>
   <div
     v-else
-    class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5"
+    class="grid grid-cols-[auto_auto] items-center justify-center gap-x-3 gap-y-1.5"
     :class="large ? 'text-xl' : 'text-lg'"
   >
     <template v-for="s in rows" :key="s.id">

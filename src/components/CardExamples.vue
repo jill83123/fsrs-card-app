@@ -20,8 +20,8 @@ const note = computed(() => (props.card.type === 'vocab' ? props.card.note.trim(
     <h2 class="label">例句</h2>
     <div class="divide-y divide-line">
       <div v-for="(e, i) in examples" :key="e.id" class="py-3 first:pt-1 last:pb-0">
-        <!-- the speaker is centered on the sentence and its translation together -->
-        <div class="flex items-center gap-2">
+        <!-- the speaker lines up with the first line of the sentence -->
+        <div class="flex items-start gap-2">
           <div class="min-w-0 flex-1">
             <div class="flex items-start gap-2">
               <span

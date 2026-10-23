@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   FolderInput,
+  Info,
   Pause,
   Pencil,
   Play,
@@ -144,6 +145,11 @@ const fam = computed(() =>
 const latest = computed(() => logs.value[0])
 const canRerate = computed(() => latest.value && latest.value.studyDay === data.today)
 const showRerate = ref(false)
+// status and review history are rarely needed, so they stay folded until asked for
+// and it remembers the last choice, also after leaving the page
+const INFO_KEY = 'sr.cardInfoOpen'
+const showInfo = ref(localStorage.getItem(INFO_KEY) === '1')
+watch(showInfo, (v) => localStorage.setItem(INFO_KEY, v ? '1' : '0'))
 const rerateIntervals = computed(() =>
   latest.value ? previewIntervals(data.scheduler, latest.value.prev, data.now) : null,
 )
@@ -241,6 +247,15 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
       :subtitle="browseIndex >= 0 ? `${browseIndex + 1} / ${browseIds.length}` : undefined"
     >
       <template #right>
+        <button
+          class="icon-btn"
+          :class="{ 'text-primary': showInfo }"
+          aria-label="狀態與複習紀錄"
+          :aria-expanded="showInfo"
+          @click="showInfo = !showInfo"
+        >
+          <Info :size="18" />
+        </button>
         <button class="icon-btn" aria-label="編輯" @click="router.push(`/card/${card.id}/edit`)">
           <Pencil :size="18" />
         </button>
@@ -280,29 +295,29 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
         >
           <component :is="revealed ? Eye : EyeOff" :size="18" />
         </button>
-        <div class="flex flex-1 flex-col px-5">
+        <!-- arrows sit inside the card on both sides, level with the divider in the middle -->
+        <template v-if="browseIndex >= 0">
+          <button
+            class="absolute top-1/2 left-3 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted opacity-60 transition-colors hover:text-primary hover:opacity-100 disabled:opacity-0"
+            aria-label="上一張"
+            :disabled="!hasPrev"
+            @click="go(-1)"
+          >
+            <ChevronLeft :size="20" />
+          </button>
+          <button
+            class="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted opacity-60 transition-colors hover:text-primary hover:opacity-100 disabled:opacity-0"
+            aria-label="下一張"
+            :disabled="!hasNext"
+            @click="go(1)"
+          >
+            <ChevronRight :size="20" />
+          </button>
+        </template>
+        <div class="flex flex-1 flex-col px-11">
           <CardFace class="flex-1" :card="card" :revealed="revealed" list-examples />
         </div>
       </section>
-      <!-- floating arrows, level with the divider in the middle of the card -->
-      <template v-if="browseIndex >= 0">
-        <button
-          class="absolute top-1/2 -left-3 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-md transition-colors hover:border-primary hover:text-primary disabled:opacity-0"
-          aria-label="上一張"
-          :disabled="!hasPrev"
-          @click="go(-1)"
-        >
-          <ChevronLeft :size="20" />
-        </button>
-        <button
-          class="absolute top-1/2 -right-3 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-md transition-colors hover:border-primary hover:text-primary disabled:opacity-0"
-          aria-label="下一張"
-          :disabled="!hasNext"
-          @click="go(1)"
-        >
-          <ChevronRight :size="20" />
-        </button>
-      </template>
     </div>
     <CardExamples v-if="revealed" :card="card" />
     <section v-if="related.length" class="card mb-3 space-y-3">
@@ -350,79 +365,81 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
       </button>
     </div>
 
-    <section ref="infoRoot" class="card relative mb-5">
-      <dl class="space-y-3 text-sm">
-        <div v-for="[k, v] in info" :key="k" class="flex items-center gap-2">
-          <dt class="shrink-0 text-muted">
-            <button
-              v-if="INFO_HELP[k]"
-              class="flex items-center gap-1"
-              @click="showInfoTip($event, INFO_HELP[k], 110)"
-            >
-              {{ k }}
-              <CircleHelp :size="14" class="opacity-60" />
-            </button>
-            <template v-else>{{ k }}</template>
-          </dt>
-          <span class="leader min-w-4 flex-1" aria-hidden="true" />
-          <dd class="shrink-0 font-semibold">{{ v }}</dd>
-        </div>
-      </dl>
-      <ChartTip :tip="infoTip" />
-    </section>
+    <template v-if="showInfo">
+      <section ref="infoRoot" class="card relative mb-5">
+        <dl class="space-y-3 text-sm">
+          <div v-for="[k, v] in info" :key="k" class="flex items-center gap-2">
+            <dt class="shrink-0 text-muted">
+              <button
+                v-if="INFO_HELP[k]"
+                class="flex items-center gap-1"
+                @click="showInfoTip($event, INFO_HELP[k], 110)"
+              >
+                {{ k }}
+                <CircleHelp :size="14" class="opacity-60" />
+              </button>
+              <template v-else>{{ k }}</template>
+            </dt>
+            <span class="leader min-w-4 flex-1" aria-hidden="true" />
+            <dd class="shrink-0 font-semibold">{{ v }}</dd>
+          </div>
+        </dl>
+        <ChartTip :tip="infoTip" />
+      </section>
 
-    <section class="card">
-      <div class="mb-3 flex items-center justify-between">
-        <h2 class="font-bold">複習紀錄</h2>
-        <button
-          v-if="canRerate"
-          class="pill btn-soft py-1.5 text-xs"
-          @click="showRerate = !showRerate"
-        >
-          重新評分今天的紀錄
-        </button>
-      </div>
-      <div v-if="showRerate && rerateIntervals" class="mb-4 rounded-2xl bg-surface-2 p-3">
-        <div class="mb-2 space-y-0.5 text-xs text-muted">
-          <p>只能修改最後一次（{{ formatDateTime(latest!.review) }}）的評分。</p>
-          <p>卡片會回到那次複習前的狀態，再重新排程。</p>
-        </div>
-        <div class="grid grid-cols-4 gap-2">
+      <section class="card">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="font-bold">複習紀錄</h2>
           <button
-            v-for="g in GRADES"
-            :key="g.grade"
-            class="flex flex-col items-center rounded-xl py-2 text-sm font-bold text-white"
-            :style="{ background: g.tone }"
-            @click="rerate(g.grade)"
+            v-if="canRerate"
+            class="pill btn-soft py-1.5 text-xs"
+            @click="showRerate = !showRerate"
           >
-            {{ g.label }}
-            <span class="text-[10px] font-medium opacity-90">{{
-              formatInterval(rerateIntervals[g.grade])
-            }}</span>
+            重新評分今天的紀錄
           </button>
         </div>
-      </div>
-      <ul v-if="logs.length" class="leader-divide text-sm">
-        <li v-for="l in shownLogs" :key="l.id" class="flex items-center justify-between py-2">
-          <span class="text-muted">{{ formatDateTime(l.review) }}</span>
-          <span class="flex items-center gap-3">
-            <span v-if="l.side === 'r'" class="chip">反向</span>
-            <span class="text-muted">{{ STATE_LABEL[l.prev.state] }}</span>
-            <span class="font-bold" :style="{ color: gradeTone(l.rating) }">{{
-              gradeLabel(l.rating)
-            }}</span>
-          </span>
-        </li>
-      </ul>
-      <p v-else class="text-sm text-muted">還沒有複習紀錄</p>
-      <button
-        v-if="logs.length > logLimit"
-        class="mt-2 w-full py-2 text-xs text-muted"
-        @click="logLimit += LOG_PAGE"
-      >
-        顯示更多（還有 {{ logs.length - logLimit }} 筆）
-      </button>
-    </section>
+        <div v-if="showRerate && rerateIntervals" class="mb-4 rounded-2xl bg-surface-2 p-3">
+          <div class="mb-2 space-y-0.5 text-xs text-muted">
+            <p>只能修改最後一次（{{ formatDateTime(latest!.review) }}）的評分。</p>
+            <p>卡片會回到那次複習前的狀態，再重新排程。</p>
+          </div>
+          <div class="grid grid-cols-4 gap-2">
+            <button
+              v-for="g in GRADES"
+              :key="g.grade"
+              class="flex flex-col items-center rounded-xl py-2 text-sm font-bold text-white"
+              :style="{ background: g.tone }"
+              @click="rerate(g.grade)"
+            >
+              {{ g.label }}
+              <span class="text-[10px] font-medium opacity-90">{{
+                formatInterval(rerateIntervals[g.grade])
+              }}</span>
+            </button>
+          </div>
+        </div>
+        <ul v-if="logs.length" class="leader-divide text-sm">
+          <li v-for="l in shownLogs" :key="l.id" class="flex items-center justify-between py-2">
+            <span class="text-muted">{{ formatDateTime(l.review) }}</span>
+            <span class="flex items-center gap-3">
+              <span v-if="l.side === 'r'" class="chip">反向</span>
+              <span class="text-muted">{{ STATE_LABEL[l.prev.state] }}</span>
+              <span class="font-bold" :style="{ color: gradeTone(l.rating) }">{{
+                gradeLabel(l.rating)
+              }}</span>
+            </span>
+          </li>
+        </ul>
+        <p v-else class="text-sm text-muted">還沒有複習紀錄</p>
+        <button
+          v-if="logs.length > logLimit"
+          class="mt-2 w-full py-2 text-xs text-muted"
+          @click="logLimit += LOG_PAGE"
+        >
+          顯示更多（還有 {{ logs.length - logLimit }} 筆）
+        </button>
+      </section>
+    </template>
 
     <MoveDeckSheet v-model="showMove" :current="card.deckId" @pick="moveTo" />
   </div>

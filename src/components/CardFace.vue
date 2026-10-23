@@ -218,8 +218,8 @@ watch(
       </div>
 
       <div v-if="picked" class="space-y-2">
-        <!-- the speaker is centered on the sentence and its translation together -->
-        <div class="flex items-center gap-1 rounded-2xl bg-surface-2 px-4 py-3">
+        <!-- the speaker lines up with the first line of the sentence -->
+        <div class="flex items-start gap-1 rounded-2xl bg-surface-2 px-4 py-3">
           <div class="min-w-0 flex-1">
             <p><ExampleText :sentence="picked.sentence" :marks="picked.marks" /></p>
             <p v-if="picked.translation" class="mt-1 text-sm text-muted">
@@ -240,7 +240,7 @@ watch(
             <div
               v-for="e in others"
               :key="e.id"
-              class="flex items-center gap-1 rounded-2xl bg-surface-2 px-4 py-3"
+              class="flex items-start gap-1 rounded-2xl bg-surface-2 px-4 py-3"
             >
               <div class="min-w-0 flex-1">
                 <p><ExampleText :sentence="e.sentence" :marks="e.marks" /></p>
