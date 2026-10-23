@@ -33,6 +33,8 @@ const REPO = KOKORO_REPO
 const SAMPLE_RATE = 24000
 const STYLE_DIM = 256
 const MAX_TOKENS = 510
+const SHORT_AFFRICATE = 20 // phonemes: shorter than this is "short"
+const SHORT_AFFRICATE_ROW = 60
 
 interface Model {
   session: InferenceSession
@@ -165,7 +167,13 @@ async function synth(
     const ids = [...c].map((ch) => vocab[ch]).filter((v): v is number => v !== undefined)
     // the voice pack holds one style vector per phoneme count (row = count - 1, as in
     // the reference KPipeline)
-    const row = Math.min(Math.max(ids.length - 1, 0), style.length / STYLE_DIM - 1)
+    // a very short word ending in ʤ / ʧ ("wage", "age") loses that last sound with the style
+    // vector for its own length, so borrow one meant for a longer phrase
+    const short = ids.length < SHORT_AFFRICATE && /[ʤʧ][.!?…。！？]*$/.test(c)
+    const row = Math.min(
+      Math.max(short ? SHORT_AFFRICATE_ROW : ids.length - 1, 0),
+      style.length / STYLE_DIM - 1,
+    )
     if (first) {
       post({
         type: 'stage',
