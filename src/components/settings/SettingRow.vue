@@ -1,6 +1,12 @@
 <script setup lang="ts">
 /** `hint` as an array shows one short line per item */
-defineProps<{ label: string; hint?: string | string[]; stacked?: boolean }>()
+defineProps<{
+  label: string
+  hint?: string | string[]
+  stacked?: boolean
+  /** stacked only: the hint goes under the control instead of under the label */
+  hintBelow?: boolean
+}>()
 </script>
 
 <template>
@@ -12,10 +18,13 @@ defineProps<{ label: string; hint?: string | string[]; stacked?: boolean }>()
         <slot name="aside" />
       </div>
       <div v-else class="text-sm font-semibold">{{ label }}</div>
-      <div v-if="hint" class="space-y-0.5 text-xs text-muted">
+      <div v-if="hint && !hintBelow" class="mt-1 space-y-0.5 text-xs text-muted">
         <p v-for="(h, i) in [hint].flat()" :key="i">{{ h }}</p>
       </div>
     </div>
     <slot />
+    <div v-if="hint && hintBelow" class="space-y-0.5 text-xs text-muted">
+      <p v-for="(h, i) in [hint].flat()" :key="i">{{ h }}</p>
+    </div>
   </div>
 </template>

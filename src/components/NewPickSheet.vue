@@ -149,7 +149,6 @@ const sideLabel = (sides: Side[]) =>
         <label class="label">方向</label>
         <PillTabs
           :model-value="pick.side"
-          size="sm"
           :options="[
             { value: 'all', label: '全部' },
             { value: 'f', label: '單字 → 意思' },

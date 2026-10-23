@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { ArrowUpDown, Check, Layers, Moon, Plus, Sun } from '@lucide/vue'
 import SyncChip from '@/components/SyncChip.vue'
 import NodeLegend from '@/components/NodeLegend.vue'
@@ -24,16 +24,6 @@ const untilRollover = computed(() => {
   const m = Math.floor((ms % 3_600_000) / 60_000)
   return h > 0 ? `${h} 小時 ${m} 分` : `${m} 分`
 })
-
-const COLLAPSE_KEY = 'sr.collapsed'
-const collapsed = ref(new Set<string>(JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '[]')))
-function toggle(id: string) {
-  const s = new Set(collapsed.value)
-  if (s.has(id)) s.delete(id)
-  else s.add(id)
-  collapsed.value = s
-}
-watch(collapsed, (s) => localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...s])))
 
 const showForm = ref(false)
 const sorting = ref(false)
@@ -78,27 +68,31 @@ const sorting = ref(false)
         </div>
       </div>
       <StudyEntry :scope="null" />
-      <p v-if="stats.drafts && !stats.dueAvail && !stats.learningWaiting" class="mt-1.5! text-xs text-muted">
+      <p
+        v-if="stats.drafts && !stats.dueAvail && !stats.learningWaiting"
+        class="mt-1.5! text-xs text-muted"
+      >
         另有 {{ stats.drafts }} 張未完成的卡片不會進入學習。
       </p>
     </section>
 
-    <div class="mb-2 flex items-center justify-between">
-      <h2 class="text-sm font-semibold tracking-wide text-muted uppercase">牌組</h2>
+    <div class="mb-3 flex items-end justify-between">
+      <div class="min-w-0 space-y-1.5 pb-0.5 pl-2">
+        <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">牌組一覽</h2>
+        <NodeLegend plain />
+      </div>
       <div v-if="roots.length" class="flex gap-2">
         <button
           v-if="roots.length > 1 || sorting"
-          class="btn py-1.5"
+          class="btn"
           :class="sorting ? 'btn-primary' : 'btn-ghost'"
           @click="sorting = !sorting"
         >
-          <Check v-if="sorting" :size="16" />
-          <ArrowUpDown v-else :size="16" />
+          <Check v-if="sorting" :size="18" />
+          <ArrowUpDown v-else :size="18" />
           {{ sorting ? '完成' : '排序' }}
         </button>
-        <button class="btn btn-ghost py-1.5" @click="showForm = true">
-          <Plus :size="16" /> 新增
-        </button>
+        <button class="btn btn-ghost" @click="showForm = true"><Plus :size="18" /> 新增</button>
       </div>
     </div>
 
@@ -112,8 +106,7 @@ const sorting = ref(false)
       </button>
     </div>
     <div v-else class="card divide-y divide-line overflow-hidden p-0">
-      <NodeLegend />
-      <NodeList :nodes="roots" :collapsed="collapsed" :sorting="sorting" @toggle="toggle" />
+      <NodeList :nodes="roots" :sorting="sorting" />
     </div>
 
     <NodeFormSheet v-model="showForm" :parent-id="null" />

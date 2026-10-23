@@ -266,7 +266,7 @@ function practice() {
     <div class="mb-3 flex items-center gap-2">
       <div class="relative flex-1">
         <Search :size="16" class="absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
-        <input v-model="filter.q" class="input py-2 pl-10" placeholder="搜尋卡片" />
+        <input v-model="filter.q" class="input pl-10" placeholder="搜尋卡片" />
       </div>
       <button class="icon-btn relative" aria-label="篩選與排序" @click="showFilter = true">
         <SlidersHorizontal :size="18" />
@@ -346,53 +346,53 @@ function practice() {
         >
           <span class="px-3 text-sm font-bold whitespace-nowrap">{{ selectedIds.length }} 張</span>
           <button
-            class="icon-btn size-10"
+            class="icon-btn"
             title="加星號"
             @click="patch({ starred: true }, '已加星號')"
           >
             <Star :size="18" />
           </button>
           <button
-            class="icon-btn size-10"
+            class="icon-btn"
             title="取消星號"
             @click="patch({ starred: false }, '已取消星號')"
           >
             <StarOff :size="18" />
           </button>
           <button
-            class="icon-btn size-10"
+            class="icon-btn"
             title="暫停"
             @click="patch({ suspended: true }, '已暫停')"
           >
             <Pause :size="18" />
           </button>
           <button
-            class="icon-btn size-10"
+            class="icon-btn"
             title="恢復"
             @click="patch({ suspended: false }, '已恢復')"
           >
             <Play :size="18" />
           </button>
           <button
-            class="icon-btn size-10"
+            class="icon-btn"
             title="移動"
             @click="selectedIds.length && (showMove = true)"
           >
             <FolderInput :size="18" />
           </button>
-          <button class="icon-btn size-10" title="自動補上讀音" @click="fillReadings">
+          <button class="icon-btn" title="自動補上讀音" @click="fillReadings">
             <Sparkles :size="18" />
           </button>
-          <button class="icon-btn size-10" title="練習" @click="practice">
+          <button class="icon-btn" title="練習" @click="practice">
             <Dumbbell :size="18" />
           </button>
-          <button class="icon-btn size-10" title="重設進度" @click="reset">
+          <button class="icon-btn" title="重設進度" @click="reset">
             <RotateCcw :size="18" />
           </button>
-          <button class="icon-btn size-10 text-danger" title="刪除" @click="remove">
+          <button class="icon-btn text-danger" title="刪除" @click="remove">
             <Trash2 :size="18" />
           </button>
-          <button class="icon-btn size-10" title="結束選取" @click="exitSelect">
+          <button class="icon-btn" title="結束選取" @click="exitSelect">
             <X :size="18" />
           </button>
         </div>

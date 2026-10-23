@@ -283,17 +283,17 @@ const waitText = computed(() =>
     <!-- card -->
     <template v-if="current">
       <div class="mb-3 flex justify-end gap-2">
-        <button class="icon-btn size-9" title="星號" @click="toggleStar">
+        <button class="icon-btn" title="星號" @click="toggleStar">
           <Star :size="16" :class="current.starred ? 'fill-warn text-warn' : ''" />
         </button>
-        <button class="icon-btn size-9" title="暫停這張卡" @click="suspendCurrent">
+        <button class="icon-btn" title="暫停這張卡" @click="suspendCurrent">
           <Pause :size="16" />
         </button>
-        <button class="icon-btn size-9" title="查字典" @click="openDict">
+        <button class="icon-btn" title="查字典" @click="openDict">
           <BookOpen :size="16" />
         </button>
         <button
-          class="icon-btn size-9"
+          class="icon-btn"
           title="編輯"
           @click="router.push(`/card/${current.id}/edit`)"
         >
@@ -375,7 +375,7 @@ const waitText = computed(() =>
         placeholder="輸入要查的字（可先在卡片上選取文字）"
       />
       <DictLinks :word="dictWord" :lang="current?.type === 'vocab' ? current.lang : undefined" />
-      <p v-if="!settings.synced.dictionaries.length" class="text-sm text-muted">尚未設定字典</p>
+      <p v-if="!settings.synced.dictionaries.some((d) => !d.hidden)" class="text-sm text-muted">尚未設定字典</p>
     </BottomSheet>
   </div>
 </template>

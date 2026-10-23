@@ -18,7 +18,7 @@ const open = defineModel<boolean>({ required: true })
       >
         <div class="mb-4 flex items-center justify-between gap-3">
           <h2 class="text-lg font-bold">{{ title }}</h2>
-          <button class="icon-btn size-9" aria-label="關閉" @click="open = false">
+          <button class="icon-btn" aria-label="關閉" @click="open = false">
             <X :size="18" />
           </button>
         </div>

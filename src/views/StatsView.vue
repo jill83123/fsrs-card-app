@@ -4,7 +4,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import SelectBox from '@/components/SelectBox.vue'
 import StatsPanel from '@/components/StatsPanel.vue'
 import { useData } from '@/stores/data'
-import { childrenOf } from '@/lib/tree'
+import { deckRows } from '@/lib/tree'
 
 const data = useData()
 
@@ -35,17 +35,7 @@ watch(
   { immediate: true },
 )
 
-const options = computed(() => {
-  const out: { id: string; label: string }[] = []
-  const walk = (parentId: string | null, depth: number) => {
-    for (const n of childrenOf(data.nodes, parentId)) {
-      out.push({ id: n.id, label: `${'　'.repeat(depth)}${n.name}` })
-      walk(n.id, depth + 1)
-    }
-  }
-  walk(null, 0)
-  return out
-})
+const options = computed(() => deckRows(data.nodes))
 </script>
 
 <template>
@@ -54,7 +44,15 @@ const options = computed(() => {
     <div class="mb-4">
       <SelectBox v-model="scope" aria-label="牌組">
         <option :value="null">全部牌組</option>
-        <option v-for="o in options" :key="o.id" :value="o.id">{{ o.label }}</option>
+        <option
+          v-for="o in options"
+          :key="o.node.id"
+          :value="o.node.id"
+          :path="o.path"
+          :tree="o.tree"
+        >
+          {{ o.node.name }}
+        </option>
       </SelectBox>
     </div>
     <StatsPanel :scope="scope" />

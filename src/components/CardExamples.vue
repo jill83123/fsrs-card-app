@@ -3,10 +3,9 @@ import { computed } from 'vue'
 import type { Card } from '@/db/types'
 import MarkdownView from './MarkdownView.vue'
 import SpeakButton from './SpeakButton.vue'
-import DictLinks from './DictLinks.vue'
 import ExampleText from './ExampleText.vue'
 
-// examples, note and dictionary links of a card, for the page that shows them beneath the card itself
+// examples and note of a card, for the page that shows them beneath the card itself
 const props = defineProps<{ card: Card }>()
 
 const examples = computed(() =>
@@ -49,5 +48,4 @@ const note = computed(() => (props.card.type === 'vocab' ? props.card.note.trim(
     <h2 class="label">備註</h2>
     <MarkdownView :source="card.note" class="text-sm" />
   </section>
-  <DictLinks v-if="card.type === 'vocab'" :word="card.word" :lang="card.lang" class="mb-5" />
 </template>

@@ -6,7 +6,6 @@ import { useRouter } from 'vue-router'
 import CardListItem from '@/components/CardListItem.vue'
 import SelectBox from '@/components/SelectBox.vue'
 import PillTabs from '@/components/PillTabs.vue'
-import BarChart, { type Bar } from '@/components/stats/BarChart.vue'
 import BarRows from '@/components/stats/BarRows.vue'
 import DonutChart from '@/components/stats/DonutChart.vue'
 import ChartTip from '@/components/stats/ChartTip.vue'
@@ -24,7 +23,6 @@ import {
   parseYmd,
   studyDayEnd,
   studyDayStart,
-  weekdayLabel,
 } from '@/lib/date'
 import { isLearned, isStudyable } from '@/lib/cards'
 import { GRADES, Rating, State } from '@/lib/fsrs'
@@ -252,8 +250,7 @@ const retentionComment = computed(() => {
 const pctText = (r: number) => `${(r * 100).toFixed(1).replace(/\.0$/, '')}%`
 
 // --- forecast ----------------------------------------------------------------------
-const forecastDays = ref<7 | 30>(7)
-// due counts for the next 30 days; the week view uses the first seven
+// due counts for the next 30 days
 const forecast = computed(() => {
   const hour = settings.synced.study.rolloverHour
   const cards = scopeCards.value.filter((c) => isStudyable(c) && c.sched.state !== State.New)
@@ -264,15 +261,6 @@ const forecast = computed(() => {
     return { day, n: cards.filter((c) => c.sched.due >= start && c.sched.due < end).length }
   })
 })
-const forecastWeek = computed<Bar[]>(() =>
-  forecast.value.slice(0, 7).map(({ day, n }, i) => ({
-    key: day,
-    label: i === 0 ? '今天' : weekdayLabel(day),
-    n,
-    tip: i === 0 ? '今天（含逾期）' : formatDayLabel(day),
-    strong: i === 0,
-  })),
-)
 
 // --- ratings ---------------------------------------------------------------------------
 const RATING_PERIODS = [
@@ -393,7 +381,7 @@ const hardCards = computed(() =>
             ]"
           />
           <div class="w-32">
-            <SelectBox v-model="year" class="py-1.5 text-sm">
+            <SelectBox v-model="year" class="input-sm">
               <option v-for="o in yearOptions" :key="o.value" :value="o.value">
                 {{ o.label }}
               </option>
@@ -452,37 +440,24 @@ const hardCards = computed(() =>
       </StatsSection>
 
       <StatsSection id="forecast" title="未來到期">
-        <template #actions>
-          <div class="w-36">
-            <PillTabs
-              v-model="forecastDays"
-              size="sm"
-              :options="[
-                { value: 7, label: '7 天' },
-                { value: 30, label: '30 天' },
-              ]"
-            />
-          </div>
-        </template>
-        <BarChart v-if="forecastDays === 7" :bars="forecastWeek" />
-        <DueCalendar v-else :days="forecast" />
+        <DueCalendar :days="forecast" />
       </StatsSection>
 
       <StatsSection id="ratings" title="評分分布">
         <template #actions>
           <div class="w-28">
-            <SelectBox v-model="ratingPeriod" class="py-1.5 text-sm" aria-label="時間範圍">
+            <SelectBox v-model="ratingPeriod" class="input-sm" aria-label="時間範圍">
               <option v-for="p in RATING_PERIODS" :key="p.value" :value="p.value">
                 {{ p.label }}
               </option>
             </SelectBox>
           </div>
         </template>
-        <div v-if="ratingPeriod === 'custom'" class="mb-4 flex items-center gap-2">
+        <div v-if="ratingPeriod === 'custom'" class="-mt-1.5 mb-5 flex items-center gap-2">
           <input
             v-model="customFrom"
             type="date"
-            class="input min-w-0 flex-1 py-1.5 text-sm"
+            class="input input-sm min-w-0 flex-1"
             :max="data.today"
             aria-label="開始日期"
           />
@@ -490,7 +465,7 @@ const hardCards = computed(() =>
           <input
             v-model="customTo"
             type="date"
-            class="input min-w-0 flex-1 py-1.5 text-sm"
+            class="input input-sm min-w-0 flex-1"
             :max="data.today"
             aria-label="結束日期"
           />
@@ -542,7 +517,7 @@ const hardCards = computed(() =>
           </template>
           <div v-if="hardPages > 1" class="flex items-center justify-center gap-3 pt-2">
             <button
-              class="icon-btn size-9"
+              class="icon-btn"
               aria-label="上一頁"
               :disabled="hardPage === 0"
               @click="hardPage--"
@@ -553,7 +528,7 @@ const hardCards = computed(() =>
               >{{ hardPage + 1 }} / {{ hardPages }}</span
             >
             <button
-              class="icon-btn size-9"
+              class="icon-btn"
               aria-label="下一頁"
               :disabled="hardPage >= hardPages - 1"
               @click="hardPage++"

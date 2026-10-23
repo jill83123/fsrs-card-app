@@ -99,7 +99,6 @@ async function run() {
         <p class="mb-1.5 text-sm font-medium">語言</p>
         <PillTabs
           v-model="lang"
-          size="sm"
           :options="LANGS.map((l) => ({ value: l.id, label: l.label }))"
         />
       </div>
@@ -107,7 +106,7 @@ async function run() {
       <div>
         <div class="mb-1.5 flex items-center justify-between">
           <p class="text-sm font-medium">JSON</p>
-          <button type="button" class="btn btn-ghost px-2 py-1 text-xs" @click="copyPrompt">
+          <button type="button" class="btn btn-ghost btn-sm" @click="copyPrompt">
             <Copy :size="14" /> 複製給 AI 的提示詞
           </button>
         </div>

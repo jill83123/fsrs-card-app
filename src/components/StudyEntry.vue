@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronRight, CircleAlert, Dumbbell, Layers, RotateCcw, Sparkles, Timer } from '@lucide/vue'
+import {
+  ChevronRight,
+  CircleAlert,
+  Dumbbell,
+  Layers,
+  RotateCcw,
+  Sparkles,
+  Timer,
+} from '@lucide/vue'
 import DeckPickSheet from './DeckPickSheet.vue'
 import { useData } from '@/stores/data'
 import { useTicker } from '@/composables/useTicker'
@@ -45,6 +53,8 @@ const pickable = computed(() =>
 )
 const pickedCount = computed(() => pickable.value.filter((id) => !excluded.value.has(id)).length)
 const showPick = ref(false)
+// a deck's page names the deck itself; only the top level says 「全部」
+const scopeName = computed(() => (props.scope ? (data.nodeById.get(props.scope)?.name ?? '') : ''))
 const soleDeckName = computed(
   () => data.nodes.find((n) => n.id === pickable.value[0])?.name ?? '此牌組',
 )
@@ -77,11 +87,13 @@ const allCountdown = computed(() =>
   <button
     v-if="pickable.length > 1"
     type="button"
-    class="mb-2 flex items-center gap-1 text-xs font-medium text-muted hover:text-ink"
+    class="mb-2 flex max-w-full items-center gap-1 text-xs font-medium text-muted hover:text-ink"
     @click="showPick = true"
   >
     <Layers :size="14" class="shrink-0" />
-    學習範圍：{{ partial ? `${pickedCount} / ${pickable.length} 個牌組` : '全部' }}
+    <span class="truncate">
+      學習範圍：{{ partial ? `${pickedCount} / ${pickable.length} 個牌組` : scopeName || '全部' }}
+    </span>
     <ChevronRight :size="14" class="shrink-0" />
   </button>
   <p
@@ -89,7 +101,7 @@ const allCountdown = computed(() =>
     class="mb-2 flex items-center gap-1 text-xs font-medium text-muted"
   >
     <Layers :size="14" class="shrink-0" />
-    學習範圍：{{ soleDeckName }}
+    學習範圍：{{ scopeName || soleDeckName }}
   </p>
   <div class="grid grid-cols-3 gap-2">
     <button
@@ -121,13 +133,12 @@ const allCountdown = computed(() =>
     </button>
   </div>
   <div
-    v-if="countdown || (stats.dueOver > 0 && !stats.dueAvail) || (stats.newOver > 0 && !stats.newAvail)"
+    v-if="
+      countdown || (stats.dueOver > 0 && !stats.dueAvail) || (stats.newOver > 0 && !stats.newAvail)
+    "
     class="mt-3! space-y-1.5"
   >
-    <p
-      v-if="countdown"
-      class="flex items-center gap-1 text-xs tabular-nums text-muted"
-    >
+    <p v-if="countdown" class="flex items-center gap-1 text-xs tabular-nums text-muted">
       <Timer :size="12" class="shrink-0" />
       {{ stats.learningWaiting }} 張卡片等待中，{{ allCountdown }} 後可複習全部
     </p>

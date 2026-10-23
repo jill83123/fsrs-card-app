@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowUpDown, BarChart3, Check, FilePlus2, FolderPlus, Pencil, Upload } from '@lucide/vue'
+import {
+  ArrowUpDown,
+  BarChart3,
+  Check,
+  FilePlus2,
+  FolderPlus,
+  Pencil,
+  Plus,
+  Upload,
+} from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StudyEntry from '@/components/StudyEntry.vue'
 import NodeLegend from '@/components/NodeLegend.vue'
@@ -43,14 +52,6 @@ const tab = ref<'children' | 'cards'>('children')
 const hasChildren = computed(() => children.value.length > 0)
 const showCards = computed(() => !hasChildren.value || tab.value === 'cards')
 
-const collapsed = ref(new Set<string>())
-function toggle(nid: string) {
-  const s = new Set(collapsed.value)
-  if (s.has(nid)) s.delete(nid)
-  else s.add(nid)
-  collapsed.value = s
-}
-
 const showEdit = ref(false)
 const showAdd = ref(false)
 const showImport = ref(false)
@@ -87,35 +88,24 @@ function onDeleted(parentId: string | null) {
       <CardStateBar :cards="scopeCards" compact />
     </section>
 
-    <!-- add actions -->
-    <div class="mb-4 flex flex-wrap gap-2">
-      <template v-if="!hasChildren">
-        <button class="btn btn-primary" :title="templateLabel(template)" @click="addCard">
-          <FilePlus2 :size="18" /> 新增卡片
-        </button>
-        <button class="btn btn-ghost" @click="showImport = true">
-          <Upload :size="18" /> JSON 匯入
-        </button>
-      </template>
+    <!-- a deck without sub-decks: add a sub-deck, or cards (the main action last, on the right) -->
+    <div v-if="!hasChildren" class="mb-4 flex flex-wrap gap-2">
       <button class="btn btn-ghost" @click="showAdd = true">
         <FolderPlus :size="18" /> 子牌組
       </button>
-      <button
-        v-if="children.length > 1 && !showCards"
-        class="btn"
-        :class="sorting ? 'btn-primary' : 'btn-ghost'"
-        @click="sorting = !sorting"
-      >
-        <Check v-if="sorting" :size="18" />
-        <ArrowUpDown v-else :size="18" />
-        {{ sorting ? '完成' : '排序' }}
-      </button>
+      <div class="ml-auto flex gap-2">
+        <button class="btn btn-ghost" @click="showImport = true">
+          <Upload :size="18" /> JSON 匯入
+        </button>
+        <button class="btn btn-primary" :title="templateLabel(template)" @click="addCard">
+          <FilePlus2 :size="18" /> 新增卡片
+        </button>
+      </div>
     </div>
 
     <PillTabs
       v-if="hasChildren"
       v-model="tab"
-      size="sm"
       class="mb-4"
       :options="[
         { value: 'children', label: `子牌組（${children.length}）` },
@@ -123,10 +113,30 @@ function onDeleted(parentId: string | null) {
       ]"
     />
 
+    <!-- same header as the home page: heading and legend on the left, buttons on the right -->
+    <div v-if="hasChildren && !showCards" class="mb-3 flex items-end justify-between">
+      <div class="min-w-0 space-y-1.5 pb-0.5 pl-2">
+        <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">子牌組一覽</h2>
+        <NodeLegend plain />
+      </div>
+      <div class="flex gap-2">
+        <button
+          v-if="children.length > 1 || sorting"
+          class="btn"
+          :class="sorting ? 'btn-primary' : 'btn-ghost'"
+          @click="sorting = !sorting"
+        >
+          <Check v-if="sorting" :size="18" />
+          <ArrowUpDown v-else :size="18" />
+          {{ sorting ? '完成' : '排序' }}
+        </button>
+        <button class="btn btn-ghost" @click="showAdd = true"><Plus :size="18" /> 新增</button>
+      </div>
+    </div>
+
     <div v-if="!showCards">
       <div v-if="children.length" class="card divide-y divide-line overflow-hidden p-0">
-        <NodeLegend />
-        <NodeList :nodes="children" :collapsed="collapsed" :sorting="sorting" @toggle="toggle" />
+        <NodeList :nodes="children" :sorting="sorting" />
       </div>
       <p v-else class="card text-center text-sm text-muted">
         這個牌組是空的，可以新增卡片或子牌組。

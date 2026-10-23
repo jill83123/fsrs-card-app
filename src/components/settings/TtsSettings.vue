@@ -148,14 +148,12 @@ async function clearCache() {
   <div class="space-y-5">
     <PillTabs
       v-model="lang"
-      size="sm"
       :options="LANGS.map((l) => ({ value: l.id, label: l.label }))"
     />
 
     <SettingRow label="發音引擎" stacked>
       <PillTabs
         v-model="cfg.engine"
-        size="sm"
         :options="[
           {
             value: 'piper',
@@ -184,7 +182,6 @@ async function clearCache() {
       >
         <PillTabs
           v-model="settings.device.tts.kokoroBackend"
-          size="sm"
           :options="[
             { value: 'wasm', label: `標準（${KOKORO_SIZE_MB.wasm}MB，較慢）` },
             ...(hasWebgpu
@@ -195,7 +192,7 @@ async function clearCache() {
       </SettingRow>
       <div
         v-if="usesKokoro && unfinishedDiag"
-        class="space-y-1 rounded-2xl bg-surface-2 p-3 text-xs text-muted"
+        class="space-y-1 rounded-2xl bg-surface-2 p-4 text-xs text-muted"
       >
         <p class="font-medium">上次 Kokoro 沒有正常完成</p>
         <p>
@@ -203,15 +200,13 @@ async function clearCache() {
           停在：{{ unfinishedDiag.stage }}<br />
           時間：{{ new Date(unfinishedDiag.at).toLocaleString() }}
         </p>
-        <p>
-          如果是頁面被系統強制結束，會停在崩潰前的最後一步。這可以拿來判斷是哪一步用掉太多記憶體。
-        </p>
+        <p>若頁面被系統強制結束，會停在崩潰前的最後一步，可用來判斷是哪一步耗盡記憶體。</p>
         <button class="underline" @click="dismissDiag">清除這則紀錄</button>
       </div>
-      <div class="space-y-0.5 rounded-2xl bg-surface-2 p-3 text-xs text-muted">
+      <div class="space-y-0.5 rounded-2xl bg-surface-2 p-4 text-xs text-muted">
         <template v-if="usesKokoro">
           <template v-if="lang === 'ja'">
-            <p>使用 Kokoro-82M（Apache-2.0），日文發音以 kuromoji 斷詞後轉成 Kokoro 的音素。</p>
+            <p>使用 Kokoro-82M（Apache-2.0），日文先用 kuromoji 斷詞再發音。</p>
             <p>
               第一次使用需下載模型約
               {{ KOKORO_SIZE_MB[settings.device.tts.kokoroBackend] }}MB＋日文辭典約 17MB。
@@ -219,24 +214,23 @@ async function clearCache() {
           </template>
           <template v-else>
             <p>使用 Kokoro-82M（Apache-2.0）。</p>
-            <p>英文發音先查 misaki 發音字典（約 18 萬字），查不到的字才交給 espeak-ng 推測。</p>
+            <p>英文先查 misaki 發音字典（約 18 萬字），查不到的字才由 espeak-ng 推測。</p>
             <p>
               第一次使用需下載模型約
               {{ KOKORO_SIZE_MB[settings.device.tts.kokoroBackend] }}MB＋發音字典約 1.5MB。
             </p>
             <p>日文也用 Kokoro 時，模型只需下載一次。</p>
           </template>
-          <p>合成過的發音會保存，同一個字只產生一次；卡片出現時也會先在背景準備好。</p>
+          <p>合成過的發音會保存，卡片出現前也會先在背景準備。</p>
         </template>
         <template v-else>
           <p>Piper 官方聲音，搭配 espeak-ng 轉換發音。</p>
-          <p>第一次使用需下載約 81MB（espeak-ng 約 18MB＋聲音模型約 63MB）。</p>
-          <p>之後會快取在瀏覽器中，可離線使用。</p>
+          <p>第一次使用需下載約 81MB（espeak-ng 約 18MB＋聲音模型約 63MB），之後可離線使用。</p>
           <p>KSS 語料的授權為 CC BY-NC-SA 4.0，僅限非商業用途。</p>
         </template>
         <p>載入失敗或模型不支援這個語言時，會自動改用系統語音。</p>
         <div class="mt-2 flex items-center gap-2">
-          <button class="btn btn-soft py-1.5 text-xs" :disabled="loading" @click="preload">
+          <button class="btn btn-soft btn-sm" :disabled="loading" @click="preload">
             <Download :size="14" /> {{ isLoaded ? '重新檢查' : '預先下載' }}
           </button>
           <span v-if="loading && progress" class="truncate">{{ progress }}</span>
@@ -284,14 +278,10 @@ async function clearCache() {
     </SettingRow>
     <SettingRow
       label="補齊單字發音"
-      hint="換新裝置後，卡片會同步但發音不會。這會在背景把所有單字缺少的發音產生好（可以離開此頁，但 App 要保持開啟；數量多時會花一段時間）。"
+      hint="換新裝置後發音不會同步，這會在背景補齊所有單字缺少的發音。可離開此頁，但 App 要保持開啟。"
       stacked
     >
-      <button
-        v-if="!backfill.progress"
-        class="btn btn-soft py-1.5 text-xs"
-        @click="backfill.start()"
-      >
+      <button v-if="!backfill.progress" class="btn btn-soft btn-sm" @click="backfill.start()">
         開始補齊
       </button>
       <div v-else class="flex items-center gap-2 text-xs text-muted">

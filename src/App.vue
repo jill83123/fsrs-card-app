@@ -65,7 +65,7 @@ const tabs = [
       <RefreshCw :size="18" class="shrink-0 text-primary" />
       <span class="flex-1 text-sm font-semibold">有新版本可用</span>
       <button class="text-sm text-muted" @click="pwa.needRefresh = false">稍後</button>
-      <button class="btn btn-primary py-1.5 text-sm" @click="pwa.update()">重新整理</button>
+      <button class="btn btn-primary btn-sm" @click="pwa.update()">重新整理</button>
     </div>
   </div>
 

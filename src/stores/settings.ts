@@ -3,7 +3,6 @@ import { computed, reactive, ref, watch } from 'vue'
 import {
   DEFAULT_DICTIONARIES,
   DEFAULT_POS,
-  OLD_DICTIONARY_NAMES,
   defaultDevice,
   defaultSynced,
   isDefaultPos,
@@ -63,28 +62,48 @@ function resetPosList(pos: Record<Lang, PosOption[]>) {
 }
 
 const DICT_VERSION_KEY = 'sr.dictVersion'
-const DICT_VERSION = 3
+const DICT_VERSION = 9
 
 /**
- * One-time update of saved dictionaries: the defaults gained a kind in their name (中日, 英中)
- * and Weblio was added. Names the user edited are left alone, and so is a deleted Weblio afterwards.
+ * One-time update of saved dictionaries: defaults can only be hidden, and their kind (日中, 英英, …)
+ * is shown beside the name instead of inside it, so a default gets its name and kind back.
+ * 日日 and 英英 dictionaries start hidden. Vocabulary.com was renamed to Vocabulary and 劍橋 to Cambridge.
  */
 function migrateDictionaries(dicts: Dictionary[]): boolean {
   const version = Number(localStorage.getItem(DICT_VERSION_KEY) ?? 1)
   if (version >= DICT_VERSION) return false
   let changed = false
   for (const d of dicts) {
-    const next = DEFAULT_DICTIONARIES.find((x) => x.id === d.id)
-    if (next && d.name !== next.name && OLD_DICTIONARY_NAMES[d.id]?.includes(d.name)) {
-      d.name = next.name
+    const def = DEFAULT_DICTIONARIES.find((x) => x.id === d.id)
+    if (version < 7 && def && (d.name !== def.name || d.kind !== def.kind)) {
+      d.name = def.name
+      d.kind = def.kind
+      changed = true
+    }
+    if (d.id === 'vocabulary' && d.name === 'Vocabulary.com') {
+      d.name = 'Vocabulary'
+      changed = true
+    }
+    if (d.id.startsWith('cambridge') && d.name === '劍橋') {
+      d.name = 'Cambridge'
       changed = true
     }
   }
-  const weblio = DEFAULT_DICTIONARIES.find((x) => x.id === 'weblio')
-  if (weblio && !dicts.some((d) => d.id === weblio.id)) {
-    const at = dicts.findIndex((d) => d.id === 'mazii')
-    dicts.splice(at < 0 ? dicts.length : at + 1, 0, structuredClone(weblio))
+  // defaults can no longer be deleted, so bring back any that are missing, after the one before it
+  DEFAULT_DICTIONARIES.forEach((def, i) => {
+    if (dicts.some((d) => d.id === def.id)) return
+    const prev = i > 0 ? dicts.findIndex((d) => d.id === DEFAULT_DICTIONARIES[i - 1]!.id) : -1
+    dicts.splice(prev < 0 ? (i === 0 ? 0 : dicts.length) : prev + 1, 0, structuredClone(def))
     changed = true
+  })
+  // the 日日 and 英英 dictionaries now start hidden
+  if (version < 5) {
+    for (const d of dicts) {
+      if ((d.id === 'weblio' || d.id === 'cambridge-en') && !d.hidden) {
+        d.hidden = true
+        changed = true
+      }
+    }
   }
   localStorage.setItem(DICT_VERSION_KEY, String(DICT_VERSION))
   return changed

@@ -6,6 +6,38 @@ export function childrenOf(nodes: TreeNode[], parentId: string | null): TreeNode
     .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt)
 }
 
+export interface DeckRow {
+  node: TreeNode
+  /** names from the top-most deck down to this one, joined with " / " */
+  path: string
+  /**
+   * The branches to draw before the name, one character per level: │ a line goes on past this level,
+   * a space nothing, and the last one is ├ (more siblings follow) or └ (this is the last). Top-level
+   * decks have none.
+   */
+  tree: string
+}
+
+/** Every deck in tree order (each deck followed by its sub-decks), minus the ones `skip` rejects and their sub-decks. */
+export function deckRows(nodes: TreeNode[], skip?: (n: TreeNode) => boolean): DeckRow[] {
+  const rows: DeckRow[] = []
+  const walk = (parentId: string | null, guides: string, path: string[]) => {
+    const kids = childrenOf(nodes, parentId).filter((n) => !skip?.(n))
+    kids.forEach((n, i) => {
+      const last = i === kids.length - 1
+      const here = [...path, n.name]
+      rows.push({
+        node: n,
+        path: here.join(' / '),
+        tree: parentId ? guides + (last ? '└' : '├') : '',
+      })
+      walk(n.id, parentId ? guides + (last ? ' ' : '│') : '', here)
+    })
+  }
+  walk(null, '', [])
+  return rows
+}
+
 /** All descendant node ids, including the node itself. */
 export function subtreeIds(nodes: TreeNode[], rootId: string): string[] {
   const out = [rootId]

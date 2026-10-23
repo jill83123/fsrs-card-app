@@ -7,11 +7,8 @@ import { moved, useDragSort } from '@/composables/useDragSort'
 
 const props = defineProps<{
   nodes: TreeNode[]
-  depth?: number
-  collapsed: Set<string>
   sorting?: boolean
 }>()
-const emit = defineEmits<{ toggle: [id: string] }>()
 const data = useData()
 
 // show the new order right away instead of waiting for the database round trip
@@ -43,16 +40,9 @@ const drag = useDragSort((from, to) => {
     :key="n.id"
     data-sort-item
     class="bg-surface"
-    :class="[(depth ?? 0) > 0 && 'border-t border-line', drag.dragging(i) && 'shadow-lg']"
+    :class="drag.dragging(i) && 'shadow-lg'"
     :style="drag.style(i)"
   >
-    <NodeRow
-      :node="n"
-      :depth="depth"
-      :collapsed="collapsed"
-      :sorting="sorting"
-      @toggle="emit('toggle', $event)"
-      @grip="drag.start($event, i)"
-    />
+    <NodeRow :node="n" :sorting="sorting" @grip="drag.start($event, i)" />
   </div>
 </template>

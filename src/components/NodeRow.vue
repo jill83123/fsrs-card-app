@@ -1,30 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  ArrowLeftRight,
-  ChevronDown,
-  ChevronRight,
-  GripVertical,
-  Layers,
-  PauseCircle,
-  Timer,
-} from '@lucide/vue'
-import NodeList from './NodeList.vue'
+import { ArrowLeftRight, ChevronRight, Folder, GripVertical, PauseCircle, Timer } from '@lucide/vue'
 import { useTicker } from '@/composables/useTicker'
 import { formatCountdown } from '@/lib/date'
 import type { TreeNode } from '@/db/types'
-import { deckColorCss } from '@/db/defaults'
 import { useData } from '@/stores/data'
 import { childrenOf } from '@/lib/tree'
 
 const props = defineProps<{
   node: TreeNode
-  depth?: number
-  collapsed: Set<string>
   sorting?: boolean
 }>()
-const emit = defineEmits<{ toggle: [id: string]; grip: [e: PointerEvent] }>()
+const emit = defineEmits<{ grip: [e: PointerEvent] }>()
 
 const data = useData()
 const router = useRouter()
@@ -32,7 +20,6 @@ const router = useRouter()
 const children = computed(() => childrenOf(data.nodes, props.node.id))
 const stats = computed(() => data.scopeStats(props.node.id))
 const progress = computed(() => data.scopeProgress(props.node.id))
-const isOpen = computed(() => !props.collapsed.has(props.node.id))
 const paused = computed(() => data.pausedIds.has(props.node.id))
 
 const now = useTicker()
@@ -52,7 +39,6 @@ const subtitle = computed(() => {
     <div
       class="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2/60"
       :class="{ 'opacity-60': paused }"
-      :style="{ paddingLeft: `${16 + (depth ?? 0) * 20}px` }"
       @click="!sorting && router.push(`/node/${node.id}`)"
     >
       <button
@@ -65,12 +51,36 @@ const subtitle = computed(() => {
       >
         <GripVertical :size="18" />
       </button>
-      <span
-        class="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink/70"
-        :style="{ background: deckColorCss(node.color) }"
+      <!-- a folder for a deck that holds sub-decks, a stack for one that holds cards: the line color of the
+           active tab bar icon around a soft fill of the same theme color. The stack is drawn here so
+           that only its top layer is filled: the two lines below it are open and a fill would smear -->
+      <Folder
+        v-if="children.length"
+        :size="24"
+        class="shrink-0 text-primary/85"
+        style="fill: var(--color-primary-soft)"
+        aria-hidden="true"
+      />
+      <svg
+        v-else
+        class="shrink-0 text-primary/85"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
       >
-        <Layers :size="18" />
-      </span>
+        <path
+          d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+          style="fill: var(--color-primary-soft)"
+        />
+        <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.66 0l8.58-3.9A1 1 0 0 0 22 12" />
+        <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.66 0l8.58-3.9A1 1 0 0 0 22 17" />
+      </svg>
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 font-semibold">
           <span class="truncate">{{ node.name }}</span>
@@ -121,31 +131,9 @@ const subtitle = computed(() => {
           {{ stats.newAvail }}
         </span>
       </div>
-      <!-- same slot for the expand toggle and the plain arrow keeps rows aligned -->
-      <button
-        v-if="children.length"
-        type="button"
-        class="-mr-1.5 flex size-7 shrink-0 items-center justify-center rounded-lg text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-primary/40"
-        :aria-label="isOpen ? '收合子牌組' : '展開子牌組'"
-        :aria-expanded="isOpen"
-        @click.stop="emit('toggle', node.id)"
-      >
-        <ChevronDown :size="18" class="transition-transform" :class="{ 'rotate-180': isOpen }" />
-      </button>
-      <span v-else class="-mr-1.5 flex size-7 shrink-0 items-center justify-center">
+      <span class="-mr-1.5 flex size-7 shrink-0 items-center justify-center">
         <ChevronRight :size="16" class="text-muted/60" />
       </span>
     </div>
-    <template v-if="children.length && isOpen">
-      <div>
-        <NodeList
-          :nodes="children"
-          :depth="(depth ?? 0) + 1"
-          :collapsed="collapsed"
-          :sorting="sorting"
-          @toggle="emit('toggle', $event)"
-        />
-      </div>
-    </template>
   </div>
 </template>
