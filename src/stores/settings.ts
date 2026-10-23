@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia'
 import { computed, reactive, ref, watch } from 'vue'
-import { DEFAULT_POS, defaultDevice, defaultSynced, isDefaultPos } from '@/db/defaults'
-import type { DeviceSettings, Lang, PosOption, SyncedSettings } from '@/db/types'
+import {
+  DEFAULT_DICTIONARIES,
+  DEFAULT_POS,
+  OLD_DICTIONARY_NAMES,
+  defaultDevice,
+  defaultSynced,
+  isDefaultPos,
+} from '@/db/defaults'
+import type { DeviceSettings, Dictionary, Lang, PosOption, SyncedSettings } from '@/db/types'
 import { getMeta, markLocalChange, setMeta } from '@/db'
 import { setKokoroBackend } from '@/lib/tts'
 import { KOKORO_VOICES } from '@/lib/tts/kokoro'
@@ -55,6 +62,34 @@ function resetPosList(pos: Record<Lang, PosOption[]>) {
   return out
 }
 
+const DICT_VERSION_KEY = 'sr.dictVersion'
+const DICT_VERSION = 3
+
+/**
+ * One-time update of saved dictionaries: the defaults gained a kind in their name (中日, 英中)
+ * and Weblio was added. Names the user edited are left alone, and so is a deleted Weblio afterwards.
+ */
+function migrateDictionaries(dicts: Dictionary[]): boolean {
+  const version = Number(localStorage.getItem(DICT_VERSION_KEY) ?? 1)
+  if (version >= DICT_VERSION) return false
+  let changed = false
+  for (const d of dicts) {
+    const next = DEFAULT_DICTIONARIES.find((x) => x.id === d.id)
+    if (next && d.name !== next.name && OLD_DICTIONARY_NAMES[d.id]?.includes(d.name)) {
+      d.name = next.name
+      changed = true
+    }
+  }
+  const weblio = DEFAULT_DICTIONARIES.find((x) => x.id === 'weblio')
+  if (weblio && !dicts.some((d) => d.id === weblio.id)) {
+    const at = dicts.findIndex((d) => d.id === 'mazii')
+    dicts.splice(at < 0 ? dicts.length : at + 1, 0, structuredClone(weblio))
+    changed = true
+  }
+  localStorage.setItem(DICT_VERSION_KEY, String(DICT_VERSION))
+  return changed
+}
+
 const TTS_VERSION_KEY = 'sr.ttsVersion'
 const TTS_VERSION = 3
 
@@ -97,6 +132,15 @@ export const useSettings = defineStore('settings', () => {
     const rec = await getMeta<SyncedSettings>(SETTINGS_META_KEY)
     Object.assign(synced, mergeDefaults(defaultSynced(), rec?.value))
     withDefaultPos(synced.pos)
+    try {
+      // saved right away: the one-time migration would not run again to redo it
+      if (migrateDictionaries(synced.dictionaries) && rec) {
+        await setMeta(SETTINGS_META_KEY, JSON.parse(JSON.stringify(synced)))
+        markLocalChange()
+      }
+    } catch {
+      /* ignore broken storage */
+    }
     try {
       const raw = localStorage.getItem(DEVICE_KEY)
       if (raw) Object.assign(device, mergeDefaults(defaultDevice(), JSON.parse(raw)))

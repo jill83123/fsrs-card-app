@@ -5,8 +5,10 @@ import type { Card, Example } from '@/db/types'
 import MarkdownView from './MarkdownView.vue'
 import SpeakButton from './SpeakButton.vue'
 import DictLinks from './DictLinks.vue'
+import SenseList from './SenseList.vue'
 import ExampleText from './ExampleText.vue'
 import { useSettings } from '@/stores/settings'
+import { sensesOf } from '@/lib/cards'
 import { prefetchSpeech, speak } from '@/lib/tts'
 
 const props = defineProps<{
@@ -14,17 +16,23 @@ const props = defineProps<{
   revealed: boolean
   /** vocab only: reverse = meaning → word */
   reverse?: boolean
-  /** show every example in the saved order, numbered, instead of one random pick */
+  /** the examples, note and dictionary links are shown elsewhere (CardExamples), not on the card */
   listExamples?: boolean
 }>()
 
 const settings = useSettings()
 
-const posLabels = computed(() => {
-  if (props.card.type !== 'vocab') return []
-  const opts = settings.synced.pos[props.card.lang]
+// every meaning with its parts of speech
+const senseRows = computed(() => {
+  const c = props.card
+  if (c.type !== 'vocab') return []
+  const opts = settings.synced.pos[c.lang]
   // options deleted from settings are skipped rather than shown as raw ids
-  return props.card.pos.flatMap((id) => opts.find((o) => o.id === id)?.label ?? [])
+  return sensesOf(c).map((s) => ({
+    id: s.id,
+    pos: s.pos.flatMap((id) => opts.find((o) => o.id === id)?.label ?? []),
+    meaning: s.meaning,
+  }))
 })
 
 const examples = computed<Example[]>(() =>
@@ -99,9 +107,40 @@ watch(
 </script>
 
 <template>
+  <!-- detail page: the divider is the middle of the card, so the page's arrows can line up with it -->
+  <div v-if="listExamples" class="grid h-full grid-rows-[1fr_auto_1fr] text-center">
+    <!-- before the answer, a card is just its front, centered on the card -->
+    <div
+      class="flex flex-col items-center gap-1 self-end transition-transform"
+      :class="!revealed ? 'translate-y-1/2' : 'pb-5'"
+    >
+      <MarkdownView v-if="card.type === 'basic'" :source="card.front" class="text-2xl font-bold" />
+      <template v-else>
+        <div class="flex items-center gap-1">
+          <!-- same width as the speak button, so the word itself sits in the center -->
+          <span class="w-10 shrink-0" aria-hidden="true" />
+          <span class="text-4xl font-bold break-all">{{ card.word }}</span>
+          <SpeakButton :text="card.word" :lang="card.lang" :reading="card.reading" :size="22" />
+        </div>
+        <div v-if="revealed" class="min-h-6 text-muted">{{ card.reading }}</div>
+      </template>
+    </div>
+    <hr class="leader border-0" :class="{ invisible: !revealed }" />
+    <!-- as tall as the word and reading above, with the meaning in its middle, so the content
+         is balanced on both sides of the divider -->
+    <div class="flex min-h-28 flex-col items-center justify-center gap-3 self-start pt-5">
+      <template v-if="card.type === 'basic'">
+        <MarkdownView v-if="revealed" :source="card.back" class="text-lg" />
+      </template>
+      <template v-else-if="revealed">
+        <SenseList :rows="senseRows" />
+      </template>
+    </div>
+  </div>
+
   <!-- basic card -->
-  <div v-if="card.type === 'basic'" class="space-y-5">
-    <MarkdownView :source="card.front" class="text-lg" />
+  <div v-else-if="card.type === 'basic'" class="space-y-5">
+    <MarkdownView :source="card.front" class="text-2xl font-bold" />
     <template v-if="revealed">
       <hr class="leader border-0" />
       <MarkdownView :source="card.back" class="text-lg" />
@@ -123,12 +162,8 @@ watch(
       <!-- always takes up a line so revealing / switching cards doesn't shift the layout -->
       <div class="min-h-6 text-muted">{{ revealed ? card.reading : '' }}</div>
     </div>
-    <div v-else class="space-y-3 text-center">
-      <!-- pos row and meaning keep a fixed minimum height whether or not they are filled in -->
-      <div class="flex min-h-[1.625rem] flex-wrap justify-center gap-1.5">
-        <span v-for="p in posLabels" :key="p" class="chip">{{ p }}</span>
-      </div>
-      <p class="min-h-14 text-xl whitespace-pre-line">{{ card.meaning }}</p>
+    <div v-else class="min-h-24 space-y-4 text-center">
+      <SenseList :rows="senseRows" large />
     </div>
 
     <!-- word hint on the reverse front: only shown after tapping -->
@@ -178,43 +213,20 @@ watch(
         </div>
         <div class="min-h-6 text-muted">{{ card.reading }}</div>
       </div>
-      <div v-else class="space-y-3 text-center">
-        <div class="flex min-h-[1.625rem] flex-wrap justify-center gap-1.5">
-          <span v-for="p in posLabels" :key="p" class="chip">{{ p }}</span>
-        </div>
-        <p class="min-h-7 text-lg whitespace-pre-line">{{ card.meaning }}</p>
+      <div v-else class="min-h-[4.5rem] space-y-3 text-center">
+        <SenseList :rows="senseRows" />
       </div>
 
-      <div v-if="listExamples && examples.length" class="space-y-2">
-        <div v-for="(e, i) in examples" :key="e.id" class="rounded-2xl bg-surface-2 px-4 py-3">
-          <div class="flex items-start gap-2">
-            <span
-              v-if="examples.length > 1"
-              class="w-4 shrink-0 pt-0.5 text-sm font-bold text-muted"
-            >
-              {{ i + 1 }}
-            </span>
-            <p class="flex-1"><ExampleText :sentence="e.sentence" :marks="e.marks" /></p>
-            <SpeakButton :text="e.sentence" :lang="card.lang" class="-my-1.5" />
-          </div>
-          <p
-            v-if="e.translation"
-            class="mt-1 text-sm text-muted"
-            :class="{ 'pl-6': examples.length > 1 }"
-          >
-            {{ e.translation }}
-          </p>
-        </div>
-      </div>
-      <div v-else-if="picked" class="space-y-2">
-        <div class="rounded-2xl bg-surface-2 px-4 py-3">
-          <div class="flex items-start gap-1">
-            <p class="flex-1">
-              <ExampleText :sentence="picked.sentence" :marks="picked.marks" />
+      <div v-if="picked" class="space-y-2">
+        <!-- the speaker is centered on the sentence and its translation together -->
+        <div class="flex items-center gap-1 rounded-2xl bg-surface-2 px-4 py-3">
+          <div class="min-w-0 flex-1">
+            <p><ExampleText :sentence="picked.sentence" :marks="picked.marks" /></p>
+            <p v-if="picked.translation" class="mt-1 text-sm text-muted">
+              {{ picked.translation }}
             </p>
-            <SpeakButton :text="picked.sentence" :lang="card.lang" class="-my-1.5" />
           </div>
-          <p v-if="picked.translation" class="mt-1 text-sm text-muted">{{ picked.translation }}</p>
+          <SpeakButton :text="picked.sentence" :lang="card.lang" class="-my-1.5 shrink-0" />
         </div>
         <template v-if="others.length">
           <button
@@ -225,12 +237,16 @@ watch(
             查看更多例句（{{ others.length }}）<ChevronDown :size="16" />
           </button>
           <div v-else class="space-y-2">
-            <div v-for="e in others" :key="e.id" class="rounded-2xl bg-surface-2 px-4 py-3">
-              <div class="flex items-start gap-1">
-                <p class="flex-1"><ExampleText :sentence="e.sentence" :marks="e.marks" /></p>
-                <SpeakButton :text="e.sentence" :lang="card.lang" class="-my-1.5" />
+            <div
+              v-for="e in others"
+              :key="e.id"
+              class="flex items-center gap-1 rounded-2xl bg-surface-2 px-4 py-3"
+            >
+              <div class="min-w-0 flex-1">
+                <p><ExampleText :sentence="e.sentence" :marks="e.marks" /></p>
+                <p v-if="e.translation" class="mt-1 text-sm text-muted">{{ e.translation }}</p>
               </div>
-              <p v-if="e.translation" class="mt-1 text-sm text-muted">{{ e.translation }}</p>
+              <SpeakButton :text="e.sentence" :lang="card.lang" class="-my-1.5 shrink-0" />
             </div>
           </div>
         </template>

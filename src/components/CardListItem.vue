@@ -2,10 +2,9 @@
 import { computed } from 'vue'
 import { Check, PauseCircle, Star } from '@lucide/vue'
 import type { Card } from '@/db/types'
-import { cardSubtitle, cardTitle, isComplete } from '@/lib/cards'
+import { cardSubtitle, cardTitle, isComplete, typeBadge } from '@/lib/cards'
 import { State, STATE_LABEL } from '@/lib/fsrs'
 import { formatDayLabel, studyDayOf } from '@/lib/date'
-import { LANGS } from '@/db/defaults'
 import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { STATE_COLORS } from '@/components/stats/colors'
@@ -17,6 +16,8 @@ const props = defineProps<{
   showDeck?: boolean
   /** hide the meaning and part of speech so they can't be glimpsed while picking cards to practise */
   hideAnswer?: boolean
+  /** hide the due date line */
+  hideDue?: boolean
   /** extra line in the schedule column, e.g. a count specific to the screen it is shown on */
   note?: string
   /** compact layout: `note` is shown as a dot in this colour (the screen explains the colours) */
@@ -35,11 +36,6 @@ const dueText = computed(() => {
   if (s.due < data.dayEnd) return '今天到期'
   return formatDayLabel(studyDayOf(s.due, settings.synced.study.rolloverHour)) + ' 到期'
 })
-const langShort = computed(() =>
-  props.card.type === 'vocab'
-    ? LANGS.find((l) => l.id === (props.card as { lang: string }).lang)?.short
-    : '',
-)
 const posTags = computed(() => {
   const c = props.card
   if (c.type !== 'vocab') return []
@@ -74,15 +70,12 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
     <!-- badge gets its own column so the subtitle lines up under the word -->
     <div class="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-1.5">
       <span
-        v-if="card.type === 'vocab' && !compact"
-        class="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-muted"
+        v-if="!compact"
+        class="min-w-7 shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-center text-[10px] font-bold text-muted"
       >
-        {{ langShort }}
+        {{ typeBadge(card) }}
       </span>
-      <div
-        class="flex items-center gap-1.5"
-        :class="card.type === 'vocab' && !compact ? '' : 'col-span-2'"
-      >
+      <div class="flex items-center gap-1.5" :class="compact ? 'col-span-2' : ''">
         <span class="truncate font-semibold" :class="{ 'text-sm': compact }">{{
           cardTitle(card) || '（空白）'
         }}</span>
@@ -91,12 +84,11 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
       </div>
       <div
         v-if="!compact && (!hideAnswer || !complete)"
-        class="flex min-h-5 items-center gap-1.5 text-sm text-muted"
-        :class="card.type === 'vocab' ? 'col-start-2' : 'col-span-2'"
+        class="col-start-2 flex min-h-5 items-center gap-1.5 text-sm text-muted"
       >
         <template v-if="complete">
-          <span v-for="p in posTags" :key="p" class="shrink-0 text-xs font-semibold text-primary">
-            {{ p }}
+          <span v-if="posTags.length" class="shrink-0 text-xs font-semibold text-primary">
+            {{ posTags.join('・') }}
           </span>
         </template>
         <span v-if="!complete" class="truncate text-xs font-semibold text-warn">未完成</span>
@@ -109,7 +101,7 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
         <span class="size-2 rounded-full" :style="{ background: STATE_COLORS[card.sched.state] }" />
         {{ STATE_LABEL[card.sched.state] }}
       </span>
-      <span v-if="dueText && !compact">{{ dueText }}</span>
+      <span v-if="dueText && !compact && !hideDue">{{ dueText }}</span>
       <span
         v-if="note && compact && noteColor"
         class="size-2 rounded-full"

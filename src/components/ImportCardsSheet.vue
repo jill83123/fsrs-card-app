@@ -10,7 +10,7 @@ import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { effectiveTemplate } from '@/lib/tree'
 import { uid } from '@/lib/id'
-import { findWordMark, newVocabCard } from '@/lib/cards'
+import { applySenses, findWordMark, newVocabCard } from '@/lib/cards'
 import { importPrompt, parseImport, type ImportResult } from '@/lib/importCards'
 
 const props = defineProps<{ deckId: string }>()
@@ -68,12 +68,19 @@ async function run() {
   const base = Date.now()
   const cards = fresh.value.map((r, i) => {
     const c = newVocabCard(props.deckId, lang.value, r.word)
-    c.meaning = r.meaning
-    c.pos = r.pos
+    applySenses(
+      c,
+      r.senses.map((x) => ({ id: uid(), ...x })),
+    )
     c.examples = r.examples.map((e) => {
       if (e.marks?.length) return { id: uid(), ...e }
       const mark = findWordMark(r.word, lang.value, e.sentence)
-      return { id: uid(), sentence: e.sentence, translation: e.translation, ...(mark ? { marks: [mark] } : {}) }
+      return {
+        id: uid(),
+        sentence: e.sentence,
+        translation: e.translation,
+        ...(mark ? { marks: [mark] } : {}),
+      }
     })
     c.createdAt = base + i
     return c
@@ -107,11 +114,12 @@ async function run() {
         <textarea
           v-model="text"
           class="input min-h-40 font-mono text-xs"
-          placeholder='[{"word": "resume", "meaning": "履歷", "pos": ["n."]}]'
+          placeholder='[{"word": "run", "senses": [{"pos": ["v."], "meaning": "跑"}, {"pos": ["n."], "meaning": "跑步"}]}]'
           spellcheck="false"
         />
         <ul class="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
-          <li>必填：word（單字）、meaning（意思）。</li>
+          <li>必填：word（單字）、senses（各個意思，每個含 meaning 與 pos）。</li>
+          <li>只有一個意思時，也可以直接寫 meaning 與 pos。</li>
           <li>可省略：pos（詞性）、examples（例句，每筆 sentence + translation + marks）。</li>
           <li>marks 是例句中該單字實際出現的字（含過去式等變化），省略時由程式自動比對。</li>
           <li>詞性請寫選項名稱，如「名詞 n.」。</li>

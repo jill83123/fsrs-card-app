@@ -14,8 +14,15 @@ import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { LANGS } from '@/db/defaults'
-import type { BasicCard, Card, Example, Lang, VocabCard } from '@/db/types'
-import { findWordMark, isComplete, newBasicCard, newVocabCard } from '@/lib/cards'
+import type { BasicCard, Card, Example, Lang, Sense, VocabCard } from '@/db/types'
+import {
+  applySenses,
+  findWordMark,
+  isComplete,
+  newBasicCard,
+  newVocabCard,
+  sensesOf,
+} from '@/lib/cards'
 import { uid } from '@/lib/id'
 import { moved, useDragSort } from '@/composables/useDragSort'
 import { pathTo } from '@/lib/tree'
@@ -79,11 +86,20 @@ async function applyDict(picked: {
 }) {
   const v = vocab.value
   if (!v) return
-  if (picked.meanings.length) {
-    v.meaning = [v.meaning.trim(), ...picked.meanings].filter(Boolean).join('\n')
-  }
   const known = new Set(settings.synced.pos[v.lang].map((o) => o.id))
-  for (const p of picked.pos) if (known.has(p) && !v.pos.includes(p)) v.pos.push(p)
+  const pos = picked.pos.filter((p) => known.has(p))
+  const senses = (v.senses ??= [])
+  if (picked.meanings.length) {
+    // fill the empty first meaning, otherwise add the dictionary's as one more
+    const text = picked.meanings.join('\n')
+    const first = senses[0]
+    if (senses.length === 1 && first && !first.meaning.trim() && !first.pos.length) {
+      first.meaning = text
+      first.pos = pos
+    } else senses.push({ id: uid(), pos, meaning: text })
+  } else if (senses[0]) {
+    for (const p of pos) if (!senses[0].pos.includes(p)) senses[0].pos.push(p)
+  }
   v.examples.push(...picked.examples)
   picked.examples.forEach(autoMark)
   for (const kind of ['syn', 'ant', 'der'] as const)
@@ -104,6 +120,13 @@ const card = ref<Card | null>(null)
 const original = ref('')
 let saved = false
 
+/** Vocab cards are edited as a list of meanings; an older card's single meaning becomes the first one. */
+function ensureSenses(c: Card | null) {
+  if (c?.type !== 'vocab') return
+  const list = sensesOf(c).map((s) => ({ ...s, pos: [...s.pos] }))
+  c.senses = list.length ? list : [{ id: uid(), pos: [], meaning: '' }]
+}
+
 async function init() {
   saved = false
   stubs.value = []
@@ -116,6 +139,7 @@ async function init() {
     const lang = (route.query.lang as Lang) || (localStorage.getItem(LAST_LANG) as Lang) || 'en'
     card.value = type === 'vocab' ? newVocabCard(deck, lang) : newBasicCard(deck)
   }
+  ensureSenses(card.value)
   original.value = JSON.stringify(card.value)
 }
 watch(() => route.fullPath, init, { immediate: true })
@@ -141,14 +165,18 @@ function switchType(t: 'basic' | 'vocab') {
     const v = newVocabCard(c.deckId, (localStorage.getItem(LAST_LANG) as Lang) || 'en')
     const b = c as BasicCard
     v.word = b.front
-    v.meaning = b.back
     v.id = c.id
     card.value = v
+    ensureSenses(v)
+    v.senses![0]!.meaning = b.back
   } else {
     const b = newBasicCard(c.deckId)
     const v = c as VocabCard
     b.front = v.word
-    b.back = v.meaning
+    b.back = (v.senses ?? [])
+      .map((x) => x.meaning.trim())
+      .filter(Boolean)
+      .join('\n')
     b.id = c.id
     card.value = b
   }
@@ -171,7 +199,7 @@ const missing = computed(() => {
     if (!c.back.trim()) m.push('反面')
   } else {
     if (!c.word.trim()) m.push('單字')
-    if (!c.meaning.trim()) m.push('意思')
+    if (!c.senses?.some((x) => x.meaning.trim())) m.push('意思')
   }
   return m
 })
@@ -181,10 +209,12 @@ const frontEmpty = computed(() => {
   return !c || (c.type === 'basic' ? !c.front.trim() : !c.word.trim())
 })
 
-function togglePos(id: string) {
-  const v = vocab.value
-  if (!v) return
-  v.pos = v.pos.includes(id) ? v.pos.filter((p) => p !== id) : [...v.pos, id]
+function togglePos(sense: Sense, id: string) {
+  sense.pos = sense.pos.includes(id) ? sense.pos.filter((p) => p !== id) : [...sense.pos, id]
+}
+
+function addSense() {
+  vocab.value?.senses?.push({ id: uid(), pos: [], meaning: '' })
 }
 
 const exDrag = useDragSort((from, to) => {
@@ -227,6 +257,24 @@ function unmark(ex: Example, text: string) {
   if (!ex.marks?.length) delete ex.marks
 }
 
+const hasMark = (ex: Example) => !!ex.marks?.length
+
+/** Detect the word in every example that has no mark yet, for the user to fix by hand where it misses. */
+function autoMarkAll() {
+  const v = vocab.value
+  if (!v) return
+  let n = 0
+  for (const ex of v.examples) {
+    if (ex.marks?.some((m) => ex.sentence.includes(m))) continue
+    autoOff.delete(ex.id)
+    delete ex.marks
+    autoMark(ex)
+    if (hasMark(ex)) n++
+  }
+  if (n) ui.toast(`已標示 ${n} 個例句`, 'success')
+  else ui.toast('沒有偵測到可標示的字詞，請在例句中選取文字後手動標示', 'info')
+}
+
 function addExample() {
   vocab.value?.examples.push({ id: uid(), sentence: '', translation: '' })
 }
@@ -238,6 +286,7 @@ async function save(next = false) {
   if (frontEmpty.value)
     return ui.toast(c.type === 'basic' ? '至少要填寫正面' : '至少要填寫單字', 'error')
   if (c.type === 'vocab') {
+    applySenses(c, c.senses ?? [])
     c.examples = c.examples.filter((e) => e.sentence.trim() || e.translation.trim())
     // marks whose text was edited away no longer apply
     for (const e of c.examples) {
@@ -267,6 +316,7 @@ async function save(next = false) {
     const deck = c.deckId
     const type = c.type
     card.value = type === 'vocab' ? newVocabCard(deck, (c as VocabCard).lang) : newBasicCard(deck)
+    ensureSenses(card.value)
     original.value = JSON.stringify(card.value)
     saved = false
     window.scrollTo({ top: 0 })
@@ -395,7 +445,7 @@ const previewRevealed = ref(false)
         </div>
         <div>
           <div class="flex items-center justify-between">
-            <label class="label">意思</label>
+            <label class="label">詞義</label>
             <button
               class="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary disabled:opacity-50"
               :disabled="lookupBusy"
@@ -404,27 +454,59 @@ const previewRevealed = ref(false)
               <BookOpen :size="14" /> {{ lookupBusy ? '查詢中…' : '從字典填入' }}
             </button>
           </div>
-          <textarea v-model="vocab.meaning" rows="2" class="input" placeholder="單字的意思" />
-        </div>
-        <div>
-          <label class="label">詞性</label>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="p in settings.synced.pos[vocab.lang].filter(
-                (o) => !o.hidden || vocab!.pos.includes(o.id),
-              )"
-              :key="p.id"
-              type="button"
-              class="chip"
-              :class="{ 'chip-on': vocab.pos.includes(p.id) }"
-              @click="togglePos(p.id)"
-            >
-              {{ p.label }}
+          <div class="space-y-3">
+            <div v-for="(s, i) in vocab.senses" :key="s.id" class="card space-y-3 p-4">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-muted">#{{ i + 1 }}</span>
+                <div class="flex-1" />
+                <button
+                  v-if="vocab.senses!.length > 1"
+                  class="icon-btn size-9 bg-surface-2 text-danger"
+                  aria-label="刪除詞義"
+                  @click="vocab.senses!.splice(i, 1)"
+                >
+                  <Trash2 :size="16" />
+                </button>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="p in settings.synced.pos[vocab.lang].filter(
+                    (o) => !o.hidden || s.pos.includes(o.id),
+                  )"
+                  :key="p.id"
+                  type="button"
+                  class="chip"
+                  :class="{ 'chip-on': s.pos.includes(p.id) }"
+                  @click="togglePos(s, p.id)"
+                >
+                  {{ p.label }}
+                </button>
+              </div>
+              <textarea
+                v-model="s.meaning"
+                v-autosize
+                rows="1"
+                class="input resize-none overflow-hidden"
+                placeholder="這個詞性的意思"
+              />
+            </div>
+            <button type="button" class="btn btn-ghost w-full" @click="addSense">
+              <Plus :size="18" /> 新增詞義
             </button>
           </div>
         </div>
         <div>
-          <label class="label">例句</label>
+          <div class="flex items-center justify-between">
+            <label class="label">例句</label>
+            <button
+              v-if="vocab.examples.length"
+              type="button"
+              class="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary"
+              @click="autoMarkAll"
+            >
+              <Highlighter :size="14" /> 自動標示單字
+            </button>
+          </div>
           <div class="space-y-3">
             <div
               v-for="(e, i) in vocab.examples"

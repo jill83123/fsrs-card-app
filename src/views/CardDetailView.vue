@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { liveQuery } from 'dexie'
 import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Eye,
+  EyeOff,
   FolderInput,
   Pause,
   Pencil,
@@ -17,6 +19,7 @@ import {
 } from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import CardFace from '@/components/CardFace.vue'
+import CardExamples from '@/components/CardExamples.vue'
 import MoveDeckSheet from '@/components/MoveDeckSheet.vue'
 import { useData } from '@/stores/data'
 import { useUi } from '@/stores/ui'
@@ -31,9 +34,8 @@ import {
   type Grade,
 } from '@/lib/fsrs'
 import { formatDateTime, formatInterval } from '@/lib/date'
-import { isComplete } from '@/lib/cards'
+import { isComplete, typeBadge } from '@/lib/cards'
 import { REL_KINDS } from '@/lib/relations'
-import { pathTo } from '@/lib/tree'
 import { useLiveQuery } from '@/composables/useLiveQuery'
 import { useTip } from '@/components/stats/useTip'
 import ChartTip from '@/components/stats/ChartTip.vue'
@@ -81,6 +83,38 @@ function go(delta: -1 | 1) {
   router.replace(`/card/${browseIds.value[browseIndex.value + delta]}`)
 }
 
+// arrow keys on desktop, horizontal swipes on touch screens
+function onKey(e: KeyboardEvent) {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+  const t = e.target
+  if (
+    t instanceof Element &&
+    t.closest('input, textarea, select, [contenteditable], [role="dialog"]')
+  )
+    return
+  e.preventDefault()
+  go(e.key === 'ArrowLeft' ? -1 : 1)
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+
+let swipeStart: { x: number; y: number } | null = null
+function onTouchStart(e: TouchEvent) {
+  const t = e.touches[0]
+  swipeStart = e.touches.length === 1 && t ? { x: t.clientX, y: t.clientY } : null
+}
+function onTouchEnd(e: TouchEvent) {
+  const t = e.changedTouches[0]
+  const start = swipeStart
+  swipeStart = null
+  if (!start || !t) return
+  const dx = t.clientX - start.x
+  const dy = t.clientY - start.y
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+  go(dx < 0 ? 1 : -1)
+}
+
 const logs = useLiveQuery<ReviewLogRecord[]>(
   () =>
     liveQuery(() =>
@@ -101,12 +135,8 @@ const logLimit = ref(LOG_FIRST)
 watch(id, () => (logLimit.value = LOG_FIRST))
 const shownLogs = computed(() => logs.value.slice(0, logLimit.value))
 
-const deckPath = computed(() =>
-  card.value
-    ? pathTo(data.nodes, card.value.deckId)
-        .map((n) => n.name)
-        .join(' / ')
-    : '',
+const deckName = computed(() =>
+  card.value ? (data.nodeById.get(card.value.deckId)?.name ?? '卡片') : '卡片',
 )
 const fam = computed(() =>
   card.value ? retrievability(data.scheduler, card.value.sched, data.now) : null,
@@ -190,7 +220,12 @@ const info = computed(() => {
 
 // plain-language hint per item, shown in a floating bubble
 const INFO_HELP: Record<string, string> = {
-  狀態: ['尚未學習：還沒練習過', '學習中：剛開始學', '複習：已進入長期排程', '重新學習：忘記後重學'].join('\n'),
+  狀態: [
+    '尚未學習：還沒練習過',
+    '學習中：剛開始學',
+    '複習：已進入長期排程',
+    '重新學習：忘記後重學',
+  ].join('\n'),
   熟悉度: ['現在還記得的機率，會隨時間下降。', '剛複習完是 100%。'].join('\n'),
   穩定度: '記憶能撐多久。',
   難度: '這張卡對你有多難（1–10）。',
@@ -201,7 +236,10 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
 
 <template>
   <div v-if="card">
-    <PageHeader title="卡片">
+    <PageHeader
+      :title="deckName"
+      :subtitle="browseIndex >= 0 ? `${browseIndex + 1} / ${browseIds.length}` : undefined"
+    >
       <template #right>
         <button class="icon-btn" aria-label="編輯" @click="router.push(`/card/${card.id}/edit`)">
           <Pencil :size="18" />
@@ -209,25 +247,64 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
       </template>
     </PageHeader>
 
-    <p class="-mt-2 mb-3 text-center text-xs text-muted">{{ deckPath }}</p>
-
-    <section class="card relative mb-3 min-h-40" @click="revealed = true">
-      <!-- out of the flow, so switching between complete and incomplete cards never shifts the height -->
-      <span
-        v-if="!isComplete(card)"
-        class="absolute top-3 right-3 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
-        style="
-          color: #d99100;
-          background: color-mix(in oklab, #f5b301 10%, var(--surface));
-          box-shadow: inset 0 0 0 1px color-mix(in oklab, #f5b301 45%, transparent);
-        "
-        title="這張卡片尚未完成，補齊內容後才會進入學習。"
-      >
-        <TriangleAlert :size="12" />
-        未完成，需補齊內容
-      </span>
-      <CardFace :card="card" :revealed="revealed" list-examples />
-    </section>
+    <!-- the arrows sit at a fixed height inside the card, so they stay put whatever the content -->
+    <div class="relative mb-3" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
+      <section class="card relative flex min-h-72 flex-col" @click="revealed = true">
+        <!-- the card's tags, level with the eye icon; out of the flow, so switching between complete and
+             incomplete cards never shifts the height -->
+        <div class="absolute top-3 left-3 flex h-8 items-center gap-1.5">
+          <span
+            class="min-w-7 rounded-md bg-surface-2 px-1.5 py-0.5 text-center text-[10px] font-bold text-muted"
+            >{{ typeBadge(card) }}</span
+          >
+          <span
+            v-if="!isComplete(card)"
+            class="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
+            style="
+              color: #d99100;
+              background: color-mix(in oklab, #f5b301 10%, var(--surface));
+              box-shadow: inset 0 0 0 1px color-mix(in oklab, #f5b301 45%, transparent);
+            "
+            title="這張卡片尚未完成，補齊內容後才會進入學習。"
+          >
+            <TriangleAlert :size="12" />
+            未完成，需補齊內容
+          </span>
+        </div>
+        <!-- stays in the corner, so it never moves when the examples below appear or disappear -->
+        <button
+          class="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:text-primary"
+          :aria-label="revealed ? '只看正面' : '顯示答案'"
+          :title="revealed ? '只看正面' : '顯示答案'"
+          @click.stop="revealed = !revealed"
+        >
+          <component :is="revealed ? Eye : EyeOff" :size="18" />
+        </button>
+        <div class="flex flex-1 flex-col px-5">
+          <CardFace class="flex-1" :card="card" :revealed="revealed" list-examples />
+        </div>
+      </section>
+      <!-- floating arrows, level with the divider in the middle of the card -->
+      <template v-if="browseIndex >= 0">
+        <button
+          class="absolute top-1/2 -left-3 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-md transition-colors hover:border-primary hover:text-primary disabled:opacity-0"
+          aria-label="上一張"
+          :disabled="!hasPrev"
+          @click="go(-1)"
+        >
+          <ChevronLeft :size="20" />
+        </button>
+        <button
+          class="absolute top-1/2 -right-3 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-md transition-colors hover:border-primary hover:text-primary disabled:opacity-0"
+          aria-label="下一張"
+          :disabled="!hasNext"
+          @click="go(1)"
+        >
+          <ChevronRight :size="20" />
+        </button>
+      </template>
+    </div>
+    <CardExamples v-if="revealed" :card="card" />
     <section v-if="related.length" class="card mb-3 space-y-3">
       <div v-for="g in related" :key="g.label">
         <h2 class="mb-1.5 text-xs font-semibold text-muted">{{ g.label }}</h2>
@@ -238,35 +315,6 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
         </div>
       </div>
     </section>
-    <div class="mb-5 flex items-center justify-center gap-3">
-      <template v-if="browseIndex >= 0">
-        <button
-          class="pill pill-idle px-2.5 disabled:opacity-40"
-          aria-label="上一張"
-          :disabled="!hasPrev"
-          @click="go(-1)"
-        >
-          <ChevronLeft :size="20" />
-        </button>
-      </template>
-      <button class="pill pill-idle" @click="revealed = !revealed">
-        {{ revealed ? '只看正面' : '顯示答案' }}
-      </button>
-      <template v-if="browseIndex >= 0">
-        <button
-          class="pill pill-idle px-2.5 disabled:opacity-40"
-          aria-label="下一張"
-          :disabled="!hasNext"
-          @click="go(1)"
-        >
-          <ChevronRight :size="20" />
-        </button>
-      </template>
-    </div>
-    <p v-if="browseIndex >= 0" class="-mt-3 mb-5 text-center text-xs text-muted">
-      {{ browseIndex + 1 }} / {{ browseIds.length }}
-    </p>
-
     <div class="mb-5 grid grid-cols-5 gap-2">
       <button
         class="flex flex-col items-center gap-1 rounded-xl border border-line bg-surface py-3 text-xs font-semibold"
