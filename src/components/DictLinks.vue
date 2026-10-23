@@ -7,13 +7,23 @@ import { useSettings } from '@/stores/settings'
 const props = defineProps<{ word: string; lang?: Lang }>()
 const settings = useSettings()
 
+const href = (url: string) => url.replaceAll('{word}', encodeURIComponent(props.word.trim()))
+
+// settings can arrive from a backup or sync, so never link to javascript: and the like
+const isWebUrl = (url: string) => {
+  try {
+    return ['http:', 'https:'].includes(new URL(href(url)).protocol)
+  } catch {
+    return false
+  }
+}
+
 const dicts = computed(() =>
   settings.synced.dictionaries.filter(
-    (d) => !props.lang || d.langs.length === 0 || d.langs.includes(props.lang),
+    (d) =>
+      isWebUrl(d.url) && (!props.lang || d.langs.length === 0 || d.langs.includes(props.lang)),
   ),
 )
-
-const href = (url: string) => url.replaceAll('{word}', encodeURIComponent(props.word.trim()))
 </script>
 
 <template>
