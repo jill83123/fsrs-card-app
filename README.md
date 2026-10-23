@@ -5,6 +5,7 @@
 技術：Vite、Vue 3、Tailwind CSS、ts-fsrs、Dexie（IndexedDB）。
 
 > **本專案僅供個人使用，不會有任何商業用途。**
+>
 > 專案中部分資源帶有非商業或 copyleft 授權，例如韓文聲音 `ko_KR-kss-medium` 的 KSS 語料（CC BY-NC-SA 4.0）與 espeak-ng（GPL-3.0），皆以個人、非商業使用為前提採用。
 
 ## 功能

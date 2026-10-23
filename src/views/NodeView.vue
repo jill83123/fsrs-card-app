@@ -115,6 +115,7 @@ function onDeleted(parentId: string | null) {
     <PillTabs
       v-if="hasChildren"
       v-model="tab"
+      size="sm"
       class="mb-4"
       :options="[
         { value: 'children', label: `子牌組（${children.length}）` },
