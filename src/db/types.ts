@@ -140,8 +140,12 @@ export interface ReviewLogRecord extends SyncFields {
 export interface Dictionary {
   id: string
   name: string
+  /** shown small beside the name: the language you look up first, e.g. 日中 = a Japanese word explained in Chinese, 日日 = in Japanese */
+  kind?: string
   url: string
   langs: Lang[]
+  /** kept in the list but not offered as a link */
+  hidden?: boolean
 }
 
 export interface PosOption {
