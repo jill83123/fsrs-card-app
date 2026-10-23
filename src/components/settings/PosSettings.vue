@@ -84,7 +84,6 @@ function onDragEnd() {
   <div class="space-y-3">
     <PillTabs
       v-model="lang"
-      size="sm"
       :options="LANGS.map((l) => ({ value: l.id, label: l.label }))"
     />
     <ul ref="listEl" class="space-y-1.5">
@@ -106,15 +105,15 @@ function onDragEnd() {
           <input
             v-model="p.label"
             :placeholder="defaultLabel(p.id)"
-            class="input py-1.5"
+            class="input"
             :class="{
               'border-primary ring-2 ring-primary/20': dragging === p.id,
-              'text-muted line-through': p.hidden,
+              'bg-surface-2 text-muted': p.hidden,
             }"
           />
           <button
             v-if="defaultLabel(p.id) && p.label !== defaultLabel(p.id)"
-            class="icon-btn size-8 shrink-0 bg-surface-2 text-primary"
+            class="icon-btn shrink-0 bg-surface-2 text-primary"
             aria-label="還原名稱"
             :title="`還原為預設名稱：${defaultLabel(p.id)}`"
             @click="restoreLabel(p)"
@@ -123,7 +122,7 @@ function onDragEnd() {
           </button>
           <button
             v-if="isDefaultPos(p.id)"
-            class="icon-btn size-8 shrink-0 bg-surface-2"
+            class="icon-btn shrink-0 bg-surface-2"
             :class="p.hidden ? 'text-muted' : 'text-ink'"
             :aria-label="p.hidden ? '顯示' : '隱藏'"
             :title="p.hidden ? '已隱藏，點擊顯示' : '隱藏（預設詞性不能刪除）'"
@@ -134,7 +133,7 @@ function onDragEnd() {
           </button>
           <button
             v-else
-            class="icon-btn size-8 shrink-0 bg-surface-2 text-danger"
+            class="icon-btn shrink-0 bg-surface-2 text-danger"
             aria-label="刪除"
             @click="remove(p)"
           >
@@ -144,15 +143,12 @@ function onDragEnd() {
       </li>
     </ul>
     <form class="flex gap-2" @submit.prevent="add">
-      <input v-model="draft" class="input py-2" placeholder="新增詞性，例如：助動詞" />
+      <input v-model="draft" class="input" placeholder="新增詞性，例如：助動詞" />
       <button class="btn btn-soft shrink-0" type="submit"><Plus :size="16" /> 新增</button>
     </form>
     <ul class="list-disc space-y-0.5 pl-4 text-xs text-muted">
-      <li>拖曳左側把手調整順序。</li>
-      <li>預設詞性不能刪除，但可以按眼睛圖示隱藏。</li>
-      <li>隱藏後不會出現在編輯卡片的選項中，但已標記的卡片仍會顯示。</li>
-      <li>自訂的詞性可以刪除。</li>
-      <li>「還原預設」會恢復預設詞性的名稱、順序與顯示，自訂詞性會保留。</li>
+      <li>隱藏的詞性不會出現在編輯選項中，已標記的卡片仍會顯示。</li>
+      <li>還原預設時，預設詞性的名稱、順序與顯示會恢復，自訂的會保留。</li>
     </ul>
   </div>
 </template>

@@ -3,15 +3,21 @@ import { computed, reactive, watch } from 'vue'
 import { Archive, Trash2 } from '@lucide/vue'
 import { DELETED_KEEP_DAYS } from '@/lib/purge'
 import BottomSheet from './BottomSheet.vue'
-import ColorDots from './ColorDots.vue'
 import NumberStepper from './NumberStepper.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import SelectBox from './SelectBox.vue'
-import type { CardTemplate, DeckColor, Lang, TreeNode } from '@/db/types'
+import type { CardTemplate, Lang, TreeNode } from '@/db/types'
 import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
-import { effectiveLimits, effectiveReverse, effectiveTemplate, pathTo, validParents } from '@/lib/tree'
+import {
+  effectiveLimits,
+  effectiveReverse,
+  effectiveTemplate,
+  deckRows,
+  subtreeIds,
+  validParents,
+} from '@/lib/tree'
 import { templateLabel } from '@/lib/cards'
 import PillTabs from './PillTabs.vue'
 import { LANGS } from '@/db/defaults'
@@ -30,7 +36,6 @@ const ui = useUi()
 
 const form = reactive({
   name: '',
-  color: 'blue' as DeckColor,
   parentId: null as string | null,
   overrideNew: false,
   overrideReview: false,
@@ -40,8 +45,9 @@ const form = reactive({
   cardType: 'inherit' as CardTemplate['type'] | 'inherit',
   /** '' = the last language used */
   cardLang: '' as Lang | '',
-  /** the effective setting; saved as an override only when it differs from the parent's */
+  /** the deck's own setting; a sub-deck can also follow its parent instead (`reverseMode`) */
   reverse: false,
+  reverseMode: 'inherit' as 'inherit' | 'on' | 'off',
   paused: false,
 })
 
@@ -50,7 +56,6 @@ watch(open, (v) => {
   const n = props.node
   const study = settings.synced.study
   form.name = n?.name ?? ''
-  form.color = n?.color ?? 'blue'
   form.parentId = n ? n.parentId : (props.parentId ?? null)
   form.overrideNew = n?.limits?.newPerDay !== undefined
   form.overrideReview = n?.limits?.reviewPerDay !== undefined
@@ -59,6 +64,7 @@ watch(open, (v) => {
   form.cardType = n?.defaultCard?.type ?? (form.parentId ? 'inherit' : 'basic')
   form.cardLang = n?.defaultCard?.lang ?? ''
   form.reverse = effectiveReverse(data.nodes, n ? n.id : form.parentId)
+  form.reverseMode = n?.reverse === undefined ? 'inherit' : n.reverse ? 'on' : 'off'
   form.paused = !!n?.paused
 })
 
@@ -69,20 +75,24 @@ watch(
     if (!p && form.cardType === 'inherit') form.cardType = 'basic'
   },
 )
-const inherited = computed(() =>
-  effectiveLimits(data.nodes, form.parentId, settings.synced.study),
-)
+const inherited = computed(() => effectiveLimits(data.nodes, form.parentId, settings.synced.study))
 const inheritedReverse = computed(() => effectiveReverse(data.nodes, form.parentId))
 const inheritedLabel = computed(() => templateLabel(effectiveTemplate(data.nodes, form.parentId)))
 
 const deckHasCards = (id: string) => (data.cardsByDeck.get(id)?.length ?? 0) > 0
 
+// every deck as a tree; one that cannot take sub-decks (it has cards) is greyed out
 const parentOptions = computed(() => {
-  return validParents(data.nodes, props.node?.id ?? '__new__', deckHasCards).map((p) => ({
-    id: p.id,
-    label: pathTo(data.nodes, p.id)
-      .map((x) => x.name)
-      .join(' / '),
+  const ok = new Set(
+    validParents(data.nodes, props.node?.id ?? '__new__', deckHasCards).map((p) => p.id),
+  )
+  const own = new Set(props.node ? subtreeIds(data.nodes, props.node.id) : [])
+  return deckRows(data.nodes, (n) => own.has(n.id)).map((r) => ({
+    id: r.node.id,
+    name: r.node.name,
+    path: r.path,
+    tree: r.tree,
+    disabled: !ok.has(r.node.id),
   }))
 })
 
@@ -128,14 +138,16 @@ async function save() {
       : form.cardType === 'vocab'
         ? { type: 'vocab', ...(form.cardLang ? { lang: form.cardLang } : {}) }
         : { type: 'basic' }
-  // matching the parent clears the override, so the deck keeps following its parent
-  const reverse =
-    form.parentId && form.reverse === inheritedReverse.value ? undefined : form.reverse
+  // undefined clears the override, so a sub-deck follows its parent again
+  const reverse = form.parentId
+    ? form.reverseMode === 'inherit'
+      ? undefined
+      : form.reverseMode === 'on'
+    : form.reverse
   let saved: TreeNode
   if (props.node) {
     await data.updateNode(props.node.id, {
       name,
-      color: form.color,
       parentId: form.parentId,
       limits,
       defaultCard,
@@ -147,7 +159,6 @@ async function save() {
       ...props.node,
       paused: form.paused || undefined,
       name,
-      color: form.color,
       parentId: form.parentId,
       limits,
       defaultCard,
@@ -165,7 +176,7 @@ async function save() {
       })
       if (!ok) return
     }
-    saved = await data.createNode(form.parentId, name, form.color)
+    saved = await data.createNode(form.parentId, name, 'blue')
     if (parentCards.length) {
       await data.patchCards(
         parentCards.map((c) => c.id),
@@ -189,15 +200,19 @@ async function save() {
       </div>
 
       <div>
-        <label class="label">顏色</label>
-        <ColorDots v-model="form.color" />
-      </div>
-
-      <div>
         <label class="label">位置</label>
         <SelectBox v-model="form.parentId">
           <option :value="null">（最上層）</option>
-          <option v-for="p in parentOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
+          <option
+            v-for="p in parentOptions"
+            :key="p.id"
+            :value="p.id"
+            :path="p.path"
+            :tree="p.tree"
+            :disabled="p.disabled"
+          >
+            {{ p.name }}
+          </option>
         </SelectBox>
       </div>
 
@@ -211,21 +226,20 @@ async function save() {
             { value: 'vocab', label: '單字卡' },
           ]"
         />
-        <p v-if="form.cardType === 'inherit'" class="mt-2 text-sm text-muted">
-          目前上層使用：{{ inheritedLabel }}
+        <p v-if="form.cardType === 'inherit'" class="mt-2 text-xs text-muted">
+          目前上層使用：<strong class="font-semibold text-primary">{{ inheritedLabel }}</strong>
         </p>
         <div v-if="form.cardType === 'vocab'" class="mt-3">
           <label class="label">單字卡語言</label>
           <PillTabs
             v-model="form.cardLang"
-            size="sm"
             :options="[
               { value: '', label: '沿用上次' },
               ...LANGS.map((l) => ({ value: l.id, label: l.label })),
             ]"
           />
         </div>
-        <div class="mt-1.5 space-y-0.5 text-xs text-muted">
+        <div class="mt-3 space-y-0.5 text-xs text-muted">
           <p>按「新增卡片」時會先打開這個模板，編輯時仍可切換。</p>
           <p>子牌組預設沿用上層設定。</p>
         </div>
@@ -233,9 +247,28 @@ async function save() {
 
       <div class="card space-y-2">
         <div class="flex items-center justify-between gap-3">
-          <span class="text-sm font-semibold">反向學習（意思 → 單字）</span>
-          <ToggleSwitch v-model="form.reverse" label="反向學習" />
+          <span class="min-w-0 text-sm font-semibold">反向學習（意思 → 單字）</span>
+          <ToggleSwitch v-if="!form.parentId" v-model="form.reverse" label="反向學習" />
         </div>
+        <!-- a sub-deck chooses between following its parent and its own on / off -->
+        <template v-if="form.parentId">
+          <PillTabs
+            v-model="form.reverseMode"
+            :options="[
+              { value: 'inherit', label: '沿用上層' },
+              { value: 'on', label: '開啟' },
+              { value: 'off', label: '關閉' },
+            ]"
+          />
+          <p v-if="form.reverseMode === 'inherit'" class="text-xs text-muted">
+            上層目前<strong class="font-semibold text-primary">{{
+              inheritedReverse ? '開啟' : '關閉'
+            }}</strong
+            >，所以這個牌組也<strong class="font-semibold text-primary">{{
+              inheritedReverse ? '開啟' : '關閉'
+            }}</strong>
+          </p>
+        </template>
         <div class="space-y-0.5 text-xs text-muted">
           <p>只對單字卡有效。每張單字卡會多一份獨立排程的反向複習。</p>
           <p>正向進入複習狀態後，反向才會開始以新卡出現，不計入每日上限。</p>
@@ -251,7 +284,10 @@ async function save() {
             <span class="text-sm">新卡</span>
           </div>
           <NumberStepper v-if="form.overrideNew" v-model="form.newPerDay" :max="9999" />
-          <span v-else class="text-sm text-muted">沿用{{ inherited.newFrom ? `「${inherited.newFrom}」` : '全域預設' }}的 {{ inherited.newPerDay }}</span>
+          <span v-else class="text-sm text-muted"
+            >沿用{{ inherited.newFrom ? `「${inherited.newFrom}」` : '全域預設' }}的
+            {{ inherited.newPerDay }}</span
+          >
         </div>
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-3">
@@ -265,7 +301,8 @@ async function save() {
             :step="10"
           />
           <span v-else class="text-sm text-muted"
-            >沿用{{ inherited.reviewFrom ? `「${inherited.reviewFrom}」` : '全域預設' }}的 {{ inherited.reviewPerDay }}</span
+            >沿用{{ inherited.reviewFrom ? `「${inherited.reviewFrom}」` : '全域預設' }}的
+            {{ inherited.reviewPerDay }}</span
           >
         </div>
       </div>
@@ -281,21 +318,16 @@ async function save() {
       </div>
 
       <button class="btn btn-primary w-full" type="submit">儲存</button>
-      <div v-if="node" class="-mt-2">
-        <button
-          type="button"
-          class="flex w-full items-center justify-center gap-2 py-2 text-sm text-muted"
-          @click="archive"
-        >
-          <Archive :size="16" /> 封存牌組（保留統計，不再顯示）
-        </button>
-        <button
-          type="button"
-          class="flex w-full items-center justify-center gap-2 py-2 text-sm text-danger"
-          @click="remove"
-        >
-          <Trash2 :size="16" /> 刪除牌組
-        </button>
+      <div v-if="node" class="-mt-2 space-y-2">
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="btn btn-ghost" @click="archive">
+            <Archive :size="18" /> 封存
+          </button>
+          <button type="button" class="btn btn-ghost text-danger" @click="remove">
+            <Trash2 :size="18" /> 刪除
+          </button>
+        </div>
+        <p class="text-center text-xs text-muted">封存會保留統計，只是不再顯示。</p>
       </div>
     </form>
   </BottomSheet>

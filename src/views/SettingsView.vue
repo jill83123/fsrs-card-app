@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Tags,
   Trash2,
+  TriangleAlert,
   Upload,
   Volume2,
 } from '@lucide/vue'
@@ -85,27 +86,23 @@ const retentionPct = computed({
 })
 const RETENTION_TICKS = Array.from({ length: 30 }, (_, i) => 70 + i)
 const impact = computed(() => retentionImpact(s.fsrs.retention))
-// one short line per item
+// first line is the heading, at most three lines in all
 const impactLines = computed(() => {
   const r = retentionPct.value
   if (r === 90) return ['這是 FSRS 建議的預設值。', '在記憶效果與複習量之間取得平衡。']
   const i = impact.value
   const fmt = (x: number) => (x >= 10 ? x.toFixed(0) : x.toFixed(2).replace(/0$/, ''))
+  const ratios = `複習間隔約為 90% 時的 ${fmt(i.intervalRatio)} 倍，每日複習量約 ${fmt(i.workloadRatio)} 倍`
   if (r > 90)
-    return [
-      '記得更牢，但複習更頻繁：',
-      `複習間隔約為 90% 時的 ${fmt(i.intervalRatio)} 倍`,
-      `每日複習量約變成 ${fmt(i.workloadRatio)} 倍`,
-      ...(r >= 97 ? ['超過 97% 時複習量會急遽上升，通常不建議。'] : []),
-    ]
+    return [r >= 97 ? '複習量會急遽上升，通常不建議：' : '記得更牢，但複習更頻繁：', ratios]
   return [
-    '複習較少，但會忘得比較多：',
-    `複習間隔約為 90% 時的 ${fmt(i.intervalRatio)} 倍`,
-    `每日複習量約變成 ${fmt(i.workloadRatio)} 倍`,
+    r < 80 ? '遺忘會明顯增加，通常不建議：' : '複習較少，但會忘得比較多：',
+    ratios,
     `約每 ${Math.round(100 / (100 - r))} 張忘 1 張`,
-    ...(r < 80 ? ['低於 80% 時遺忘會明顯增加，通常不建議。'] : []),
   ]
 })
+// far from the recommended 90% in either direction: shown in the warning colour
+const impactWarn = computed(() => retentionPct.value < 85 || retentionPct.value > 95)
 const stepsOk = computed(() => isValidSteps(s.fsrs.learningSteps))
 const relearnOk = computed(() => isValidSteps(s.fsrs.relearningSteps))
 
@@ -194,10 +191,9 @@ const def = defaultSynced()
             </label>
           </div>
         </SettingRow>
-        <SettingRow label="深色模式" hint="也可以點首頁右上角的按鈕切換" stacked>
+        <SettingRow label="深色模式" hint="首頁右上角也能切換" stacked>
           <PillTabs
             v-model="s.appearance.theme"
-            size="sm"
             :options="[
               { value: 'system', label: '跟隨系統' },
               { value: 'light', label: '淺色' },
@@ -218,10 +214,11 @@ const def = defaultSynced()
       >
         <SettingRow
           label="換日時間"
+          hint-below
           :hint="[
             '這個時間之前的複習，會算在前一天。',
-            `例如設 ${formatHour(s.study.rolloverHour)}，凌晨 ${formatHour(Math.max(0, s.study.rolloverHour - 1))} 的複習會記在前一個學習日。`,
-            '修改時只會重新歸類前一天與今天的紀錄。',
+            `例如設 ${formatHour(s.study.rolloverHour)}，凌晨 ${formatHour(Math.max(0, s.study.rolloverHour - 1))} 的複習會記在前一天。`,
+            '修改後只會重新歸類最近兩天的紀錄。',
           ]"
           stacked
         >
@@ -243,7 +240,6 @@ const def = defaultSynced()
         <SettingRow label="新卡順序" stacked>
           <PillTabs
             v-model="s.study.newOrder"
-            size="sm"
             :options="[
               { value: 'created', label: '依建立順序' },
               { value: 'random', label: '隨機' },
@@ -275,14 +271,27 @@ const def = defaultSynced()
               { value: 99, label: '99%' },
             ]"
           />
-          <div class="space-y-0.5 rounded-2xl bg-primary-soft px-4 py-3 text-sm">
-            <p v-for="line in impactLines" :key="line">{{ line }}</p>
+          <div
+            class="flex gap-2.5 rounded-2xl px-4 py-3 text-sm"
+            :class="impactWarn ? 'bg-warn/15' : 'bg-primary-soft'"
+          >
+            <component
+              :is="impactWarn ? TriangleAlert : Info"
+              :size="16"
+              class="mt-0.5 shrink-0"
+              :class="impactWarn ? 'text-warn' : 'text-primary'"
+            />
+            <div class="space-y-0.5">
+              <!-- the first line is a heading for the lines below -->
+              <p class="mb-1 font-semibold">{{ impactLines[0] }}</p>
+              <p v-for="line in impactLines.slice(1)" :key="line">{{ line }}</p>
+            </div>
           </div>
         </SettingRow>
         <SettingRow label="最大間隔（天）" :hint="`預設 ${def.fsrs.maximumInterval}`">
           <NumberStepper v-model="s.fsrs.maximumInterval" :min="1" :max="36500" :step="30" />
         </SettingRow>
-        <SettingRow label="間隔隨機化（fuzz）" hint="讓同一天學的卡片之後不會擠在同一天到期">
+        <SettingRow label="間隔隨機化（fuzz）" hint="避免同一天學的卡片擠在同一天到期">
           <ToggleSwitch v-model="s.fsrs.enableFuzz" />
         </SettingRow>
         <details class="group" :open="!stepsOk || !relearnOk || undefined">
@@ -294,16 +303,14 @@ const def = defaultSynced()
           </summary>
           <div class="mt-4 space-y-5">
             <div class="space-y-0.5 text-xs text-muted">
-              <p>學習步驟是同一天內的短期練習。</p>
-              <p>新卡或忘記的卡片，會在設定的時間後再出現一次。</p>
-              <p>走完步驟後，才交給 FSRS 以「天」為單位排程。</p>
+              <p>新卡或忘記的卡片會先在同一天內短期重複，走完步驟才交給 FSRS 以天排程。</p>
               <p>留空表示不做當天的短期複習。</p>
             </div>
             <SettingRow
               label="學習步驟"
               :hint="[
                 '新卡的短期間隔，用空白分隔，例如「1m 10m」。',
-                `m 分、h 時、d 天。預設 ${def.fsrs.learningSteps}`,
+                `m 分、h 時、d 天，預設 ${def.fsrs.learningSteps}`,
               ]"
               stacked
             >
@@ -406,7 +413,7 @@ const def = defaultSynced()
             {{
               pwa.needRefresh
                 ? '新版本已下載，重新整理後就會套用。'
-                : 'App 會在開啟時與每小時自動檢查，有新版本時下方會出現提示。'
+                : 'App 會自動檢查更新，有新版本時會提示。'
             }}
           </p>
           <button

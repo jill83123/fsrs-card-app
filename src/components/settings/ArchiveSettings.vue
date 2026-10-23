@@ -43,34 +43,36 @@ async function purge(d: DeletedDeck) {
 <template>
   <div class="space-y-5">
     <div>
-      <p class="mb-2 text-sm font-semibold">已封存</p>
+      <p class="mb-3 text-sm font-semibold">已封存</p>
       <p v-if="!data.archivedTree.length" class="text-sm text-muted">沒有封存的牌組。</p>
-      <ul v-else class="divide-y divide-line">
+      <ul v-else class="space-y-2">
         <ArchivedDeckItem
           v-for="d in data.archivedTree"
           :key="d.node.id"
           :item="d"
           top
+          :reserve="data.archivedTree.some((x) => x.children.length > 0)"
           @unarchive="unarchive(d.node.id, d.node.name)"
         />
       </ul>
-      <p class="mt-2 text-xs text-muted">封存的牌組不會出現在列表與學習中，歷史統計仍會保留。</p>
+      <p class="mt-3 text-xs text-muted">封存的牌組不會出現在列表與學習中，歷史統計仍會保留。</p>
     </div>
 
     <div>
-      <p class="mb-2 text-sm font-semibold">最近刪除</p>
+      <p class="mb-3 text-sm font-semibold">最近刪除</p>
       <p v-if="!deleted.length" class="text-sm text-muted">沒有最近刪除的牌組。</p>
-      <ul v-else class="divide-y divide-line">
+      <ul v-else class="space-y-2">
         <DeletedDeckItem
           v-for="d in deleted"
           :key="d.node.id"
           :item="d"
           :days-left="daysLeft(d)"
+          :reserve="deleted.some((x) => x.children.length > 0)"
           @restore="restore"
           @purge="purge"
         />
       </ul>
-      <p class="mt-2 text-xs text-muted">
+      <p class="mt-3 text-xs text-muted">
         刪除後保留 {{ DELETED_KEEP_DAYS }} 天，期間複習紀錄不列入統計；超過就會連同紀錄永久刪除。
       </p>
     </div>

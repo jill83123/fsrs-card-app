@@ -21,7 +21,9 @@ const isWebUrl = (url: string) => {
 const dicts = computed(() =>
   settings.synced.dictionaries.filter(
     (d) =>
-      isWebUrl(d.url) && (!props.lang || d.langs.length === 0 || d.langs.includes(props.lang)),
+      !d.hidden &&
+      isWebUrl(d.url) &&
+      (!props.lang || d.langs.length === 0 || d.langs.includes(props.lang)),
   ),
 )
 </script>
@@ -39,6 +41,7 @@ const dicts = computed(() =>
     >
       <BookOpen :size="13" />
       {{ d.name }}
+      <span v-if="d.kind" class="text-[10px] tracking-wide text-muted"> · {{ d.kind }} </span>
     </a>
   </div>
 </template>

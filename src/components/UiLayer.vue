@@ -34,7 +34,7 @@ function submit() {
     <Transition name="fade">
       <div
         v-if="ui.dialog"
-        class="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
         @click.self="ui.closeDialog(null)"
         @keydown.esc="ui.closeDialog(null)"
       >

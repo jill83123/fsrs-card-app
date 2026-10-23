@@ -21,6 +21,7 @@ import {
 import PageHeader from '@/components/PageHeader.vue'
 import CardFace from '@/components/CardFace.vue'
 import CardExamples from '@/components/CardExamples.vue'
+import DictLinks from '@/components/DictLinks.vue'
 import MoveDeckSheet from '@/components/MoveDeckSheet.vue'
 import { useData } from '@/stores/data'
 import { useUi } from '@/stores/ui'
@@ -330,6 +331,12 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
         </div>
       </div>
     </section>
+    <DictLinks
+      v-if="revealed && card.type === 'vocab'"
+      :word="card.word"
+      :lang="card.lang"
+      class="mb-5"
+    />
     <div class="mb-5 grid grid-cols-5 gap-2">
       <button
         class="flex flex-col items-center gap-1 rounded-xl border border-line bg-surface py-3 text-xs font-semibold"

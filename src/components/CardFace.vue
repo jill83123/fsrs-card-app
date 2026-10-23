@@ -125,7 +125,8 @@ watch(
         <div v-if="revealed" class="min-h-6 text-muted">{{ card.reading }}</div>
       </template>
     </div>
-    <hr class="leader border-0" :class="{ invisible: !revealed }" />
+    <!-- inset a little, so the line stops short of the page's arrows instead of running into them -->
+    <hr class="leader mx-4 border-0" :class="{ invisible: !revealed }" />
     <!-- as tall as the word and reading above, with the meaning in its middle, so the content
          is balanced on both sides of the divider -->
     <div class="flex min-h-28 flex-col items-center justify-center gap-3 self-start pt-5">

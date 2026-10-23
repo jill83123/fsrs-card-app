@@ -25,7 +25,7 @@ import {
 } from '@/lib/cards'
 import { uid } from '@/lib/id'
 import { moved, useDragSort } from '@/composables/useDragSort'
-import { pathTo } from '@/lib/tree'
+import { deckRows } from '@/lib/tree'
 import { db } from '@/db'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
 import { lookupWord, type DictResult } from '@/lib/dictLookup'
@@ -146,15 +146,15 @@ watch(() => route.fullPath, init, { immediate: true })
 
 const dirty = computed(() => card.value && JSON.stringify(card.value) !== original.value)
 
+// every deck as a tree; only one without sub-decks can hold cards, the others are greyed out
 const deckOptions = computed(() =>
-  data.nodes
-    .filter((n) => !data.nodes.some((c) => c.parentId === n.id))
-    .map((n) => ({
-      id: n.id,
-      label: pathTo(data.nodes, n.id)
-        .map((x) => x.name)
-        .join(' / '),
-    })),
+  deckRows(data.nodes).map((r) => ({
+    id: r.node.id,
+    name: r.node.name,
+    path: r.path,
+    tree: r.tree,
+    disabled: data.nodes.some((c) => c.parentId === r.node.id),
+  })),
 )
 
 /** Switch between card types while creating, carrying over the main text. */
@@ -359,7 +359,16 @@ const previewRevealed = ref(false)
         <label class="label">牌組</label>
         <SelectBox v-model="card.deckId">
           <option value="" disabled>選擇牌組</option>
-          <option v-for="d in deckOptions" :key="d.id" :value="d.id">{{ d.label }}</option>
+          <option
+            v-for="d in deckOptions"
+            :key="d.id"
+            :value="d.id"
+            :path="d.path"
+            :tree="d.tree"
+            :disabled="d.disabled"
+          >
+            {{ d.name }}
+          </option>
         </SelectBox>
       </div>
 
@@ -461,7 +470,7 @@ const previewRevealed = ref(false)
                 <div class="flex-1" />
                 <button
                   v-if="vocab.senses!.length > 1"
-                  class="icon-btn size-9 bg-surface-2 text-danger"
+                  class="icon-btn bg-surface-2 text-danger"
                   aria-label="刪除詞義"
                   @click="vocab.senses!.splice(i, 1)"
                 >
@@ -530,7 +539,7 @@ const previewRevealed = ref(false)
                 <div class="flex-1" />
                 <SpeakButton :text="e.sentence" :lang="vocab.lang" />
                 <button
-                  class="icon-btn size-9 bg-surface-2 text-danger"
+                  class="icon-btn bg-surface-2 text-danger"
                   aria-label="刪除例句"
                   @click="vocab.examples.splice(i, 1)"
                 >
@@ -560,7 +569,7 @@ const previewRevealed = ref(false)
               <div class="flex flex-wrap items-center gap-2 pt-1.5">
                 <button
                   type="button"
-                  class="icon-btn size-8 shrink-0 bg-surface-2"
+                  class="icon-btn shrink-0 bg-surface-2"
                   aria-label="標示選取的文字"
                   title="標示選取的文字"
                   @mousedown.prevent

@@ -330,7 +330,6 @@ const progress = computed(() => {
         <label class="label">學習紀錄</label>
         <PillTabs
           v-model="studyDay"
-          size="sm"
           :options="[
             { value: 'any', label: '不限' },
             { value: 'today', label: '今天' },
@@ -343,7 +342,6 @@ const progress = computed(() => {
         <label class="label">學習類型</label>
         <PillTabs
           v-model="studyKind"
-          size="sm"
           :options="[
             { value: 'all', label: '全部' },
             { value: 'new', label: '新學習' },
@@ -355,7 +353,6 @@ const progress = computed(() => {
         <label class="label">玩法</label>
         <PillTabs
           v-model="mode"
-          size="sm"
           :options="[
             { value: 'flip', label: '翻卡' },
             { value: 'spell', label: '單字聽寫' },
@@ -365,7 +362,6 @@ const progress = computed(() => {
           <label class="mb-2 block text-[11px] font-semibold text-muted/70">單字卡方向</label>
           <PillTabs
             v-model="direction"
-            size="sm"
             :options="[
               { value: 'forward', label: '單字 → 意思' },
               { value: 'reverse', label: '意思 → 單字' },
@@ -379,7 +375,7 @@ const progress = computed(() => {
     <div class="mb-3 flex items-center gap-2">
       <div class="relative flex-1">
         <Search :size="16" class="absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
-        <input v-model="filter.q" class="input py-2 pl-10" placeholder="搜尋卡片" />
+        <input v-model="filter.q" class="input pl-10" placeholder="搜尋卡片" />
       </div>
       <button class="icon-btn relative" aria-label="篩選" @click="showFilter = true">
         <SlidersHorizontal :size="18" />
@@ -547,7 +543,7 @@ const progress = computed(() => {
                 { ok: false, label: '錯誤', icon: X },
               ]"
               :key="o.label"
-              class="btn py-2.5 text-sm"
+              class="btn"
               :class="
                 verdict !== o.ok
                   ? 'btn-ghost text-muted'
@@ -610,7 +606,7 @@ const progress = computed(() => {
           </div>
           <button
             v-if="c.type === 'vocab'"
-            class="icon-btn size-10"
+            class="icon-btn"
             :class="c.note.trim() ? 'text-primary' : ''"
             aria-label="備註"
             @click="openNote(c.id)"
@@ -618,7 +614,7 @@ const progress = computed(() => {
             <NotebookPen :size="18" />
           </button>
           <button
-            class="icon-btn size-10"
+            class="icon-btn"
             :aria-label="c.starred ? '取消星號' : '加星號'"
             @click="toggleStar(c.id)"
           >

@@ -69,7 +69,7 @@ function reset() {
           </SelectBox>
           <button
             v-if="f.sort !== 'manual'"
-            class="btn btn-ghost shrink-0 px-4 py-2.5 text-xs font-medium"
+            class="btn btn-ghost shrink-0 px-4 text-xs font-medium"
             @click="f.desc = !f.desc"
           >
             {{ f.desc ? '由大到小' : '由小到大' }}
@@ -81,7 +81,6 @@ function reset() {
         <label class="label">卡片類型</label>
         <PillTabs
           v-model="f.type"
-          size="sm"
           :options="[
             { value: 'any', label: '全部' },
             { value: 'basic', label: '正反卡' },
@@ -92,7 +91,6 @@ function reset() {
           <label class="mb-2 block text-[11px] font-semibold text-muted/70">單字語言</label>
           <PillTabs
             v-model="f.lang"
-            size="sm"
             :options="[
               { value: 'any', label: '全部' },
               ...LANGS.map((l) => ({ value: l.id, label: l.label })),
@@ -104,13 +102,13 @@ function reset() {
       <template v-for="r in triRows" :key="r.key">
         <div v-if="!(hideDraft && r.key === 'draft')">
           <label class="label">{{ r.label }}</label>
-          <PillTabs v-model="f[r.key]" size="sm" :options="tri" />
+          <PillTabs v-model="f[r.key]" :options="tri" />
         </div>
       </template>
 
       <div>
         <label class="label">熟悉度（目前記得的機率）</label>
-        <PillTabs v-model="f.fam" size="sm" :options="FAM_BUCKETS" />
+        <PillTabs v-model="f.fam" :options="FAM_BUCKETS" />
       </div>
 
       <div>

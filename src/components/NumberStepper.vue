@@ -19,7 +19,7 @@ function onInput(e: Event) {
   <div class="flex items-center gap-2">
     <button
       type="button"
-      class="icon-btn size-9 bg-surface-2"
+      class="icon-btn bg-surface-2"
       :disabled="model <= min"
       aria-label="減少"
       @click="model = clamp(model - step)"
@@ -35,7 +35,7 @@ function onInput(e: Event) {
     />
     <button
       type="button"
-      class="icon-btn size-9 bg-surface-2"
+      class="icon-btn bg-surface-2"
       :disabled="model >= max"
       aria-label="增加"
       @click="model = clamp(model + step)"

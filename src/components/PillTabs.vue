@@ -21,7 +21,7 @@ const model = defineModel<T>({ required: true })
         model === o.value
           ? 'border-primary bg-primary-soft text-primary-strong'
           : 'border-line bg-surface text-muted hover:text-ink',
-        size === 'sm' ? 'py-2.5 text-xs' : 'py-3 text-sm',
+        size === 'sm' ? 'min-h-8.5 py-1.5 text-xs' : 'min-h-10 py-2 text-sm',
       ]"
       @click="model = o.value"
     >
