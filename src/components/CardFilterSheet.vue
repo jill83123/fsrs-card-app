@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch } from 'vue'
 import BottomSheet from './BottomSheet.vue'
 import PillTabs from './PillTabs.vue'
 import SelectBox from './SelectBox.vue'
@@ -14,7 +15,15 @@ import { LANGS } from '@/db/defaults'
 
 const open = defineModel<boolean>({ required: true })
 const f = defineModel<CardFilter>('filter', { required: true })
-defineProps<{ hideDraft?: boolean }>()
+defineProps<{ hideDraft?: boolean; hideManual?: boolean }>()
+
+// the language filter only shows for vocab cards, so it must not stay active once hidden
+watch(
+  () => f.value.type,
+  (t) => {
+    if (t !== 'vocab') f.value.lang = 'any'
+  },
+)
 
 const tri: { value: TriState; label: string }[] = [
   { value: 'any', label: '全部' },
@@ -49,12 +58,18 @@ function reset() {
       <div>
         <label class="label">排序</label>
         <div class="flex gap-2">
-          <SelectBox v-model="f.sort" class="py-2 text-xs font-medium">
-            <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          <SelectBox v-model="f.sort" class="py-2.5 text-xs font-medium">
+            <option
+              v-for="o in SORT_OPTIONS.filter((o) => !(hideManual && o.value === 'manual'))"
+              :key="o.value"
+              :value="o.value"
+            >
+              {{ o.label }}
+            </option>
           </SelectBox>
           <button
             v-if="f.sort !== 'manual'"
-            class="btn btn-ghost shrink-0 px-3 py-2 text-xs font-medium"
+            class="btn btn-ghost shrink-0 px-4 py-2.5 text-xs font-medium"
             @click="f.desc = !f.desc"
           >
             {{ f.desc ? '由大到小' : '由小到大' }}
@@ -73,18 +88,17 @@ function reset() {
             { value: 'vocab', label: '單字卡' },
           ]"
         />
-      </div>
-
-      <div>
-        <label class="label">單字語言</label>
-        <PillTabs
-          v-model="f.lang"
-          size="sm"
-          :options="[
-            { value: 'any', label: '全部' },
-            ...LANGS.map((l) => ({ value: l.id, label: l.label })),
-          ]"
-        />
+        <div v-if="f.type === 'vocab'" class="mt-3 rounded-xl bg-surface/60 p-3">
+          <label class="mb-2 block text-[11px] font-semibold text-muted/70">單字語言</label>
+          <PillTabs
+            v-model="f.lang"
+            size="sm"
+            :options="[
+              { value: 'any', label: '全部' },
+              ...LANGS.map((l) => ({ value: l.id, label: l.label })),
+            ]"
+          />
+        </div>
       </div>
 
       <template v-for="r in triRows" :key="r.key">
@@ -101,12 +115,18 @@ function reset() {
 
       <div>
         <label class="label">卡片狀態</label>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex gap-2">
           <button
             v-for="s in states"
             :key="s"
-            class="chip"
-            :class="{ 'chip-on': f.states.includes(s) }"
+            type="button"
+            :aria-pressed="f.states.includes(s)"
+            class="min-w-0 flex-1 truncate rounded-xl border px-1.5 py-2.5 text-xs font-medium transition-colors"
+            :class="
+              f.states.includes(s)
+                ? 'border-primary bg-primary-soft text-primary-strong'
+                : 'border-line bg-surface text-muted hover:text-ink'
+            "
             @click="toggleState(s)"
           >
             {{ STATE_LABEL[s] }}

@@ -515,7 +515,7 @@ const hardCards = computed(() =>
         </template>
         <div v-if="hardCards.length" class="space-y-1.5">
           <div v-for="(c, i) in hardCards" :key="c.id" class="flex items-center gap-2">
-            <span class="w-5 shrink-0 text-right text-xs font-semibold text-muted tabular-nums">{{
+            <span class="w-4 shrink-0 text-right text-xs font-semibold text-muted tabular-nums">{{
               hardPage * HARD_PAGE_SIZE + i + 1
             }}</span>
             <CardListItem
@@ -536,7 +536,7 @@ const hardCards = computed(() =>
               class="invisible flex items-center gap-2"
               aria-hidden="true"
             >
-              <span class="w-5 shrink-0" />
+              <span class="w-4 shrink-0" />
               <CardListItem class="min-w-0 flex-1" :card="hardCards[0]!" compact tabindex="-1" />
             </div>
           </template>

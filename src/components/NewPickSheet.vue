@@ -4,7 +4,7 @@ import { Shuffle, Square, SquareCheck } from '@lucide/vue'
 import BottomSheet from './BottomSheet.vue'
 import PillTabs from './PillTabs.vue'
 import { useData } from '@/stores/data'
-import { cardTitle, isStudyable, schedOf, type Side } from '@/lib/cards'
+import { cardSubtitle, cardTitle, isStudyable, schedOf, type Side } from '@/lib/cards'
 import { State } from '@/lib/fsrs'
 import { ymd } from '@/lib/date'
 import { emptyPick, toFilter, type NewPick } from '@/lib/newPick'
@@ -131,6 +131,13 @@ function setSide(side: NewPick['side']) {
   pick.value = { side, chosen: null }
 }
 
+/** a reverse card is asked from the meaning, so the list shows that instead of giving the word away */
+const listTitle = (x: { card: Card; sides: Side[] }) =>
+  x.card.type === 'vocab' &&
+  (pick.value.side === 'r' || (x.sides.length === 1 && x.sides[0] === 'r'))
+    ? cardSubtitle(x.card)
+    : cardTitle(x.card)
+
 const sideLabel = (sides: Side[]) =>
   sides.length === 2 ? '正向＋反向' : sides[0] === 'r' ? '反向' : ''
 </script>
@@ -195,11 +202,16 @@ const sideLabel = (sides: Side[]) =>
               class="shrink-0"
               :class="chosenSet.has(x.card.id) ? 'text-primary' : 'text-muted'"
             />
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm font-medium">{{ cardTitle(x.card) }}</span>
+            <span class="flex min-w-0 flex-1 items-center gap-2">
+              <span class="truncate text-sm font-medium">{{ listTitle(x) }}</span>
+              <span
+                v-if="sideLabel(x.sides)"
+                class="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-muted"
+              >
+                {{ sideLabel(x.sides) }}
+              </span>
             </span>
-            <span class="shrink-0 text-right text-xs text-muted tabular-nums">
-              <span v-if="sideLabel(x.sides)" class="block">{{ sideLabel(x.sides) }}</span>
+            <span class="shrink-0 text-xs text-muted tabular-nums">
               {{ ymd(new Date(x.card.createdAt)) }}
             </span>
           </button>
