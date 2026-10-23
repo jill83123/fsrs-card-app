@@ -402,14 +402,14 @@ const def = defaultSynced()
           class="hidden"
           @change="onImport"
         />
-        <button class="flex items-center gap-1.5 text-sm text-danger" @click="wipe">
+        <button class="btn btn-ghost -mt-2 w-full text-danger" @click="wipe">
           <Trash2 :size="16" /> 清除這台裝置的所有資料
         </button>
       </SettingsSection>
 
       <SettingsSection id="about" title="版本與更新" :hint="appVersion" :icon="Info">
         <div class="flex items-center justify-between gap-3">
-          <p class="text-xs text-muted">
+          <p class="text-sm text-muted">
             {{
               pwa.needRefresh
                 ? '新版本已下載，重新整理後就會套用。'
@@ -435,7 +435,7 @@ const def = defaultSynced()
         </div>
       </SettingsSection>
 
-      <button class="btn btn-ghost w-full text-danger" @click="resetAll">
+      <button class="btn btn-ghost min-h-12 w-full text-danger" @click="resetAll">
         <RotateCcw :size="16" /> 重置所有設定
       </button>
     </div>

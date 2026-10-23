@@ -52,7 +52,7 @@ async function reset() {
     </button>
     <div v-if="open" class="space-y-5 border-t border-line px-5 pt-5 pb-5">
       <slot />
-      <div v-if="resettable" class="-mb-1 border-t border-line pt-3">
+      <div v-if="resettable" class="-mb-2 border-t border-line pt-3">
         <button
           type="button"
           class="mx-auto flex items-center gap-1.5 py-1 text-xs text-danger transition-opacity hover:opacity-70"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { CloudDownload, CloudUpload, LogOut, RefreshCw, Trash2, TriangleAlert } from '@lucide/vue'
+import { CircleCheck, CloudDownload, CloudUpload, LogOut, RefreshCw, Trash2, TriangleAlert } from '@lucide/vue'
 import ToggleSwitch from '../ToggleSwitch.vue'
 import SettingRow from './SettingRow.vue'
 import { useSettings } from '@/stores/settings'
@@ -114,8 +114,10 @@ onMounted(() => {
     <template v-else>
       <div class="space-y-3 rounded-2xl bg-surface-2 p-4 text-sm">
         <div>
-          <div class="font-semibold">已連線 Google Drive</div>
-          <div class="text-xs text-muted">
+          <div class="flex items-center gap-1.5 font-semibold text-success">
+            <CircleCheck :size="16" /> 已連線 Google Drive
+          </div>
+          <div class="mt-1 pl-[22px] text-xs text-muted">
             上次同步：{{ sync.lastSync ? formatDateTime(sync.lastSync) : '尚未同步' }}
           </div>
           <div v-if="sync.error" class="mt-1 text-xs text-danger">{{ sync.error }}</div>
@@ -172,7 +174,12 @@ onMounted(() => {
               <CloudDownload :size="14" /> 還原
             </button>
           </li>
-          <li v-if="!allBackups.length" class="text-xs text-muted">尚無備份</li>
+          <li
+            v-if="!allBackups.length"
+            class="rounded-xl bg-surface-2 px-3 py-2 text-sm text-muted"
+          >
+            目前尚無備份
+          </li>
         </ul>
         <button class="btn btn-ghost w-full" :disabled="working" @click="backup">
           <CloudUpload :size="16" /> 立即備份
