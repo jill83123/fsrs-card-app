@@ -57,13 +57,13 @@ const subtitle = computed(() => {
       <Folder
         v-if="children.length"
         :size="24"
-        class="shrink-0 text-primary/85"
+        class="shrink-0 text-primary/75"
         style="fill: var(--color-primary-soft)"
         aria-hidden="true"
       />
       <svg
         v-else
-        class="shrink-0 text-primary/85"
+        class="shrink-0 text-primary/75"
         width="24"
         height="24"
         viewBox="0 0 24 24"

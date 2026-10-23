@@ -116,7 +116,7 @@ button:disabled {
   }
   /* compact fields, for filters inside a card (the stats page) */
   .input-sm {
-    @apply min-h-8.5 px-3 py-1 text-sm;
+    @apply min-h-8.5 px-3 py-1 text-xs;
   }
   .label {
     @apply mb-1.5 block text-xs font-semibold tracking-wide text-muted uppercase;

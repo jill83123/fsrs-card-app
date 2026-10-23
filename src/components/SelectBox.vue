@@ -89,7 +89,9 @@ function position() {
   const max = Math.max(120, Math.min(288, flip ? above : below))
   place.value = {
     left: `${r.left}px`,
-    width: `${r.width}px`,
+    minWidth: `${r.width}px`,
+    width: 'max-content',
+    maxWidth: `${Math.max(r.width, window.innerWidth - r.left - 8)}px`,
     maxHeight: `${max}px`,
     ...(flip
       ? { bottom: `${window.innerHeight - r.top + gap}px` }
@@ -206,7 +208,7 @@ onBeforeUnmount(() => {
         :id="`${id}-list`"
         ref="menu"
         role="listbox"
-        class="fixed z-[70] overflow-y-auto rounded-xl border border-line bg-surface shadow-lg"
+        class="fixed z-[70] overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface shadow-lg"
         :style="place"
       >
         <li
