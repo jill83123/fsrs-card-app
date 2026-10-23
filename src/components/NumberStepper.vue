@@ -29,7 +29,8 @@ function onInput(e: Event) {
     <input
       :value="model"
       inputmode="numeric"
-      class="w-14 bg-transparent text-center text-lg font-semibold outline-none"
+      class="min-w-14 bg-transparent text-center text-lg font-semibold tabular-nums outline-none"
+      :style="{ width: `${Math.max(3, String(model).length) + 1}ch` }"
       @change="onInput"
     />
     <button

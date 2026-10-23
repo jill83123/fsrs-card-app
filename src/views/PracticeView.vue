@@ -72,7 +72,6 @@ watch(decks, (d) => {
 const filter = ref(defaultFilter())
 const showFilter = ref(false)
 const includeSuspended = ref(false)
-const order = ref<'random' | 'sequential'>('random')
 const direction = ref<'forward' | 'reverse' | 'mixed'>('forward')
 // spell: type the word from its meaning and an example sentence (vocab cards only)
 const mode = ref<'flip' | 'spell'>('flip')
@@ -80,30 +79,21 @@ const mode = ref<'flip' | 'spell'>('flip')
 const pool = computed(() =>
   (decks.value ? data.cardsInDecks(decks.value) : data.cardsInScope(scope.value)).filter(
     (c) =>
-      isComplete(c) &&
-      (includeSuspended.value || (!c.suspended && !data.pausedIds.has(c.deckId))),
+      isComplete(c) && (includeSuspended.value || (!c.suspended && !data.pausedIds.has(c.deckId))),
   ),
 )
-// restrict to cards studied on a day: first-time learned, or reviewed
-const studyDay = ref<'any' | 'today' | 'yesterday' | '3' | '7' | '30' | 'custom'>('any')
+// restrict to cards with a review log in a period (first-time learned, or reviewed)
+const studyDay = ref<'any' | 'today' | '7' | '30'>('any')
 const studyKind = ref<'all' | 'new' | 'review'>('all')
-const customFrom = ref('')
-const customTo = ref('')
 /** inclusive study-day range, or null for no restriction */
 const dayRange = computed<[string, string] | null>(() => {
   const t = data.today
   switch (studyDay.value) {
     case 'any':
-      return null
+      // all time: only needs the logs when the kind narrows the cards
+      return studyKind.value === 'all' ? null : ['0000-00-00', '9999-99-99']
     case 'today':
       return [t, t]
-    case 'yesterday':
-      return [addDays(t, -1), addDays(t, -1)]
-    case 'custom': {
-      const from = customFrom.value || '0000-00-00'
-      const to = customTo.value || t
-      return from <= to ? [from, to] : [to, from]
-    }
     default:
       return [addDays(t, 1 - Number(studyDay.value)), t]
   }
@@ -131,7 +121,7 @@ const dayIds = computed(() => {
 })
 const filtered = computed(() => {
   const list = applyFilter(pool.value, filter.value, data.scheduler, data.now)
-  return studyDay.value === 'any' ? list : list.filter((c) => dayIds.value.has(c.id))
+  return dayRange.value ? list.filter((c) => dayIds.value.has(c.id)) : list
 })
 // based on the whole pool so the play options don't vanish while the filter yields nothing
 const hasVocab = computed(() => pool.value.some((c) => c.type === 'vocab'))
@@ -204,8 +194,7 @@ const curCard = computed(() => (cur.value ? data.cardById.get(cur.value.id) : un
 
 function begin(ids?: string[]) {
   const cards = ids ? ids.map((id) => data.cardById.get(id)!).filter(Boolean) : effective.value
-  const list = order.value === 'random' ? shuffle(cards) : cards
-  queue.value = list.map((c) => {
+  queue.value = shuffle(cards).map((c) => {
     if (mode.value === 'spell' && c.type === 'vocab') {
       return { id: c.id, reverse: true, spell: true, exId: pickExample(c)?.id }
     }
@@ -319,10 +308,10 @@ const progress = computed(() => {
     <PageHeader title="練習模式" subtitle="不影響複習排程" />
 
     <section class="card mb-4 space-y-4">
-      <div class="space-y-4 border-b border-line pb-4">
+      <div class="-mt-1 pb-1">
         <button
           type="button"
-          class="flex w-full items-center justify-between gap-3"
+          class="flex min-h-11 w-full items-center justify-between gap-3"
           :disabled="pickable.length <= 1"
           @click="showPick = true"
         >
@@ -332,10 +321,10 @@ const progress = computed(() => {
             <ChevronRight v-if="pickable.length > 1" :size="16" class="shrink-0" />
           </span>
         </button>
-        <div class="flex items-center justify-between">
+        <label class="flex min-h-11 items-center justify-between gap-3">
           <span class="text-sm font-semibold">包含暫停的卡片與牌組</span>
           <ToggleSwitch v-model="includeSuspended" />
-        </div>
+        </label>
       </div>
       <div>
         <label class="label">學習紀錄</label>
@@ -345,38 +334,20 @@ const progress = computed(() => {
           :options="[
             { value: 'any', label: '不限' },
             { value: 'today', label: '今天' },
-            { value: 'yesterday', label: '昨天' },
-            { value: '3', label: '3 天' },
             { value: '7', label: '7 天' },
             { value: '30', label: '30 天' },
-            { value: 'custom', label: '自訂' },
-          ]"
-        />
-        <div v-if="studyDay === 'custom'" class="mt-2 flex items-center gap-2 text-sm">
-          <input v-model="customFrom" type="date" class="input py-2" :max="data.today" />
-          <span class="text-muted">到</span>
-          <input v-model="customTo" type="date" class="input py-2" :max="data.today" />
-        </div>
-        <PillTabs
-          v-if="studyDay !== 'any'"
-          v-model="studyKind"
-          size="sm"
-          class="mt-2"
-          :options="[
-            { value: 'all', label: '全部' },
-            { value: 'new', label: '新學習' },
-            { value: 'review', label: '複習' },
           ]"
         />
       </div>
       <div>
-        <label class="label">順序</label>
+        <label class="label">學習類型</label>
         <PillTabs
-          v-model="order"
+          v-model="studyKind"
           size="sm"
           :options="[
-            { value: 'random', label: '隨機' },
-            { value: 'sequential', label: '依列表順序' },
+            { value: 'all', label: '全部' },
+            { value: 'new', label: '新學習' },
+            { value: 'review', label: '複習' },
           ]"
         />
       </div>
@@ -387,28 +358,21 @@ const progress = computed(() => {
           size="sm"
           :options="[
             { value: 'flip', label: '翻卡' },
-            { value: 'spell', label: '聽寫' },
+            { value: 'spell', label: '單字聽寫' },
           ]"
         />
-        <p class="mt-1.5 text-xs text-muted">
-          {{
-            mode === 'flip'
-              ? '看卡片回想答案，自己判斷記不記得'
-              : '聽單字與例句發音，輸入單字與意思（正反卡仍用翻卡）'
-          }}
-        </p>
-      </div>
-      <div v-if="hasVocab && mode === 'flip'">
-        <label class="label">單字卡方向</label>
-        <PillTabs
-          v-model="direction"
-          size="sm"
-          :options="[
-            { value: 'forward', label: '單字 → 意思' },
-            { value: 'reverse', label: '意思 → 單字' },
-            { value: 'mixed', label: '混合' },
-          ]"
-        />
+        <div v-if="mode === 'flip'" class="mt-3 rounded-xl bg-surface-2 p-3">
+          <label class="mb-2 block text-[11px] font-semibold text-muted/70">單字卡方向</label>
+          <PillTabs
+            v-model="direction"
+            size="sm"
+            :options="[
+              { value: 'forward', label: '單字 → 意思' },
+              { value: 'reverse', label: '意思 → 單字' },
+              { value: 'mixed', label: '混合' },
+            ]"
+          />
+        </div>
       </div>
     </section>
 
@@ -441,6 +405,7 @@ const progress = computed(() => {
         :card="c"
         selectable
         hide-answer
+        hide-due
         :selected="isSel(c.id)"
         show-deck
         @click="toggle(c.id)"
@@ -449,7 +414,8 @@ const progress = computed(() => {
         顯示更多
       </button>
       <p v-if="!filtered.length" class="py-8 text-center text-sm text-muted">
-        沒有可以練習的卡片（未完成的卡片不會出現）
+        沒有可以練習的卡片
+        <span class="mt-1 block text-xs">（未完成的卡片不會出現）</span>
       </p>
     </div>
 
@@ -465,7 +431,7 @@ const progress = computed(() => {
       </button>
     </div>
 
-    <CardFilterSheet v-model="showFilter" v-model:filter="filter" hide-draft />
+    <CardFilterSheet v-model="showFilter" v-model:filter="filter" hide-draft hide-manual />
     <DeckPickSheet
       v-model="showPick"
       v-model:excluded="excluded"
