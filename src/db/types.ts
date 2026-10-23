@@ -91,13 +91,24 @@ export type RelKind = 'syn' | 'ant' | 'der' | 'conf'
 /** ids of the vocab cards related to a card; links are kept on both cards */
 export type Relations = Partial<Record<RelKind, string[]>>
 
+/** One meaning of a word with the parts of speech it goes with, e.g. "v. 跑" and "n. 跑步". */
+export interface Sense {
+  id: string
+  pos: string[]
+  meaning: string
+}
+
 export interface VocabCard extends CardBase {
   type: 'vocab'
   lang: Lang
   word: string
   reading: string
+  /** all meanings joined by line breaks; derived from `senses` when saved, what lists, search and spelling read */
   meaning: string
+  /** every part of speech used in `senses`; derived like `meaning` */
   pos: string[]
+  /** the meanings one by one; absent on older cards, which have just `meaning` and `pos` */
+  senses?: Sense[]
   examples: Example[]
   note: string
   rel?: Relations

@@ -3,8 +3,10 @@ import type { Lang, PosOption } from '@/db/types'
 export interface ImportRow {
   word: string
   meaning: string
-  /** pos option ids of the chosen language */
+  /** pos option ids of the chosen language, over all senses */
   pos: string[]
+  /** the meanings one by one, each with its own parts of speech */
+  senses: { pos: string[]; meaning: string }[]
   examples: { sentence: string; translation: string; marks?: string[] }[]
   /** pos texts that matched no option */
   unknownPos: string[]
@@ -55,24 +57,35 @@ export function parseImport(text: string, options: PosOption[]): ImportResult {
   for (const item of list as unknown[]) {
     const o = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
     const word = asText(pick(o, ['word', '單字']))
-    const meaning = asText(pick(o, ['meaning', '意思']))
-    if (!word || !meaning) {
+    const unknownPos: string[] = []
+    // "pos" as a list or as text split on commas, matched against the options
+    const toPos = (raw: unknown) => {
+      const texts = (
+        Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(/[,，、;；/]/) : []
+      )
+        .map(asText)
+        .filter(Boolean)
+      const ids: string[] = []
+      for (const p of texts) {
+        const m = matchPos(p, options)
+        if (!m) unknownPos.push(p)
+        else if (!ids.includes(m.id)) ids.push(m.id)
+      }
+      return ids
+    }
+    // either a list of senses, or the single meaning and pos of the older format
+    const rawSenses = pick(o, ['senses', '詞義'])
+    const senses = (Array.isArray(rawSenses) ? rawSenses : [o]).flatMap((x) => {
+      const sx = x && typeof x === 'object' ? (x as Record<string, unknown>) : {}
+      const meaning = asText(pick(sx, ['meaning', '意思']))
+      return meaning ? [{ pos: toPos(pick(sx, ['pos', '詞性'])), meaning }] : []
+    })
+    if (!word || !senses.length) {
       skipped++
       continue
     }
-    const rawPos = pick(o, ['pos', '詞性'])
-    const texts = (
-      Array.isArray(rawPos) ? rawPos : typeof rawPos === 'string' ? rawPos.split(/[,，、;；/]/) : []
-    )
-      .map(asText)
-      .filter(Boolean)
-    const pos: string[] = []
-    const unknownPos: string[] = []
-    for (const p of texts) {
-      const m = matchPos(p, options)
-      if (!m) unknownPos.push(p)
-      else if (!pos.includes(m.id)) pos.push(m.id)
-    }
+    const meaning = senses.map((x) => x.meaning).join('\n')
+    const pos = [...new Set(senses.flatMap((x) => x.pos))]
     const rawEx = pick(o, ['examples', '例句'])
     const exList: unknown[] = Array.isArray(rawEx) ? rawEx : [o]
     const examples = exList.flatMap((e) => {
@@ -87,7 +100,7 @@ export function parseImport(text: string, options: PosOption[]): ImportResult {
         .filter((m, i, a) => m && sentence.includes(m) && a.indexOf(m) === i)
       return [{ sentence, translation, ...(marks.length ? { marks } : {}) }]
     })
-    rows.push({ word, meaning, pos, examples, unknownPos })
+    rows.push({ word, meaning, pos, senses, examples, unknownPos })
   }
   return { rows, skipped }
 }
@@ -99,8 +112,9 @@ export const importPrompt = (lang: Lang, options: PosOption[]) =>
 [
   {
     "word": "單字",
-    "meaning": "繁體中文意思",
-    "pos": ["詞性"],
+    "senses": [
+      { "pos": ["詞性"], "meaning": "繁體中文意思" }
+    ],
     "examples": [
       {
         "sentence": "例句",
@@ -112,8 +126,10 @@ export const importPrompt = (lang: Lang, options: PosOption[]) =>
 ]
 
 ## 欄位說明
-- word、meaning：必填。
-- pos：從這些選項選一個或多個，沒有就給空陣列：${options.map((o) => o.label).join('、')}
+- word：必填。
+- senses：單字的各個意思，至少一個。同一個單字有不同詞性或不同意思時，各自一組，例如 run → [{ "pos": ["動詞"], "meaning": "跑" }, { "pos": ["名詞"], "meaning": "跑步" }]。
+- senses 的 meaning：必填。
+- senses 的 pos：從這些選項選一個或多個，沒有就給空陣列：${options.map((o) => o.label).join('、')}
 - examples：圖片上沒有例句或翻譯就省略或給空陣列，不要自己編造。
 - marks：標出例句中對應該單字的字詞。
   - 必須是 sentence 裡原封不動出現的文字（大小寫、標點一致），不要多帶前後的詞。

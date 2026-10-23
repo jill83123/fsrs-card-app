@@ -86,26 +86,40 @@ export const DEFAULT_POS_IDS = new Set(
 )
 export const isDefaultPos = (id: string) => DEFAULT_POS_IDS.has(id)
 
+/** Each name ends with the dictionary's kind, the language you look up first: 日中 = a Japanese word explained in Chinese, 日日 = in Japanese, … */
 export const DEFAULT_DICTIONARIES = [
   {
     id: 'mazii',
-    name: 'Mazii',
+    name: 'Mazii（日中）',
     url: 'https://mazii.net/zh-TW/search/word/jatw/{word}',
     langs: ['ja'] as Lang[],
   },
   {
+    id: 'weblio',
+    name: 'Weblio（日日）',
+    url: 'https://www.weblio.jp/content/{word}',
+    langs: ['ja'] as Lang[],
+  },
+  {
     id: 'cambridge',
-    name: '劍橋詞典',
+    name: '劍橋（英中）',
     url: 'https://dictionary.cambridge.org/zht/詞典/英語-漢語-繁體/{word}',
     langs: ['en'] as Lang[],
   },
   {
     id: 'naver',
-    name: 'Naver 韓中',
+    name: 'Naver（韓中）',
     url: 'https://korean.dict.naver.com/kozhdict/#/search?query={word}',
     langs: ['ko'] as Lang[],
   },
 ]
+
+/** Names the defaults had before, so only a name the user never edited gets renamed. */
+export const OLD_DICTIONARY_NAMES: Record<string, string[]> = {
+  mazii: ['Mazii', 'Mazii（中日）'],
+  naver: ['Naver 韓中'],
+  cambridge: ['劍橋詞典'],
+}
 
 export const defaultSynced = (): SyncedSettings => ({
   appearance: { primary: PRIMARY_PRESETS[0]!, theme: 'system' },
