@@ -129,16 +129,28 @@ async function test() {
 // the store keeps running when this page is left (see stores/backfill.ts)
 const backfill = useBackfill()
 
-async function clearCache() {
+async function clearModels() {
   if (
-    !(await ui.confirm('清除已下載的語音模型與發音快取？', {
-      message: '下次播放時需要重新下載模型並重新合成。',
+    !(await ui.confirm('清除已下載的語音模型？', {
+      message: '下次播放時需要重新下載模型。已合成的發音檔不會被刪除。',
     }))
   )
     return
-  await Promise.all([clearEspeakCache(), clearAudioCache()])
+  await clearEspeakCache()
   // the loaded Kokoro model would otherwise keep working from memory
   resetKokoro()
+  await refreshStored()
+  ui.toast('已清除', 'success')
+}
+
+async function clearAudio() {
+  if (
+    !(await ui.confirm('清除本機發音檔？', {
+      message: '下次播放時需要重新合成。已下載的語音模型不會被刪除。',
+    }))
+  )
+    return
+  await clearAudioCache()
   await refreshStored()
   ui.toast('已清除', 'success')
 }
@@ -291,7 +303,10 @@ async function clearCache() {
     </SettingRow>
     <div class="space-y-1.5 text-xs text-muted">
       <p>發音設定只存在這台裝置，不會同步。</p>
-      <button class="underline" @click="clearCache">清除已下載的語音模型與發音快取</button>
+      <div class="flex flex-col items-start gap-1.5">
+        <button class="underline" @click="clearModels">清除已下載的語音模型</button>
+        <button class="underline" @click="clearAudio">清除本機發音檔</button>
+      </div>
     </div>
   </div>
 </template>
