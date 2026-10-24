@@ -161,31 +161,56 @@ watch(
       <!-- always takes up a line so revealing / switching cards doesn't shift the layout -->
       <div class="min-h-6 text-muted">{{ revealed ? card.reading : '' }}</div>
     </div>
-    <!-- the room kept for the meaning is only needed while it is the question -->
-    <div v-else class="space-y-4 text-center" :class="{ 'min-h-24': !revealed }">
-      <SenseList :rows="senseRows" large />
-    </div>
-
-    <!-- word hint on the reverse front: only shown after tapping -->
-    <div v-if="!revealed && reverse" class="flex flex-col items-center">
-      <button v-if="!showHint" class="btn btn-ghost text-sm" @click.stop="showHint = true">
-        <Lightbulb :size="16" /> 查看提示
-      </button>
-      <div
-        v-else
-        class="flex w-full flex-wrap items-end justify-center gap-x-6 gap-y-2 rounded-2xl bg-surface-2 px-4 py-3"
-      >
-        <span v-for="(w, wi) in wordHint" :key="wi" class="flex items-end gap-1.5">
-          <span
-            v-for="(ch, ci) in w"
-            :key="ci"
-            class="inline-flex h-9 min-w-5 pb-1 items-end justify-center border-b-2 border-muted/50 text-2xl leading-none font-semibold"
+    <!-- reverse: the meaning is the question, so it leads on the front; once answered the word
+         takes the top and the meaning drops below it, like the forward card -->
+    <template v-else>
+      <template v-if="revealed">
+        <div class="flex flex-col items-center gap-2 text-center">
+          <div class="h-6" aria-hidden="true" />
+          <div class="flex items-center gap-1">
+            <!-- same width as the speak button, so the word itself sits in the center -->
+            <span class="w-10 shrink-0" aria-hidden="true" />
+            <span class="text-4xl font-bold break-words">{{ card.word }}</span>
+            <SpeakButton :text="card.word" :lang="card.lang" :reading="card.reading" :size="22" />
+          </div>
+          <div class="min-h-6 text-muted">{{ card.reading }}</div>
+        </div>
+        <hr class="leader border-0" />
+        <div class="space-y-3 text-center">
+          <SenseList :rows="senseRows" />
+        </div>
+      </template>
+      <template v-else>
+        <!-- same skeleton as the forward front (spacer, word row, reading line), so the hint
+             button sits at the same distance below -->
+        <div class="flex flex-col items-center gap-2 text-center">
+          <div class="h-6" aria-hidden="true" />
+          <div class="flex min-h-10 items-center">
+            <SenseList :rows="senseRows" large />
+          </div>
+          <div class="min-h-6" aria-hidden="true" />
+        </div>
+        <div class="flex flex-col items-center">
+          <button v-if="!showHint" class="btn btn-ghost text-sm" @click.stop="showHint = true">
+            <Lightbulb :size="16" /> 查看提示
+          </button>
+          <div
+            v-else
+            class="flex w-full flex-wrap items-end justify-center gap-x-6 gap-y-2 rounded-2xl bg-surface-2 px-4 py-3"
           >
-            {{ ch }}
-          </span>
-        </span>
-      </div>
-    </div>
+            <span v-for="(w, wi) in wordHint" :key="wi" class="flex items-end gap-1.5">
+              <span
+                v-for="(ch, ci) in w"
+                :key="ci"
+                class="inline-flex h-9 min-w-5 pb-1 items-end justify-center border-b-2 border-muted/50 text-2xl leading-none font-semibold"
+              >
+                {{ ch }}
+              </span>
+            </span>
+          </div>
+        </div>
+      </template>
+    </template>
 
     <!-- example hint on the front -->
     <div v-if="!revealed && !reverse && picked" class="flex flex-col items-center">
@@ -202,20 +227,12 @@ watch(
 
     <!-- answer side -->
     <template v-if="revealed">
-      <hr class="leader border-0" />
-      <div v-if="reverse" class="flex flex-col items-center gap-1 text-center">
-        <div class="h-6" aria-hidden="true" />
-        <div class="flex items-center gap-1">
-          <!-- same width as the speak button, so the word itself sits in the center -->
-          <span class="w-10 shrink-0" aria-hidden="true" />
-          <span class="text-3xl font-bold break-words">{{ card.word }}</span>
-          <SpeakButton :text="card.word" :lang="card.lang" :reading="card.reading" :size="22" />
+      <template v-if="!reverse">
+        <hr class="leader border-0" />
+        <div class="space-y-3 text-center">
+          <SenseList :rows="senseRows" />
         </div>
-        <div class="min-h-6 text-muted">{{ card.reading }}</div>
-      </div>
-      <div v-else class="space-y-3 text-center">
-        <SenseList :rows="senseRows" />
-      </div>
+      </template>
 
       <div v-if="picked" class="space-y-2">
         <!-- the speaker lines up with the first line of the sentence -->

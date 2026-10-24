@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Download, Play } from '@lucide/vue'
 import PillTabs from '../PillTabs.vue'
 import ToggleSwitch from '../ToggleSwitch.vue'
+import BottomSheet from '../BottomSheet.vue'
 import SettingRow from './SettingRow.vue'
 import SelectBox from '../SelectBox.vue'
 import RangeSlider from '../RangeSlider.vue'
@@ -168,6 +169,20 @@ async function clearAudio() {
   await refreshStored()
   ui.toast('已清除', 'success')
 }
+
+// one button opens this list; each choice then asks for its own confirmation
+const clearOpen = ref(false)
+const clearOptions = [
+  { label: '已下載的語音模型', hint: '下次播放時需要重新下載', run: clearModels },
+  { label: '本機發音檔', hint: '全部已合成的發音，下次播放時重新合成', run: clearAudio },
+  { label: '未使用的發音檔', hint: '已刪除的單字與例句留下的發音檔', run: clearUnused },
+].map((o) => ({
+  ...o,
+  run: () => {
+    clearOpen.value = false
+    void o.run()
+  },
+}))
 </script>
 
 <template>
@@ -321,7 +336,7 @@ async function clearAudio() {
           </button>
           <div
             v-else
-            class="flex items-center justify-center gap-2 rounded-xl bg-surface-2 text-xs text-muted"
+            class="flex min-h-8 items-center justify-center gap-2 rounded-xl bg-surface-2 px-3 py-1 text-xs text-muted"
           >
             <span>
               {{ k.label }} {{ backfill.progress[k.id]!.done }}/{{ backfill.progress[k.id]!.total }}
@@ -333,11 +348,21 @@ async function clearAudio() {
     </SettingRow>
     <div class="space-y-1.5 text-xs text-muted">
       <p>發音設定只存在這台裝置，不會同步。</p>
-      <div class="flex flex-col items-start gap-1.5">
-        <button class="underline" @click="clearModels">清除已下載的語音模型</button>
-        <button class="underline" @click="clearUnused">清除未使用的發音檔</button>
-        <button class="underline" @click="clearAudio">清除本機發音檔</button>
-      </div>
+      <button class="btn btn-ghost btn-sm" @click="clearOpen = true">清除語音資料</button>
     </div>
+
+    <BottomSheet v-model="clearOpen" title="清除語音資料">
+      <div class="space-y-2">
+        <button
+          v-for="o in clearOptions"
+          :key="o.label"
+          class="w-full rounded-2xl border border-line bg-surface px-4 py-3 text-left transition active:scale-[0.99]"
+          @click="o.run()"
+        >
+          <span class="block font-semibold">{{ o.label }}</span>
+          <span class="block text-xs text-muted">{{ o.hint }}</span>
+        </button>
+      </div>
+    </BottomSheet>
   </div>
 </template>

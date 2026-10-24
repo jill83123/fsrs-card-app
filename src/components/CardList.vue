@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
+  ArrowUp,
   CheckSquare,
   FolderInput,
   Pause,
@@ -27,10 +28,13 @@ import {
 } from '@/lib/filter'
 import { moved, useDragSort } from '@/composables/useDragSort'
 import { useData } from '@/stores/data'
+import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 
 const props = defineProps<{ cards: Card[]; showDeck?: boolean; storageKey?: string }>()
 const data = useData()
+const settings = useSettings()
+const group = computed(() => settings.synced.appearance.listGroupSize)
 const ui = useUi()
 const router = useRouter()
 
@@ -279,11 +283,11 @@ async function moveTo(deckId: string) {
         :style="drag.style(i)"
       >
         <div
-          v-if="i > 0 && i % 5 === 0"
+          v-if="group > 0 && i > 0 && i % group === 0"
           class="mb-2 flex items-center gap-2 pt-2 text-[11px] text-muted"
         >
           <span class="leader flex-1" :style="{ backgroundImage: dash }" />
-          <span>{{ i }}</span>
+          <span class="flex items-center gap-0.5"><ArrowUp :size="12" />{{ i }}</span>
           <span class="leader flex-1" :style="{ backgroundImage: dash }" />
         </div>
         <div

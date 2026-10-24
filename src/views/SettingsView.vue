@@ -165,7 +165,7 @@ const def = defaultSynced()
       <SettingsSection
         id="appearance"
         title="外觀"
-        hint="主色、深色模式"
+        hint="主色、深色模式、卡片列表分組"
         :icon="Palette"
         resettable
         @reset="settings.resetSynced('appearance')"
@@ -202,6 +202,9 @@ const def = defaultSynced()
               { value: 'dark', label: '深色' },
             ]"
           />
+        </SettingRow>
+        <SettingRow label="卡片列表分組" hint="每幾張卡片顯示一條數量分隔線，0 為不顯示">
+          <NumberStepper v-model="s.appearance.listGroupSize" :max="100" />
         </SettingRow>
       </SettingsSection>
 

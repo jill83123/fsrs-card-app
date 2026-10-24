@@ -143,7 +143,7 @@ export const DEFAULT_DICTIONARIES: Dictionary[] = [
 ]
 
 export const defaultSynced = (): SyncedSettings => ({
-  appearance: { primary: PRIMARY_PRESETS[0]!, theme: 'system' },
+  appearance: { primary: PRIMARY_PRESETS[0]!, theme: 'system', listGroupSize: 5 },
   study: { rolloverHour: 4, newPerDay: 20, reviewPerDay: 200, newOrder: 'created' },
   fsrs: {
     retention: 0.9,
