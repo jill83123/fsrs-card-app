@@ -154,6 +154,7 @@ export const defaultSynced = (): SyncedSettings => ({
   },
   pos: structuredClone(DEFAULT_POS),
   dictionaries: structuredClone(DEFAULT_DICTIONARIES),
+  reading: { enStyle: 'ipa' },
 })
 
 export const defaultDevice = (): DeviceSettings => ({

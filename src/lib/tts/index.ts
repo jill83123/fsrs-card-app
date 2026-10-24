@@ -3,7 +3,14 @@ import { LANGS } from '@/db/defaults'
 import type { Lang, TtsLangSettings } from '@/db/types'
 import { espeakAudioUrl, isEspeakVoice } from './espeakPiper'
 import { isKokoroVoice, kokoroWav, type KokoroBackend } from './kokoro'
-import { hasAudio, readAudio, writeAudio } from './audioCache'
+import {
+  allAudioKeys,
+  deleteAudio,
+  hasAudio,
+  readAudio,
+  unusedAudioKeys,
+  writeAudio,
+} from './audioCache'
 import { speechInput, type SpeechInput } from './reading'
 
 export const speaking = ref<string | null>(null)
@@ -145,6 +152,37 @@ export async function backfillSpeech(
     onProgress(++done, missing.length)
   }
   return done
+}
+
+/** Stored clips that none of `items` needs with the current voice settings. */
+export async function unusedSpeech(items: BackfillItem[], cfgOf: (lang: Lang) => TtsLangSettings) {
+  const keep = new Set<string>()
+  for (const it of items) {
+    const text = it.text.replace(/\|\|/g, '').trim()
+    if (text)
+      keep.add(audioKey(speechInput(text, it.lang, it.reading), it.lang, cfgOf(it.lang)).key)
+  }
+  return unusedAudioKeys(keep)
+}
+
+/**
+ * Drop the stored clips of `items` made with any voice or speed, then make them again with
+ * the current settings. Keys look like `[k<rev>|]<model>|<lang>|<rate>|<text>[|/<phonemes>/]`.
+ */
+export async function regenerateSpeech(
+  items: BackfillItem[],
+  cfgOf: (lang: Lang) => TtsLangSettings,
+) {
+  const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const patterns = items.flatMap((it) => {
+    const text = it.text.replace(/\|\|/g, '').trim()
+    return text
+      ? [new RegExp(`^(?:k\\d+\\|)?[^|]+\\|${it.lang}\\|[\\d.]+\\|${escape(text)}(?:\\|/.*/)?$`)]
+      : []
+  })
+  const keys = (await allAudioKeys()).filter((k) => patterns.some((p) => p.test(k)))
+  await deleteAudio(keys)
+  for (const it of items) prefetchSpeech(it.text, it.lang, cfgOf(it.lang), it.reading)
 }
 
 async function speakPiper(input: SpeechInput, lang: Lang, cfg: TtsLangSettings, token: string) {

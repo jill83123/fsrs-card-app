@@ -95,7 +95,7 @@ function onDeleted(parentId: string | null) {
       </button>
       <div class="ml-auto flex gap-2">
         <button class="btn btn-ghost" @click="showImport = true">
-          <Upload :size="18" /> JSON 匯入
+          <Upload :size="18" /> 匯入
         </button>
         <button class="btn btn-primary" :title="templateLabel(template)" @click="addCard">
           <FilePlus2 :size="18" /> 新增卡片

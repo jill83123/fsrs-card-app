@@ -143,6 +143,20 @@ async function clearModels() {
   ui.toast('已清除', 'success')
 }
 
+async function clearUnused() {
+  const keys = await backfill.findUnused()
+  if (!keys.length) return ui.toast('沒有未使用的發音檔')
+  if (
+    !(await ui.confirm(`清除 ${keys.length} 個未使用的發音檔？`, {
+      message:
+        '已刪除的單字與例句，以及用其他人聲或速度合成的發音檔都會被清除。\n之後需要時會重新合成。',
+    }))
+  )
+    return
+  await backfill.removeUnused(keys)
+  ui.toast(`已清除 ${keys.length} 個`, 'success')
+}
+
 async function clearAudio() {
   if (
     !(await ui.confirm('清除本機發音檔？', {
@@ -158,10 +172,7 @@ async function clearAudio() {
 
 <template>
   <div class="space-y-5">
-    <PillTabs
-      v-model="lang"
-      :options="LANGS.map((l) => ({ value: l.id, label: l.label }))"
-    />
+    <PillTabs v-model="lang" :options="LANGS.map((l) => ({ value: l.id, label: l.label }))" />
 
     <SettingRow label="發音引擎" stacked>
       <PillTabs
@@ -289,22 +300,42 @@ async function clearAudio() {
       <ToggleSwitch v-model="settings.device.tts.autoPlay" />
     </SettingRow>
     <SettingRow
-      label="補齊單字發音"
-      hint="換新裝置後發音不會同步，這會在背景補齊所有單字缺少的發音。可離開此頁，但 App 要保持開啟。"
+      label="補齊發音"
+      hint="換新裝置後發音不會同步。選擇單字或例句，會在背景補齊缺少的發音。可離開此頁，但 App 要保持開啟。"
       stacked
     >
-      <button v-if="!backfill.progress" class="btn btn-soft btn-sm" @click="backfill.start()">
-        開始補齊
-      </button>
-      <div v-else class="flex items-center gap-2 text-xs text-muted">
-        <span>{{ backfill.progress.done }} / {{ backfill.progress.total }}</span>
-        <button class="underline" @click="backfill.stop()">停止</button>
+      <div class="grid grid-cols-2 gap-2">
+        <template
+          v-for="k in [
+            { id: 'words', label: '單字' },
+            { id: 'examples', label: '例句' },
+          ] as const"
+          :key="k.id"
+        >
+          <button
+            v-if="!backfill.progress[k.id]"
+            class="btn btn-soft btn-sm"
+            @click="backfill.start(k.id)"
+          >
+            補齊{{ k.label }}
+          </button>
+          <div
+            v-else
+            class="flex items-center justify-center gap-2 rounded-xl bg-surface-2 text-xs text-muted"
+          >
+            <span>
+              {{ k.label }} {{ backfill.progress[k.id]!.done }}/{{ backfill.progress[k.id]!.total }}
+            </span>
+            <button class="underline" @click="backfill.stop(k.id)">停止</button>
+          </div>
+        </template>
       </div>
     </SettingRow>
     <div class="space-y-1.5 text-xs text-muted">
       <p>發音設定只存在這台裝置，不會同步。</p>
       <div class="flex flex-col items-start gap-1.5">
         <button class="underline" @click="clearModels">清除已下載的語音模型</button>
+        <button class="underline" @click="clearUnused">清除未使用的發音檔</button>
         <button class="underline" @click="clearAudio">清除本機發音檔</button>
       </div>
     </div>

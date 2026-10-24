@@ -176,6 +176,8 @@ export interface SyncedSettings {
   }
   pos: Record<Lang, PosOption[]>
   dictionaries: Dictionary[]
+  /** how the reading of an English word is written when it is generated */
+  reading: { enStyle: 'ipa' | 'kk' }
 }
 
 export type TtsEngine = 'piper' | 'system'
