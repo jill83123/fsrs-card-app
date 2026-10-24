@@ -1,4 +1,4 @@
-import type { Lang, PosOption } from '@/db/types'
+import type { DerivedRow, Lang, PosOption } from '@/db/types'
 import { LANGS } from '@/db/defaults'
 
 export interface ImportRow {
@@ -11,6 +11,8 @@ export interface ImportRow {
   /** the meanings one by one, each with its own parts of speech */
   senses: { pos: string[]; meaning: string }[]
   examples: { sentence: string; translation: string; marks?: string[] }[]
+  /** derived words on the picture, kept in the note as a table; made into cards by hand later */
+  derived: DerivedRow[]
   /** pos texts that matched no option */
   unknownPos: string[]
 }
@@ -28,7 +30,7 @@ const asText = (v: unknown) =>
   typeof v === 'string' || typeof v === 'number' ? String(v).trim() : ''
 
 /** Match "n.", "名詞" or "名詞 n." against the option labels. */
-function matchPos(text: string, options: PosOption[]): PosOption | undefined {
+export function matchPos(text: string, options: PosOption[]): PosOption | undefined {
   const t = text.trim().toLowerCase()
   if (!t) return undefined
   const label = (o: PosOption) => o.label.toLowerCase()
@@ -126,7 +128,21 @@ export function parseImport(
         .filter((m, i, a) => m && sentence.includes(m) && a.indexOf(m) === i)
       return [{ sentence, translation, ...(marks.length ? { marks } : {}) }]
     })
-    rows.push({ word, lang, meaning, pos, senses, examples, unknownPos })
+    const rawDer = pick(o, ['derived', '衍生字'])
+    const derived = (Array.isArray(rawDer) ? rawDer : []).flatMap((d): DerivedRow[] => {
+      const x = d && typeof d === 'object' ? (d as Record<string, unknown>) : {}
+      const dWord = asText(pick(x, ['word', '單字']))
+      const dMeaning = asText(pick(x, ['meaning', '意思']))
+      if (!dWord || !dMeaning) return []
+      const rawPos = pick(x, ['pos', '詞性'])
+      const dPos = (Array.isArray(rawPos) ? rawPos : [rawPos])
+        .map(asText)
+        .filter(Boolean)
+        .map((p) => matchPos(p, options)?.label ?? p)
+        .join('、')
+      return [{ word: dWord, pos: dPos, meaning: dMeaning }]
+    })
+    rows.push({ word, lang, meaning, pos, senses, examples, derived, unknownPos })
   }
   return { rows, skipped }
 }
@@ -148,6 +164,9 @@ export const importPrompt = (posOf: (lang: Lang) => PosOption[]) =>
         "translation": "繁體中文翻譯",
         "marks": ["例句中的單字"]
       }
+    ],
+    "derived": [
+      { "word": "衍生字", "pos": ["詞性"], "meaning": "繁體中文意思" }
     ]
   }
 ]
@@ -169,4 +188,8 @@ ${LANGS.map(
   - 必須是 sentence 裡原封不動出現的文字（大小寫、標點一致），不要多帶前後的詞。
   - 單字在例句中有變化（過去式、過去分詞、進行式、第三人稱單數、複數、比較級、動詞或形容詞活用等）時，標變化後的樣子。例：word 為 "run"、sentence 為 "He ran home." → ["ran"]。
   - 片語動詞被拆開時，各部分分別標。例："give up" → ["gave", "up"]。
-  - 找不到對應的字詞就給空陣列。`
+  - 找不到對應的字詞就給空陣列。
+- derived：圖片上該單字旁列出的衍生字（例如 happy 的 happiness、happily、unhappy）。
+  - 只收圖片上有寫出來的，不要自己補；沒有就省略或給空陣列。
+  - 每個衍生字都要有 word 和 meaning，pos 的選項與 senses 的 pos 相同，只選一個最貼切的。
+  - 衍生字不要另外成為最外層的項目。`

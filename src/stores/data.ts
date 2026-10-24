@@ -548,6 +548,7 @@ export const useData = defineStore('data', () => {
             delete x.senses
             x.examples = []
             x.note = ''
+            delete x.derived
             delete x.rel
           }
         })

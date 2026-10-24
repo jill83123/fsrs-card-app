@@ -38,6 +38,17 @@ export function deckRows(nodes: TreeNode[], skip?: (n: TreeNode) => boolean): De
   return rows
 }
 
+/** The decks as the options of a deck picker: the tree, with the ones that have sub-decks greyed out (only a deck without sub-decks can hold cards). */
+export function deckPickerOptions(nodes: TreeNode[]) {
+  return deckRows(nodes).map((r) => ({
+    id: r.node.id,
+    name: r.node.name,
+    path: r.path,
+    tree: r.tree,
+    disabled: nodes.some((c) => c.parentId === r.node.id),
+  }))
+}
+
 /** All descendant node ids, including the node itself. */
 export function subtreeIds(nodes: TreeNode[], rootId: string): string[] {
   const out = [rootId]
