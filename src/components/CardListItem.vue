@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { Check, PauseCircle, Star } from '@lucide/vue'
 import type { Card } from '@/db/types'
-import { cardSubtitle, cardTitle, isComplete, typeBadge } from '@/lib/cards'
+import { cardSubtitle, cardTitle, isComplete, plainText, sensesOf, typeBadge } from '@/lib/cards'
 import { State, STATE_LABEL } from '@/lib/fsrs'
 import { formatDayLabel, studyDayOf } from '@/lib/date'
 import { useData } from '@/stores/data'
@@ -36,14 +36,21 @@ const dueText = computed(() => {
   if (s.due < data.dayEnd) return '今天到期'
   return formatDayLabel(studyDayOf(s.due, settings.synced.study.rolloverHour)) + ' 到期'
 })
-const posTags = computed(() => {
+/** Each meaning of a vocab card with its own parts of speech, so they read as one group. */
+const senseGroups = computed(() => {
   const c = props.card
   if (c.type !== 'vocab') return []
   const opts = settings.synced.pos[c.lang]
   // options deleted from settings are skipped; "名詞 n." shows as "n.", labels without one whole
-  return c.pos
-    .flatMap((id) => opts.find((o) => o.id === id)?.label ?? [])
-    .map((l) => l.match(/\s([A-Za-z0-9][A-Za-z0-9. -]*)$/)?.[1] ?? l)
+  return sensesOf(c)
+    .map((s) => ({
+      pos: s.pos
+        .flatMap((id) => opts.find((o) => o.id === id)?.label ?? [])
+        .map((l) => l.match(/\s([A-Za-z0-9][A-Za-z0-9. -]*)$/)?.[1] ?? l)
+        .join('・'),
+      meaning: s.meaning.split('\n').map(plainText).filter(Boolean).join('；'),
+    }))
+    .filter((g) => g.pos || g.meaning)
 })
 const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
 </script>
@@ -86,12 +93,14 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
         v-if="!compact && (!hideAnswer || !complete)"
         class="col-start-2 flex min-h-5 items-center gap-1.5 text-sm text-muted"
       >
-        <template v-if="complete">
-          <span v-if="posTags.length" class="shrink-0 text-xs font-semibold text-primary">
-            {{ posTags.join('・') }}
-          </span>
-        </template>
         <span v-if="!complete" class="truncate text-xs font-semibold text-warn">未完成</span>
+        <span v-else-if="card.type === 'vocab'" class="truncate">
+          <template v-for="(g, i) in senseGroups" :key="i">
+            <span v-if="i" class="mr-3" />
+            <span v-if="g.pos" class="mr-1 text-xs font-semibold text-primary">{{ g.pos }}</span>
+            <span>{{ g.meaning }}</span>
+          </template>
+        </span>
         <span v-else class="truncate">{{ cardSubtitle(card) }}</span>
       </div>
     </div>
