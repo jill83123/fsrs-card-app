@@ -18,6 +18,8 @@ const props = defineProps<{
   reverse?: boolean
   /** the examples, note and dictionary links are shown elsewhere (CardExamples), not on the card */
   listExamples?: boolean
+  /** the page plays the word itself, so showing the card must not */
+  silent?: boolean
 }>()
 
 const settings = useSettings()
@@ -74,7 +76,7 @@ const others = computed(() => examples.value.filter((_, i) => i !== pick.value))
 
 function autoPlay() {
   const c = props.card
-  if (c.type !== 'vocab') return
+  if (c.type !== 'vocab' || props.silent) return
   if (settings.device.tts.autoPlay && !props.reverse) {
     void speak(c.word, c.lang, settings.device.tts[c.lang], c.reading)
   } else {
@@ -112,17 +114,13 @@ watch(
     <!-- before the answer, a card is just its front, centered on the card -->
     <div
       class="flex flex-col items-center gap-1 self-end transition-transform"
-      :class="!revealed ? 'translate-y-1/2' : 'pb-5'"
+      :class="!revealed ? 'translate-y-1/2' : 'pb-8'"
     >
       <MarkdownView v-if="card.type === 'basic'" :source="card.front" class="text-2xl font-bold" />
       <template v-else>
-        <div class="flex items-center gap-1">
-          <!-- same width as the speak button, so the word itself sits in the center -->
-          <span class="w-10 shrink-0" aria-hidden="true" />
-          <span class="text-4xl font-bold break-all">{{ card.word }}</span>
-          <SpeakButton :text="card.word" :lang="card.lang" :reading="card.reading" :size="22" />
-        </div>
-        <div v-if="revealed" class="min-h-6 text-muted">{{ card.reading }}</div>
+        <!-- the speaker sits in the card's corner (see the detail page), so the word gets the width -->
+        <span class="text-4xl font-bold break-words">{{ card.word }}</span>
+        <div v-if="revealed && card.reading" class="min-h-6 text-muted">{{ card.reading }}</div>
       </template>
     </div>
     <!-- inset a little, so the line stops short of the page's arrows instead of running into them -->
@@ -157,13 +155,14 @@ watch(
       <div class="flex items-center gap-1">
         <!-- same width as the speak button, so the word itself sits in the center -->
         <span class="w-10 shrink-0" aria-hidden="true" />
-        <span class="text-4xl font-bold break-all">{{ card.word }}</span>
+        <span class="text-4xl font-bold break-words">{{ card.word }}</span>
         <SpeakButton :text="card.word" :lang="card.lang" :reading="card.reading" :size="22" />
       </div>
       <!-- always takes up a line so revealing / switching cards doesn't shift the layout -->
       <div class="min-h-6 text-muted">{{ revealed ? card.reading : '' }}</div>
     </div>
-    <div v-else class="min-h-24 space-y-4 text-center">
+    <!-- the room kept for the meaning is only needed while it is the question -->
+    <div v-else class="space-y-4 text-center" :class="{ 'min-h-24': !revealed }">
       <SenseList :rows="senseRows" large />
     </div>
 
@@ -209,12 +208,12 @@ watch(
         <div class="flex items-center gap-1">
           <!-- same width as the speak button, so the word itself sits in the center -->
           <span class="w-10 shrink-0" aria-hidden="true" />
-          <span class="text-3xl font-bold break-all">{{ card.word }}</span>
+          <span class="text-3xl font-bold break-words">{{ card.word }}</span>
           <SpeakButton :text="card.word" :lang="card.lang" :reading="card.reading" :size="22" />
         </div>
         <div class="min-h-6 text-muted">{{ card.reading }}</div>
       </div>
-      <div v-else class="min-h-[4.5rem] space-y-3 text-center">
+      <div v-else class="space-y-3 text-center">
         <SenseList :rows="senseRows" />
       </div>
 

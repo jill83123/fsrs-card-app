@@ -46,7 +46,7 @@ async function autoReading() {
   if (!v.word.trim()) return ui.toast('請先輸入單字', 'error')
   genBusy.value = true
   try {
-    const r = await generateReading(v.word, v.lang)
+    const r = await generateReading(v.word, v.lang, settings.synced.reading.enStyle)
     if (r) v.reading = r
     else ui.toast('無法產生這個單字的讀音', 'error')
   } catch {
@@ -106,7 +106,7 @@ async function applyDict(picked: {
     for (const w of picked.related[kind]) relEditor.value?.linkWord(kind, w)
   if (!v.reading.trim() && canAutoReading(v.lang)) {
     try {
-      v.reading = (await generateReading(v.word, v.lang)) ?? ''
+      v.reading = (await generateReading(v.word, v.lang, settings.synced.reading.enStyle)) ?? ''
     } catch {
       /* reading is optional */
     }
@@ -279,6 +279,18 @@ function addExample() {
   vocab.value?.examples.push({ id: uid(), sentence: '', translation: '' })
 }
 
+// a new card typed in by hand gets its reading made after it is saved, without making the user wait
+async function fillReading(id: string, word: string, lang: Lang) {
+  const reading = await generateReading(word, lang, settings.synced.reading.enStyle).catch(
+    () => null,
+  )
+  // read from the database: the store may not have the card yet right after it was saved
+  const now = await db.cards.get(id)
+  if (reading && now?.type === 'vocab' && !now.reading.trim()) {
+    await data.saveCard({ ...now, reading })
+  }
+}
+
 async function save(next = false) {
   const c = card.value
   if (!c) return
@@ -308,6 +320,8 @@ async function save(next = false) {
     stubs.value = []
   }
   await data.saveCard(c)
+  if (c.type === 'vocab' && !editingId.value && !c.reading.trim() && canAutoReading(c.lang))
+    void fillReading(c.id, c.word, c.lang)
   if (c.type === 'vocab')
     await data.syncRelations(c.id, editingId.value ? prevRel : undefined, c.rel)
   saved = true
@@ -340,9 +354,6 @@ const previewRevealed = ref(false)
         <button class="btn px-2 text-muted hover:text-ink" @click="router.back()">取消</button>
       </template>
       <template #title>{{ editingId ? '編輯卡片' : '新卡片' }}</template>
-      <template #right>
-        <button class="btn btn-primary py-2" :disabled="frontEmpty" @click="save()">儲存</button>
-      </template>
     </PageHeader>
 
     <div class="space-y-4">
@@ -375,16 +386,20 @@ const previewRevealed = ref(false)
       <!-- basic -->
       <template v-if="basic">
         <div>
-          <label class="label">正面（問題）</label>
           <MarkdownEditor
             v-model="basic.front"
+            label="正面（問題）"
             placeholder="輸入問題，支援 Markdown 與 ||防劇透||"
             :rows="4"
           />
         </div>
         <div>
-          <label class="label">反面（答案）</label>
-          <MarkdownEditor v-model="basic.back" placeholder="輸入答案（可以之後再補）" :rows="5" />
+          <MarkdownEditor
+            v-model="basic.back"
+            label="反面（答案）"
+            placeholder="輸入答案（可以之後再補）"
+            :rows="5"
+          />
         </div>
       </template>
 
@@ -425,7 +440,13 @@ const previewRevealed = ref(false)
               v-model="vocab.reading"
               class="input"
               :placeholder="
-                vocab.lang === 'ja' ? 'ふりがな' : vocab.lang === 'en' ? '/fəˈnetɪk/' : 'hangugeo'
+                vocab.lang === 'ja'
+                  ? 'ふりがな'
+                  : vocab.lang === 'en'
+                    ? settings.synced.reading.enStyle === 'kk'
+                      ? '[fəˋnɛtɪk]'
+                      : '/fəˈnetɪk/'
+                    : 'hangugeo'
               "
             />
             <div class="mt-1.5 space-y-0.5 text-xs text-muted">
@@ -608,8 +629,12 @@ const previewRevealed = ref(false)
           </p>
         </div>
         <div>
-          <label class="label">備註（選填）</label>
-          <MarkdownEditor v-model="vocab.note" placeholder="補充說明、相似字…" :rows="2" />
+          <MarkdownEditor
+            v-model="vocab.note"
+            label="備註（選填）"
+            placeholder="補充說明、相似字…"
+            :rows="2"
+          />
         </div>
       </template>
 
@@ -618,19 +643,23 @@ const previewRevealed = ref(false)
         <p>可以先儲存，卡片會標示為「未完成」，補齊後才會進入學習。</p>
       </div>
 
-      <div class="flex gap-2">
+      <!-- the main action is the wide button; the extras sit side by side under it -->
+      <button
+        v-if="!editingId"
+        class="btn btn-primary mb-2 w-full py-4"
+        :disabled="frontEmpty"
+        @click="save()"
+      >
+        儲存
+      </button>
+      <div class="grid grid-cols-2 gap-2">
         <button class="btn btn-ghost" @click="((showPreview = true), (previewRevealed = false))">
           <Eye :size="18" /> 預覽
         </button>
-        <button
-          v-if="!editingId"
-          class="btn btn-soft flex-1"
-          :disabled="frontEmpty"
-          @click="save(true)"
-        >
+        <button v-if="!editingId" class="btn btn-soft" :disabled="frontEmpty" @click="save(true)">
           儲存並新增下一張
         </button>
-        <button class="btn btn-primary flex-1" :disabled="frontEmpty" @click="save()">儲存</button>
+        <button v-else class="btn btn-primary" :disabled="frontEmpty" @click="save()">儲存</button>
       </div>
     </div>
 

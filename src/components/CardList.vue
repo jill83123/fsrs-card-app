@@ -30,11 +30,13 @@ import {
 import { moved, useDragSort } from '@/composables/useDragSort'
 import { useData } from '@/stores/data'
 import { useUi } from '@/stores/ui'
+import { useSettings } from '@/stores/settings'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
 
 const props = defineProps<{ cards: Card[]; showDeck?: boolean; storageKey?: string }>()
 const data = useData()
 const ui = useUi()
+const settings = useSettings()
 const router = useRouter()
 
 // the sort lives on the deck (synced); everything else in the filter is just for this visit
@@ -245,7 +247,9 @@ async function fillReadings() {
   let done = 0
   for (const c of targets) {
     if (c.type !== 'vocab') continue
-    const r = await generateReading(c.word, c.lang).catch(() => null)
+    const r = await generateReading(c.word, c.lang, settings.synced.reading.enStyle).catch(
+      () => null,
+    )
     if (!r) continue
     await data.saveCard({ ...c, reading: r })
     done++
@@ -345,11 +349,7 @@ function practice() {
           class="flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-line bg-surface p-1.5 shadow-xl scrollbar-none"
         >
           <span class="px-3 text-sm font-bold whitespace-nowrap">{{ selectedIds.length }} 張</span>
-          <button
-            class="icon-btn"
-            title="加星號"
-            @click="patch({ starred: true }, '已加星號')"
-          >
+          <button class="icon-btn" title="加星號" @click="patch({ starred: true }, '已加星號')">
             <Star :size="18" />
           </button>
           <button
@@ -359,25 +359,13 @@ function practice() {
           >
             <StarOff :size="18" />
           </button>
-          <button
-            class="icon-btn"
-            title="暫停"
-            @click="patch({ suspended: true }, '已暫停')"
-          >
+          <button class="icon-btn" title="暫停" @click="patch({ suspended: true }, '已暫停')">
             <Pause :size="18" />
           </button>
-          <button
-            class="icon-btn"
-            title="恢復"
-            @click="patch({ suspended: false }, '已恢復')"
-          >
+          <button class="icon-btn" title="恢復" @click="patch({ suspended: false }, '已恢復')">
             <Play :size="18" />
           </button>
-          <button
-            class="icon-btn"
-            title="移動"
-            @click="selectedIds.length && (showMove = true)"
-          >
+          <button class="icon-btn" title="移動" @click="selectedIds.length && (showMove = true)">
             <FolderInput :size="18" />
           </button>
           <button class="icon-btn" title="自動補上讀音" @click="fillReadings">

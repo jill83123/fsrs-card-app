@@ -14,6 +14,7 @@ import {
 import PageHeader from '@/components/PageHeader.vue'
 import PillTabs from '@/components/PillTabs.vue'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
+import NumberStepper from '@/components/NumberStepper.vue'
 import CardListItem from '@/components/CardListItem.vue'
 import CardFilterSheet from '@/components/CardFilterSheet.vue'
 import CardFace from '@/components/CardFace.vue'
@@ -126,6 +127,11 @@ const filtered = computed(() => {
 // based on the whole pool so the play options don't vanish while the filter yields nothing
 const hasVocab = computed(() => pool.value.some((c) => c.type === 'vocab'))
 
+// off = all of them; otherwise a random pick of this many
+const limitMode = ref<'all' | 'random'>('all')
+const limitCount = ref(20)
+const maxCards = computed(() => (limitMode.value === 'random' ? limitCount.value : 0))
+
 const selected = ref(new Set<string>())
 const touched = ref(false)
 const limit = ref(80)
@@ -190,11 +196,31 @@ const checked = ref(false)
 const verdict = ref(false)
 const answerInput = ref<HTMLInputElement>()
 
+// the card scrolls inside itself; a fade at its foot says there is more below
+const scroller = ref<HTMLElement>()
+const moreBelow = ref(false)
+function measureScroll() {
+  const el = scroller.value
+  moreBelow.value = !!el && el.scrollHeight - el.scrollTop - el.clientHeight > 4
+}
+let sizeWatch: ResizeObserver | undefined
+watch(scroller, (el) => {
+  sizeWatch?.disconnect()
+  if (!el) return (moreBelow.value = false)
+  sizeWatch = new ResizeObserver(measureScroll)
+  sizeWatch.observe(el)
+  if (el.firstElementChild) sizeWatch.observe(el.firstElementChild)
+  measureScroll()
+})
+onBeforeUnmount(() => sizeWatch?.disconnect())
+
 const curCard = computed(() => (cur.value ? data.cardById.get(cur.value.id) : undefined))
 
 function begin(ids?: string[]) {
   const cards = ids ? ids.map((id) => data.cardById.get(id)!).filter(Boolean) : effective.value
-  queue.value = shuffle(cards).map((c) => {
+  const shuffled = shuffle(cards)
+  const picked = !ids && maxCards.value ? shuffled.slice(0, maxCards.value) : shuffled
+  queue.value = picked.map((c) => {
     if (mode.value === 'spell' && c.type === 'vocab') {
       return { id: c.id, reverse: true, spell: true, exId: pickExample(c)?.id }
     }
@@ -220,7 +246,9 @@ function next() {
   typedMeaning.value = ''
   cur.value = queue.value.shift() ?? null
   if (!cur.value) finished.value = true
-  else if (cur.value.spell) void nextTick(() => answerInput.value?.focus())
+  // a phone would pop up the keyboard before the word has even been heard
+  else if (cur.value.spell && matchMedia('(pointer: fine)').matches)
+    void nextTick(() => answerInput.value?.focus())
 }
 
 const curExample = computed(() => {
@@ -259,9 +287,6 @@ function answer(ok: boolean) {
     if (!forgotten.value.has(it.id)) remembered.value.add(it.id)
   } else {
     forgotten.value.add(it.id)
-    // show it again a little later in this round
-    const pos = Math.min(queue.value.length, 3 + Math.floor(Math.random() * 3))
-    queue.value.splice(pos, 0, { ...it })
   }
   next()
 }
@@ -295,6 +320,9 @@ async function saveNote() {
   if (c?.type === 'vocab') await data.saveCard({ ...c, note: noteText.value })
   noteCard.value = null
 }
+
+// which card this is: those already answered, plus the one on screen
+const position = computed(() => remembered.value.size + forgotten.value.size + (cur.value ? 1 : 0))
 
 const progress = computed(() => {
   const doneCount = remembered.value.size + forgotten.value.size
@@ -348,6 +376,23 @@ const progress = computed(() => {
             { value: 'review', label: '複習' },
           ]"
         />
+      </div>
+      <div>
+        <label class="label">張數</label>
+        <PillTabs
+          v-model="limitMode"
+          :options="[
+            { value: 'all', label: '全部' },
+            { value: 'random', label: '隨機抽取' },
+          ]"
+        />
+        <div
+          v-if="limitMode === 'random'"
+          class="mt-3 flex items-center justify-between rounded-xl bg-surface-2 p-3"
+        >
+          <span class="text-sm text-muted">抽取張數</span>
+          <NumberStepper v-model="limitCount" :min="1" :max="999" :step="5" />
+        </div>
       </div>
       <div v-if="hasVocab">
         <label class="label">玩法</label>
@@ -423,7 +468,7 @@ const progress = computed(() => {
         :disabled="!effective.length"
         @click="begin()"
       >
-        開始練習（{{ effective.length }} 張）
+        開始練習（{{ maxCards ? Math.min(maxCards, effective.length) : effective.length }} 張）
       </button>
     </div>
 
@@ -438,17 +483,27 @@ const progress = computed(() => {
   </div>
 
   <!-- running -->
-  <div v-else class="flex min-h-[calc(100dvh-2.5rem)] flex-col">
-    <header class="flex items-center gap-3 py-3">
+  <!-- while a card is up the page is exactly one screen tall: the card scrolls inside itself and
+       the buttons below stay put, so the page never scrolls behind them -->
+  <div
+    v-else
+    class="flex flex-col"
+    :class="
+      (curCard && cur) || finished
+        ? 'mb-[calc(-2.5rem-env(safe-area-inset-bottom))] h-[calc(100dvh-env(safe-area-inset-top))]'
+        : 'min-h-[calc(100dvh-2.5rem)]'
+    "
+  >
+    <header class="flex shrink-0 items-center gap-3 py-3">
       <button class="icon-btn" aria-label="結束練習" @click="running = false">
         <X :size="20" />
       </button>
       <div class="flex-1 text-center font-bold">練習</div>
-      <span class="w-11 text-right text-xs font-semibold text-muted">{{
-        queue.length + (cur ? 1 : 0)
-      }}</span>
+      <span class="w-14 text-right text-xs font-semibold text-muted">
+        {{ position }} / {{ total }}
+      </span>
     </header>
-    <div class="mb-4 h-2 overflow-hidden rounded-full bg-surface">
+    <div class="mb-4 h-2 shrink-0 overflow-hidden rounded-full bg-surface">
       <div
         class="h-full rounded-full bg-primary transition-[width]"
         :style="{ width: `${progress * 100}%` }"
@@ -456,30 +511,52 @@ const progress = computed(() => {
     </div>
 
     <template v-if="curCard && cur">
-      <section class="card flex min-h-[45dvh] flex-1 flex-col justify-center px-6 py-8">
-        <!-- spelling by listening: play the word and its example, show nothing -->
-        <div v-if="listen && curCard.type === 'vocab'" class="space-y-6 text-center">
-          <div class="flex items-start justify-center gap-8">
-            <div class="flex flex-col items-center gap-1">
-              <SpeakButton
-                :text="curCard.word"
-                :lang="curCard.lang"
-                :reading="curCard.reading"
-                :size="40"
-              />
-              <span class="text-xs text-muted">單字</span>
+      <div class="relative flex min-h-32 flex-1 flex-col">
+        <section
+          ref="scroller"
+          class="card scrollbar-none flex flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-8"
+          @scroll.passive="measureScroll"
+        >
+          <!-- my-auto centers short content without cutting off the top of long content -->
+          <div class="my-auto">
+            <!-- spelling by listening: play the word and its example, show nothing -->
+            <div v-if="listen && curCard.type === 'vocab'" class="space-y-6 text-center">
+              <div class="flex items-start justify-center gap-8">
+                <div class="flex flex-col items-center gap-1">
+                  <SpeakButton
+                    :text="curCard.word"
+                    :lang="curCard.lang"
+                    :reading="curCard.reading"
+                    :size="40"
+                  />
+                  <span class="text-xs text-muted">單字</span>
+                </div>
+                <div v-if="curExample" class="flex flex-col items-center gap-1">
+                  <SpeakButton :text="curExample.sentence" :lang="curCard.lang" :size="40" />
+                  <span class="text-xs text-muted">例句</span>
+                </div>
+              </div>
             </div>
-            <div v-if="curExample" class="flex flex-col items-center gap-1">
-              <SpeakButton :text="curExample.sentence" :lang="curCard.lang" :size="40" />
-              <span class="text-xs text-muted">例句</span>
-            </div>
+            <!-- listening answers read like any card: the word on top, the meaning below -->
+            <CardFace
+              v-else
+              :card="curCard"
+              :revealed="revealed"
+              :reverse="cur.reverse && !cur.spell"
+              :silent="cur.spell"
+            />
           </div>
-        </div>
-        <CardFace v-else :card="curCard" :revealed="revealed" :reverse="cur.reverse" />
-      </section>
+        </section>
+        <!-- a soft fade at the foot of the card while there is more to scroll to -->
+        <div
+          class="pointer-events-none absolute inset-x-px bottom-px h-14 rounded-b-2xl bg-gradient-to-t from-surface to-transparent transition-opacity"
+          :class="moreBelow ? 'opacity-100' : 'opacity-0'"
+          aria-hidden="true"
+        />
+      </div>
       <div
         v-if="cur.spell"
-        class="sticky bottom-0 mt-4 bg-bg pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        class="mt-2 shrink-0 bg-bg pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         <template v-if="!checked">
           <input
@@ -496,7 +573,7 @@ const progress = computed(() => {
           <input
             ref="meaningInput"
             v-model="typedMeaning"
-            class="input mb-2 text-center text-lg"
+            class="input mb-4 text-center text-lg"
             placeholder="輸入意思"
             autocomplete="off"
             @keydown.enter.prevent="check"
@@ -514,7 +591,7 @@ const progress = computed(() => {
         </template>
         <template v-else>
           <div
-            class="mb-2 space-y-2 rounded-2xl border border-line bg-surface px-4 py-3 text-center"
+            class="mb-4 space-y-2 rounded-2xl border border-line bg-surface px-4 py-3 text-center"
           >
             <p class="text-xs text-muted">你的答案</p>
             <div
@@ -560,10 +637,7 @@ const progress = computed(() => {
           <button class="btn btn-primary w-full py-4" @click="confirmSpell">下一張</button>
         </template>
       </div>
-      <div
-        v-else
-        class="sticky bottom-0 mt-4 bg-bg pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]"
-      >
+      <div v-else class="mt-4 shrink-0 bg-bg pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <button
           v-if="!revealed"
           class="btn btn-primary w-full py-4 text-lg"
@@ -586,48 +660,74 @@ const progress = computed(() => {
 
     <section
       v-else-if="finished"
-      class="card flex flex-1 flex-col items-center justify-center gap-4 text-center"
+      class="card flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-10 text-center"
     >
-      <PartyPopper :size="44" class="text-primary" />
-      <p class="text-xl font-bold">練習完成！</p>
-      <p class="text-sm text-muted">
-        一次就記得 {{ remembered.size }} 張 · 曾經忘記 {{ forgotten.size }} 張
-      </p>
-      <div v-if="forgottenCards.length" class="w-full space-y-2 text-left">
-        <p class="px-1 text-sm font-semibold">不記得的卡片</p>
+      <PartyPopper :size="44" class="-mb-2 text-primary" />
+      <p class="-mb-2 text-xl font-bold">練習完成！</p>
+      <p class="text-sm text-muted">記得 {{ remembered.size }} 張 · 忘記 {{ forgotten.size }} 張</p>
+      <!-- the list scrolls on its own, so the buttons below stay where they are -->
+      <div
+        v-if="forgottenCards.length"
+        class="relative mt-2 flex min-h-0 w-full flex-col text-left"
+      >
+        <p class="mb-2 shrink-0 px-1 text-sm font-semibold">不記得的卡片</p>
         <div
-          v-for="c in forgottenCards"
-          :key="c.id"
-          class="flex items-center gap-2 rounded-2xl bg-surface-2 px-4 py-2.5"
+          ref="scroller"
+          class="scrollbar-none min-h-0 space-y-2 overflow-y-auto overscroll-contain"
+          @scroll.passive="measureScroll"
         >
-          <div class="min-w-0 flex-1">
-            <p class="truncate font-semibold">{{ cardTitle(c) }}</p>
-            <p class="truncate text-sm text-muted">{{ cardSubtitle(c) }}</p>
+          <div
+            v-for="c in forgottenCards"
+            :key="c.id"
+            class="flex items-center gap-2 rounded-2xl bg-surface-2 px-4 py-2.5"
+          >
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-semibold">{{ cardTitle(c) }}</p>
+              <p class="truncate text-sm text-muted">{{ cardSubtitle(c) }}</p>
+            </div>
+            <button
+              v-if="c.type === 'vocab'"
+              class="icon-btn"
+              :class="c.note.trim() ? 'text-primary' : ''"
+              aria-label="備註"
+              @click="openNote(c.id)"
+            >
+              <NotebookPen :size="18" />
+            </button>
+            <button
+              class="icon-btn"
+              :aria-label="c.starred ? '取消星號' : '加星號'"
+              @click="toggleStar(c.id)"
+            >
+              <Star :size="18" :class="c.starred ? 'fill-warn text-warn' : ''" />
+            </button>
           </div>
+        </div>
+        <div
+          class="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-surface to-transparent transition-opacity"
+          :class="moreBelow ? 'opacity-100' : 'opacity-0'"
+          aria-hidden="true"
+        />
+      </div>
+      <!-- the likely next step is the wide button; the two ways out sit side by side under it -->
+      <div class="w-full shrink-0 space-y-2">
+        <button
+          v-if="forgotten.size"
+          class="btn btn-primary w-full py-4"
+          @click="begin([...forgotten])"
+        >
+          再練忘記的（{{ forgotten.size }} 張）
+        </button>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="btn btn-ghost py-3" @click="running = false">重新選卡</button>
           <button
-            v-if="c.type === 'vocab'"
-            class="icon-btn"
-            :class="c.note.trim() ? 'text-primary' : ''"
-            aria-label="備註"
-            @click="openNote(c.id)"
+            class="btn py-3"
+            :class="forgotten.size ? 'btn-ghost' : 'btn-primary'"
+            @click="router.back()"
           >
-            <NotebookPen :size="18" />
-          </button>
-          <button
-            class="icon-btn"
-            :aria-label="c.starred ? '取消星號' : '加星號'"
-            @click="toggleStar(c.id)"
-          >
-            <Star :size="18" :class="c.starred ? 'fill-warn text-warn' : ''" />
+            返回
           </button>
         </div>
-      </div>
-      <div class="flex flex-wrap justify-center gap-2">
-        <button v-if="forgotten.size" class="btn btn-soft" @click="begin([...forgotten])">
-          再練忘記的
-        </button>
-        <button class="btn btn-ghost" @click="running = false">重新選卡</button>
-        <button class="btn btn-primary" @click="router.back()">返回</button>
       </div>
     </section>
 

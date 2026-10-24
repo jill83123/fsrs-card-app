@@ -12,6 +12,7 @@ import {
   Info,
   Palette,
   RefreshCw,
+  Languages,
   RotateCcw,
   Tags,
   Trash2,
@@ -27,6 +28,7 @@ import SettingsSection from '@/components/settings/SettingsSection.vue'
 import SettingRow from '@/components/settings/SettingRow.vue'
 import PosSettings from '@/components/settings/PosSettings.vue'
 import DictSettings from '@/components/settings/DictSettings.vue'
+import ReadingSettings from '@/components/settings/ReadingSettings.vue'
 import TtsSettings from '@/components/settings/TtsSettings.vue'
 import SyncSettings from '@/components/settings/SyncSettings.vue'
 import ArchiveSettings from '@/components/settings/ArchiveSettings.vue'
@@ -358,6 +360,17 @@ const def = defaultSynced()
       </SettingsSection>
 
       <SettingsSection
+        id="reading"
+        title="讀音"
+        hint="英文讀音格式（IPA / KK）與批次生成"
+        :icon="Languages"
+        resettable
+        @reset="settings.resetSynced('reading')"
+      >
+        <ReadingSettings />
+      </SettingsSection>
+
+      <SettingsSection
         id="dict"
         title="字典"
         hint="查詢用的字典網址"
@@ -389,10 +402,10 @@ const def = defaultSynced()
       <SettingsSection id="data" title="資料" hint="匯出、匯入與清除資料" :icon="Database">
         <div class="grid grid-cols-2 gap-2">
           <button class="btn btn-ghost" @click="exportJson">
-            <Download :size="16" /> 匯出 JSON
+            <Download :size="16" /> 匯出資料
           </button>
           <button class="btn btn-ghost" @click="fileInput?.click()">
-            <Upload :size="16" /> 從 JSON 還原
+            <Upload :size="16" /> 還原資料
           </button>
         </div>
         <input

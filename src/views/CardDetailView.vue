@@ -20,11 +20,14 @@ import {
 } from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import CardFace from '@/components/CardFace.vue'
+import SpeakButton from '@/components/SpeakButton.vue'
 import CardExamples from '@/components/CardExamples.vue'
 import DictLinks from '@/components/DictLinks.vue'
 import MoveDeckSheet from '@/components/MoveDeckSheet.vue'
 import { useData } from '@/stores/data'
 import { useUi } from '@/stores/ui'
+import { useSettings } from '@/stores/settings'
+import { regenerateSpeech } from '@/lib/tts'
 import { db } from '@/db'
 import type { ReviewLogRecord } from '@/db/types'
 import {
@@ -36,7 +39,7 @@ import {
   type Grade,
 } from '@/lib/fsrs'
 import { formatDateTime, formatInterval } from '@/lib/date'
-import { isComplete, typeBadge } from '@/lib/cards'
+import { isComplete } from '@/lib/cards'
 import { REL_KINDS } from '@/lib/relations'
 import { useLiveQuery } from '@/composables/useLiveQuery'
 import { useTip } from '@/components/stats/useTip'
@@ -46,6 +49,7 @@ const route = useRoute()
 const router = useRouter()
 const data = useData()
 const ui = useUi()
+const settings = useSettings()
 
 const id = computed(() => String(route.params.id))
 const card = computed(() => data.cardById.get(id.value))
@@ -171,6 +175,19 @@ async function moveTo(deckId: string) {
   showMove.value = false
   ui.toast('已移動', 'success')
 }
+// a clip that came out wrong: drop this card's stored clips so they are made again
+async function regenSpeech() {
+  const c = card.value
+  if (c?.type !== 'vocab') return
+  await regenerateSpeech(
+    [
+      { text: c.word, lang: c.lang, reading: c.reading },
+      ...c.examples.map((e) => ({ text: e.sentence, lang: c.lang })),
+    ],
+    (l) => settings.device.tts[l],
+  )
+  ui.toast('已重新生成發音', 'success')
+}
 async function remove() {
   if (!card.value) return
   if (!(await ui.confirm('刪除這張卡片？', { danger: true, confirmText: '刪除' }))) return
@@ -265,14 +282,10 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
 
     <!-- the arrows sit at a fixed height inside the card, so they stay put whatever the content -->
     <div class="relative mb-3" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
-      <section class="card relative flex min-h-72 flex-col" @click="revealed = true">
-        <!-- the card's tags, level with the eye icon; out of the flow, so switching between complete and
+      <section class="card relative flex min-h-80 flex-col" @click="revealed = true">
+        <!-- the incomplete warning, level with the eye icon; out of the flow, so switching between complete and
              incomplete cards never shifts the height -->
-        <div class="absolute top-3 left-3 flex h-8 items-center gap-1.5">
-          <span
-            class="min-w-7 rounded-md bg-surface-2 px-1.5 py-0.5 text-center text-[10px] font-bold text-muted"
-            >{{ typeBadge(card) }}</span
-          >
+        <div class="absolute top-3 left-1/2 flex h-8 -translate-x-1/2 items-center gap-1.5">
           <span
             v-if="!isComplete(card)"
             class="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
@@ -284,38 +297,48 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
             title="這張卡片尚未完成，補齊內容後才會進入學習。"
           >
             <TriangleAlert :size="12" />
-            未完成，需補齊內容
+            內容未完成
           </span>
         </div>
         <!-- stays in the corner, so it never moves when the examples below appear or disappear -->
         <button
-          class="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:text-primary"
+          class="absolute top-3 left-3 flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:text-primary"
           :aria-label="revealed ? '只看正面' : '顯示答案'"
           :title="revealed ? '只看正面' : '顯示答案'"
           @click.stop="revealed = !revealed"
         >
           <component :is="revealed ? Eye : EyeOff" :size="18" />
         </button>
+        <!-- the word's speaker, in the opposite corner from the eye -->
+        <SpeakButton
+          v-if="card.type === 'vocab'"
+          :text="card.word"
+          :lang="card.lang"
+          :reading="card.reading"
+          :size="16"
+          class="absolute top-[11px] right-[11px]"
+        />
         <!-- arrows sit inside the card on both sides, level with the divider in the middle -->
         <template v-if="browseIndex >= 0">
           <button
-            class="absolute top-1/2 left-3 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted opacity-60 transition-colors hover:text-primary hover:opacity-100 disabled:opacity-0"
+            class="absolute top-1/2 left-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted opacity-60 transition-colors hover:text-primary hover:opacity-100 disabled:opacity-0"
             aria-label="上一張"
             :disabled="!hasPrev"
-            @click="go(-1)"
+            @click.stop="go(-1)"
           >
             <ChevronLeft :size="20" />
           </button>
           <button
-            class="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted opacity-60 transition-colors hover:text-primary hover:opacity-100 disabled:opacity-0"
+            class="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted opacity-60 transition-colors hover:text-primary hover:opacity-100 disabled:opacity-0"
             aria-label="下一張"
             :disabled="!hasNext"
-            @click="go(1)"
+            @click.stop="go(1)"
           >
             <ChevronRight :size="20" />
           </button>
         </template>
-        <div class="flex flex-1 flex-col px-11">
+        <!-- equal room above and below, so the divider stays level with the arrows -->
+        <div class="flex flex-1 flex-col px-10 py-2">
           <CardFace class="flex-1" :card="card" :revealed="revealed" list-examples />
         </div>
       </section>
@@ -447,6 +470,14 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
         </button>
       </section>
     </template>
+
+    <button
+      v-if="card.type === 'vocab'"
+      class="mt-8 mb-4 block w-full text-center text-xs text-muted underline"
+      @click="regenSpeech"
+    >
+      重新生成這張卡片的發音
+    </button>
 
     <MoveDeckSheet v-model="showMove" :current="card.deckId" @pick="moveTo" />
   </div>

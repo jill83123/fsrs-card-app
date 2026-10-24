@@ -1,7 +1,10 @@
 import type { Lang, PosOption } from '@/db/types'
+import { LANGS } from '@/db/defaults'
 
 export interface ImportRow {
   word: string
+  /** decided by the AI per word, else the deck's language */
+  lang: Lang
   meaning: string
   /** pos option ids of the chosen language, over all senses */
   pos: string[]
@@ -37,8 +40,29 @@ function matchPos(text: string, options: PosOption[]): PosOption | undefined {
   )
 }
 
-/** Parse the JSON an AI produced: an array of { word, meaning, pos }, optionally in ``` fences. */
-export function parseImport(text: string, options: PosOption[]): ImportResult {
+const LANG_NAMES: Record<string, Lang> = {
+  en: 'en',
+  english: 'en',
+  英文: 'en',
+  英語: 'en',
+  ja: 'ja',
+  jp: 'ja',
+  japanese: 'ja',
+  日文: 'ja',
+  日語: 'ja',
+  ko: 'ko',
+  kr: 'ko',
+  korean: 'ko',
+  韓文: 'ko',
+  韓語: 'ko',
+}
+
+/** Parse the JSON an AI produced: an array of { word, lang, senses }, optionally in ``` fences. */
+export function parseImport(
+  text: string,
+  posOf: (lang: Lang) => PosOption[],
+  fallback: Lang,
+): ImportResult {
   const body = text
     .trim()
     .replace(/^```[a-z]*\s*/i, '')
@@ -57,6 +81,8 @@ export function parseImport(text: string, options: PosOption[]): ImportResult {
   for (const item of list as unknown[]) {
     const o = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
     const word = asText(pick(o, ['word', '單字']))
+    const lang = LANG_NAMES[asText(pick(o, ['lang', 'language', '語言'])).toLowerCase()] ?? fallback
+    const options = posOf(lang)
     const unknownPos: string[] = []
     // "pos" as a list or as text split on commas, matched against the options
     const toPos = (raw: unknown) => {
@@ -100,18 +126,19 @@ export function parseImport(text: string, options: PosOption[]): ImportResult {
         .filter((m, i, a) => m && sentence.includes(m) && a.indexOf(m) === i)
       return [{ sentence, translation, ...(marks.length ? { marks } : {}) }]
     })
-    rows.push({ word, meaning, pos, senses, examples, unknownPos })
+    rows.push({ word, lang, meaning, pos, senses, examples, unknownPos })
   }
   return { rows, skipped }
 }
 
-export const importPrompt = (lang: Lang, options: PosOption[]) =>
-  `請整理圖片中的${{ en: '英文', ja: '日文', ko: '韓文' }[lang]}單字，輸出成 JSON 陣列。只輸出 JSON，不要加任何說明文字。
+export const importPrompt = (posOf: (lang: Lang) => PosOption[]) =>
+  `請整理圖片中的單字，輸出成 JSON 陣列。只輸出 JSON，不要加任何說明文字。
 
 ## 格式
 [
   {
     "word": "單字",
+    "lang": "en",
     "senses": [
       { "pos": ["詞性"], "meaning": "繁體中文意思" }
     ],
@@ -127,9 +154,16 @@ export const importPrompt = (lang: Lang, options: PosOption[]) =>
 
 ## 欄位說明
 - word：必填。
+- lang：必填，依單字判斷：英文 en、日文 ja、韓文 ko。
 - senses：單字的各個意思，至少一個。同一個單字有不同詞性或不同意思時，各自一組，例如 run → [{ "pos": ["動詞"], "meaning": "跑" }, { "pos": ["名詞"], "meaning": "跑步" }]。
 - senses 的 meaning：必填。
-- senses 的 pos：從這些選項選一個或多個，沒有就給空陣列：${options.map((o) => o.label).join('、')}
+- senses 的 pos：依 lang 從下列選項選一個或多個，沒有就給空陣列。
+${LANGS.map(
+  (l) =>
+    `  - ${l.id}：${posOf(l.id)
+      .map((o) => o.label)
+      .join('、')}`,
+).join('\n')}
 - examples：圖片上沒有例句或翻譯就省略或給空陣列，不要自己編造。
 - marks：標出例句中對應該單字的字詞。
   - 必須是 sentence 裡原封不動出現的文字（大小寫、標點一致），不要多帶前後的詞。
