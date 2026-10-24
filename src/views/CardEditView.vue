@@ -25,7 +25,7 @@ import {
 } from '@/lib/cards'
 import { uid } from '@/lib/id'
 import { moved, useDragSort } from '@/composables/useDragSort'
-import { deckRows } from '@/lib/tree'
+import { deckPickerOptions } from '@/lib/tree'
 import { db } from '@/db'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
 import { lookupWord, type DictResult } from '@/lib/dictLookup'
@@ -147,15 +147,7 @@ watch(() => route.fullPath, init, { immediate: true })
 const dirty = computed(() => card.value && JSON.stringify(card.value) !== original.value)
 
 // every deck as a tree; only one without sub-decks can hold cards, the others are greyed out
-const deckOptions = computed(() =>
-  deckRows(data.nodes).map((r) => ({
-    id: r.node.id,
-    name: r.node.name,
-    path: r.path,
-    tree: r.tree,
-    disabled: data.nodes.some((c) => c.parentId === r.node.id),
-  })),
-)
+const deckOptions = computed(() => deckPickerOptions(data.nodes))
 
 /** Switch between card types while creating, carrying over the main text. */
 function switchType(t: 'basic' | 'vocab') {
@@ -279,6 +271,11 @@ function addExample() {
   vocab.value?.examples.push({ id: uid(), sentence: '', translation: '' })
 }
 
+function addDerived() {
+  const v = vocab.value
+  if (v) (v.derived ??= []).push({ id: uid(), word: '', pos: '', meaning: '' })
+}
+
 // a new card typed in by hand gets its reading made after it is saved, without making the user wait
 async function fillReading(id: string, word: string, lang: Lang) {
   const reading = await generateReading(word, lang, settings.synced.reading.enStyle).catch(
@@ -300,6 +297,8 @@ async function save(next = false) {
   if (c.type === 'vocab') {
     applySenses(c, c.senses ?? [])
     c.examples = c.examples.filter((e) => e.sentence.trim() || e.translation.trim())
+    c.derived = c.derived?.filter((d) => d.word.trim())
+    if (!c.derived?.length) delete c.derived
     // marks whose text was edited away no longer apply
     for (const e of c.examples) {
       e.marks = e.marks?.filter((m) => e.sentence.includes(m))
@@ -356,7 +355,7 @@ const previewRevealed = ref(false)
       <template #title>{{ editingId ? '編輯卡片' : '新卡片' }}</template>
     </PageHeader>
 
-    <div class="space-y-4">
+    <div class="space-y-6">
       <PillTabs
         v-if="!editingId"
         v-model="typeModel"
@@ -367,7 +366,7 @@ const previewRevealed = ref(false)
       />
 
       <div>
-        <label class="label">牌組</label>
+        <label class="section-label">牌組</label>
         <SelectBox v-model="card.deckId">
           <option value="" disabled>選擇牌組</option>
           <option
@@ -406,7 +405,7 @@ const previewRevealed = ref(false)
       <!-- vocab -->
       <template v-if="vocab">
         <div>
-          <label class="label">語言</label>
+          <label class="section-label">語言</label>
           <PillTabs
             v-model="vocab.lang"
             :options="LANGS.map((l) => ({ value: l.id, label: l.label }))"
@@ -414,7 +413,7 @@ const previewRevealed = ref(false)
         </div>
         <div class="card space-y-3">
           <div>
-            <label class="label">單字</label>
+            <label class="section-label">單字</label>
             <div class="flex items-center gap-2">
               <input
                 v-model="vocab.word"
@@ -475,7 +474,7 @@ const previewRevealed = ref(false)
         </div>
         <div>
           <div class="flex items-center justify-between">
-            <label class="label">詞義</label>
+            <label class="section-label">詞義</label>
             <button
               class="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary disabled:opacity-50"
               :disabled="lookupBusy"
@@ -485,9 +484,14 @@ const previewRevealed = ref(false)
             </button>
           </div>
           <div class="space-y-3">
-            <div v-for="(s, i) in vocab.senses" :key="s.id" class="card space-y-3 p-4">
+            <div
+              v-for="(s, i) in vocab.senses"
+              :key="s.id"
+              class="card space-y-3 p-4"
+              :class="{ 'pt-2': vocab.senses!.length > 1 }"
+            >
               <div class="flex items-center gap-2">
-                <span class="text-xs font-bold text-muted">#{{ i + 1 }}</span>
+                <span class="text-xs font-bold tracking-[1px] text-muted">#{{ i + 1 }}</span>
                 <div class="flex-1" />
                 <button
                   v-if="vocab.senses!.length > 1"
@@ -527,7 +531,7 @@ const previewRevealed = ref(false)
         </div>
         <div>
           <div class="flex items-center justify-between">
-            <label class="label">例句</label>
+            <label class="section-label">例句</label>
             <button
               v-if="vocab.examples.length"
               type="button"
@@ -542,7 +546,7 @@ const previewRevealed = ref(false)
               v-for="(e, i) in vocab.examples"
               :key="e.id"
               data-sort-item
-              class="card space-y-2 p-4"
+              class="card space-y-2 p-4 pt-2"
               :class="{ 'shadow-lg': exDrag.dragging(i) }"
               :style="exDrag.style(i)"
             >
@@ -556,7 +560,7 @@ const previewRevealed = ref(false)
                 >
                   <GripVertical :size="16" />
                 </button>
-                <span class="text-xs font-bold text-muted">#{{ i + 1 }}</span>
+                <span class="text-xs font-bold tracking-[1px] text-muted">#{{ i + 1 }}</span>
                 <div class="flex-1" />
                 <SpeakButton :text="e.sentence" :lang="vocab.lang" />
                 <button
@@ -622,10 +626,47 @@ const previewRevealed = ref(false)
           </div>
         </div>
         <div>
-          <label class="label">關聯詞</label>
+          <div class="flex items-center justify-between">
+            <label class="section-label">關聯詞</label>
+            <button
+              type="button"
+              class="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary"
+              @click="relEditor?.start()"
+            >
+              <Plus :size="14" /> 加入關聯詞
+            </button>
+          </div>
           <RelationEditor ref="relEditor" v-model:stubs="stubs" :card="vocab" />
-          <p class="mt-2 px-1 text-xs text-muted">
-            只會顯示在卡片詳情，學習時不會出現。關聯會同步記錄在對方的卡片上。
+          <p class="mt-1 text-xs text-muted">
+            加入新單字時會一併建成單字卡；關聯會同步記錄在對方的卡片上。
+          </p>
+        </div>
+        <div>
+          <label class="section-label">衍生字</label>
+          <div class="space-y-3">
+            <div v-for="(d, i) in vocab.derived" :key="d.id" class="card space-y-2 p-4">
+              <div class="flex items-center gap-2">
+                <input v-model="d.word" class="input min-w-0 flex-1" placeholder="衍生字" />
+                <button
+                  type="button"
+                  class="icon-btn shrink-0 bg-surface-2 text-danger"
+                  aria-label="刪除衍生字"
+                  @click="vocab.derived!.splice(i, 1)"
+                >
+                  <Trash2 :size="16" />
+                </button>
+              </div>
+              <div class="flex gap-2">
+                <input v-model="d.pos" class="input w-24 shrink-0" placeholder="詞性" />
+                <input v-model="d.meaning" class="input min-w-0 flex-1" placeholder="意思" />
+              </div>
+            </div>
+            <button type="button" class="btn btn-ghost w-full" @click="addDerived">
+              <Plus :size="18" /> 新增衍生字
+            </button>
+          </div>
+          <p class="mt-2 text-xs text-muted">
+            純顯示用，不會另外建卡；未來可以從詳細頁將衍生字建成單字卡。
           </p>
         </div>
         <div>

@@ -38,6 +38,35 @@ md.inline.ruler.before('emphasis', 'spoiler', (state, silent) => {
   return true
 })
 
+/** Inline rule for a doubled marker on one line: ==highlight==, ++theme-coloured text++ */
+function pairRule(name: string, ch: string, tag: string, cls?: string) {
+  const code = ch.charCodeAt(0)
+  const marker = ch + ch
+  md.inline.ruler.before('emphasis', name, (state, silent) => {
+    const start = state.pos
+    const src = state.src
+    if (src.charCodeAt(start) !== code || src.charCodeAt(start + 1) !== code) return false
+    if (src.charCodeAt(start + 2) === code || /\s/.test(src.charAt(start + 2))) return false
+    const end = src.indexOf(marker, start + 2)
+    if (end < 0 || end >= state.posMax || /\s/.test(src.charAt(end - 1))) return false
+    if (src.slice(start + 2, end).includes('\n')) return false
+    if (!silent) {
+      const open = state.push(`${name}_open`, tag, 1)
+      if (cls) open.attrSet('class', cls)
+      const oldMax = state.posMax
+      state.pos = start + 2
+      state.posMax = end
+      state.md.inline.tokenize(state)
+      state.posMax = oldMax
+      state.push(`${name}_close`, tag, -1)
+    }
+    state.pos = end + 2
+    return true
+  })
+}
+pairRule('mark', '=', 'mark')
+pairRule('tint', '+', 'span', 'tint')
+
 /**
  * CommonMark refuses `為**「見面」**` (punctuation next to a delimiter with a letter on the
  * other side), which is everyday Chinese text, so bold ignores the flanking rules here.

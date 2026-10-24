@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { ClipboardPaste, Copy } from '@lucide/vue'
 import BottomSheet from './BottomSheet.vue'
-import type { Lang } from '@/db/types'
+import type { Lang, VocabCard } from '@/db/types'
 import { db } from '@/db'
 import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
@@ -53,6 +53,17 @@ const fresh = computed(
   () => parsed.value.result?.rows.filter((r) => !existing.value.has(`${r.lang}:${r.word}`)) ?? [],
 )
 const dupCount = computed(() => (parsed.value.result?.rows.length ?? 0) - fresh.value.length)
+// a word already there is not imported again, but its derived words are added
+// (unless the card already has some)
+const refill = computed(() =>
+  (parsed.value.result?.rows ?? []).flatMap((r) => {
+    if (!r.derived.length) return []
+    const c = (data.cardsByDeck.get(props.deckId) ?? []).find(
+      (x): x is VocabCard => x.type === 'vocab' && x.lang === r.lang && x.word === r.word,
+    )
+    return c && !c.derived?.length ? [{ card: c, derived: r.derived }] : []
+  }),
+)
 const unknownPos = computed(() => [...new Set(fresh.value.flatMap((r) => r.unknownPos))])
 
 async function copyPrompt() {
@@ -107,13 +118,25 @@ async function run() {
         ...(mark ? { marks: [mark] } : {}),
       }
     })
+    if (r.derived.length) c.derived = r.derived.map((d) => ({ id: uid(), ...d }))
     c.createdAt = base + i
     return c
   })
   await data.addCards(cards)
+  for (const { card, derived } of refill.value) {
+    await data.saveCard({ ...card, derived: derived.map((d) => ({ id: uid(), ...d })) })
+  }
   void fillReadings(cards.map((c) => c.id))
-  localStorage.setItem('sr.lastLang', cards[cards.length - 1]!.lang)
-  ui.toast(`已匯入 ${cards.length} 張卡片`, 'success')
+  if (cards.length) localStorage.setItem('sr.lastLang', cards[cards.length - 1]!.lang)
+  ui.toast(
+    [
+      cards.length && `已匯入 ${cards.length} 張卡片`,
+      refill.value.length && `已為 ${refill.value.length} 張卡補上衍生字`,
+    ]
+      .filter(Boolean)
+      .join('，'),
+    'success',
+  )
   open.value = false
 }
 </script>
@@ -152,6 +175,7 @@ async function run() {
           將匯入 <b>{{ fresh.length }}</b> 張卡片
         </p>
         <p v-if="dupCount" class="text-muted">{{ dupCount }} 筆單字已在此牌組，會略過</p>
+        <p v-if="refill.length" class="text-muted">其中 {{ refill.length }} 張會補上衍生字</p>
         <p v-if="parsed.result.skipped" class="text-muted">
           {{ parsed.result.skipped }} 筆缺少單字或意思，會略過
         </p>
@@ -160,7 +184,13 @@ async function run() {
         </p>
       </div>
 
-      <button class="btn btn-primary w-full" :disabled="!fresh.length" @click="run">匯入</button>
+      <button
+        class="btn btn-primary w-full"
+        :disabled="!fresh.length && !refill.length"
+        @click="run"
+      >
+        匯入
+      </button>
     </div>
   </BottomSheet>
 </template>

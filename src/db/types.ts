@@ -98,6 +98,18 @@ export interface Sense {
   meaning: string
 }
 
+/** A word derived from the card's word, listed on the card; it becomes a card of its own when asked for. */
+export interface DerivedWord {
+  id: string
+  word: string
+  /** part of speech as text, e.g. "n." */
+  pos: string
+  meaning: string
+}
+
+/** A derived word before it has an id, e.g. as the AI gave it. */
+export type DerivedRow = Omit<DerivedWord, 'id'>
+
 export interface VocabCard extends CardBase {
   type: 'vocab'
   lang: Lang
@@ -111,6 +123,7 @@ export interface VocabCard extends CardBase {
   senses?: Sense[]
   examples: Example[]
   note: string
+  derived?: DerivedWord[]
   rel?: Relations
 }
 

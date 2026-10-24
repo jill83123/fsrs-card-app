@@ -3,13 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   CheckSquare,
-  Dumbbell,
   FolderInput,
   Pause,
   Play,
   RotateCcw,
   Search,
-  Sparkles,
   SlidersHorizontal,
   Star,
   StarOff,
@@ -30,13 +28,10 @@ import {
 import { moved, useDragSort } from '@/composables/useDragSort'
 import { useData } from '@/stores/data'
 import { useUi } from '@/stores/ui'
-import { useSettings } from '@/stores/settings'
-import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
 
 const props = defineProps<{ cards: Card[]; showDeck?: boolean; storageKey?: string }>()
 const data = useData()
 const ui = useUi()
-const settings = useSettings()
 const router = useRouter()
 
 // the sort lives on the deck (synced); everything else in the filter is just for this visit
@@ -237,32 +232,6 @@ async function moveTo(deckId: string) {
   await patch({ deckId }, '已移動')
   showMove.value = false
 }
-
-async function fillReadings() {
-  const targets = filtered.value.filter(
-    (c) =>
-      selected.value.has(c.id) && c.type === 'vocab' && !c.reading.trim() && canAutoReading(c.lang),
-  )
-  if (!targets.length) return ui.toast('選取的卡片沒有需要補讀音的單字', 'info')
-  let done = 0
-  for (const c of targets) {
-    if (c.type !== 'vocab') continue
-    const r = await generateReading(c.word, c.lang, settings.synced.reading.enStyle).catch(
-      () => null,
-    )
-    if (!r) continue
-    await data.saveCard({ ...c, reading: r })
-    done++
-  }
-  ui.toast(`已補上 ${done} / ${targets.length} 張的讀音`, done ? 'success' : 'error')
-}
-
-function practice() {
-  const ids = selectedIds.value
-  if (!ids.length) return
-  sessionStorage.setItem('sr.practice.cards', JSON.stringify(ids))
-  router.push({ path: '/practice', query: { pick: '1' } })
-}
 </script>
 
 <template>
@@ -338,6 +307,8 @@ function practice() {
         顯示更多（還有 {{ filtered.length - limit }} 張）
       </button>
       <p v-if="!filtered.length" class="py-8 text-center text-sm text-muted">沒有符合條件的卡片</p>
+      <!-- the action bar floats over the bottom of the page: room for the last cards to scroll above it -->
+      <div v-if="selecting" class="h-16" aria-hidden="true" />
     </div>
 
     <Transition name="sheet">
@@ -348,7 +319,7 @@ function practice() {
         <div
           class="flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-line bg-surface p-1.5 shadow-xl scrollbar-none"
         >
-          <span class="px-3 text-sm font-bold whitespace-nowrap">{{ selectedIds.length }} 張</span>
+          <span class="pr-2 pl-1.5 text-sm font-bold whitespace-nowrap">{{ selectedIds.length }} 張</span>
           <button class="icon-btn" title="加星號" @click="patch({ starred: true }, '已加星號')">
             <Star :size="18" />
           </button>
@@ -367,12 +338,6 @@ function practice() {
           </button>
           <button class="icon-btn" title="移動" @click="selectedIds.length && (showMove = true)">
             <FolderInput :size="18" />
-          </button>
-          <button class="icon-btn" title="自動補上讀音" @click="fillReadings">
-            <Sparkles :size="18" />
-          </button>
-          <button class="icon-btn" title="練習" @click="practice">
-            <Dumbbell :size="18" />
           </button>
           <button class="icon-btn" title="重設進度" @click="reset">
             <RotateCcw :size="18" />

@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/chiron-hei-hk';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/ibm-plex-mono/700.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -37,6 +41,9 @@
   --font-sans:
     'Inter Variable', 'Chiron Hei HK Variable', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei',
     'Hiragino Sans', 'Noto Sans JP', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
+  --font-mono:
+    'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, 'Chiron Hei HK Variable',
+    monospace;
   --color-primary: var(--primary);
   --color-primary-soft: color-mix(in oklab, var(--primary) 14%, var(--surface));
   --color-primary-strong: color-mix(in oklab, var(--primary) 75%, var(--ink));
@@ -121,6 +128,10 @@ button:disabled {
   .label {
     @apply mb-1.5 block text-xs font-semibold tracking-wide text-muted uppercase;
   }
+  /* titles of the sections of the card form: heavier than .label, so the groups stand out */
+  .section-label {
+    @apply mb-2 block text-sm font-semibold text-ink/65;
+  }
   .chip {
     @apply inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink;
   }
@@ -165,8 +176,28 @@ button:disabled {
 .md code {
   background: var(--surface-2);
   border-radius: 6px;
-  padding: 0.1em 0.35em;
-  font-size: 0.9em;
+  padding: 0.08em 0.25em;
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.md .tint {
+  color: var(--primary);
+}
+.md strong code {
+  font-weight: 700;
+}
+/* the colour covers only the lower part of the text, like a marker drawn low; it is a gradient
+   band inside the inline box, so the line height does not change */
+.md mark {
+  --hl: color-mix(in oklab, var(--primary) 24%, transparent);
+  background: linear-gradient(to bottom, transparent 0.66em, var(--hl) 0.66em, var(--hl) 1.32em, transparent 1.32em);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0 0.12em;
 }
 .md pre {
   background: var(--surface-2);

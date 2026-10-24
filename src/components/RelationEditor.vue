@@ -49,17 +49,46 @@ function linkWord(kind: RelKind, word: string) {
   stubs.value = [...stubs.value, stub]
   link(kind, stub.id)
 }
-defineExpose({ linkWord })
+defineExpose({ linkWord, start })
 
-const picking = ref<RelKind | null>(null)
-const open = computed({
-  get: () => picking.value !== null,
+// the kinds that have words, each with its words
+const groups = computed(() =>
+  REL_KINDS.map((k) => ({
+    kind: k.id,
+    label: k.label,
+    items: ids(k.id).map((id) => ({ id, word: wordOf(id)! })),
+  })).filter((g) => g.items.length),
+)
+
+// the sheet for adding words: pick the kind on top, then the words
+const adding = ref(false)
+const picking = ref<RelKind>('syn')
+const open = adding
+const query = ref('')
+
+// the sheet for one word already added: change its kind or remove it
+const editing = ref<{ kind: RelKind; id: string } | null>(null)
+const editOpen = computed({
+  get: () => editing.value !== null,
   set: (v) => {
-    if (!v) picking.value = null
+    if (!v) editing.value = null
   },
 })
-const query = ref('')
-const kindLabel = computed(() => REL_KINDS.find((k) => k.id === picking.value)?.label ?? '')
+function moveTo(kind: RelKind) {
+  const e = editing.value
+  if (!e) return
+  if (kind !== e.kind) {
+    // linked first, so a new card is not dropped as unused in between
+    link(kind, e.id)
+    unlink(e.kind, e.id)
+  }
+  editing.value = null
+}
+function removeEditing() {
+  const e = editing.value
+  if (e) unlink(e.kind, e.id)
+  editing.value = null
+}
 
 const candidates = computed(() => {
   const q = normWord(query.value)
@@ -82,39 +111,60 @@ const exact = computed(() => {
   )
 })
 
-function start(kind: RelKind) {
+function start() {
   query.value = ''
-  picking.value = kind
+  adding.value = true
 }
 function toggle(id: string) {
   const kind = picking.value
-  if (!kind) return
   if (props.card.rel?.[kind]?.includes(id)) unlink(kind, id)
   else link(kind, id)
 }
 function addNew() {
-  if (picking.value) linkWord(picking.value, query.value)
+  linkWord(picking.value, query.value)
   query.value = ''
 }
 </script>
 
 <template>
-  <div class="card space-y-4 p-4">
-    <div v-for="k in REL_KINDS" :key="k.id" class="space-y-2">
-      <p class="text-sm font-semibold text-muted">{{ k.label }}</p>
-      <div class="flex flex-wrap items-center gap-2">
-        <span v-for="id in ids(k.id)" :key="id" class="chip chip-on gap-1 pr-1.5">
-          {{ wordOf(id) }}
-          <button type="button" :aria-label="`移除 ${wordOf(id)}`" @click="unlink(k.id, id)">
-            <X :size="14" />
-          </button>
-        </span>
-        <button type="button" class="chip" @click="start(k.id)"><Plus :size="14" /> 加入</button>
+  <div>
+    <!-- only the kinds that have words get a line: the kind on the left, its words beside it;
+         the button that adds words sits in the header of this section, in the edit page -->
+    <div v-if="groups.length" class="card divide-y divide-line px-4 py-2">
+      <div v-for="g in groups" :key="g.kind" class="flex items-start gap-3 py-2.5">
+        <p class="w-14 shrink-0 pt-1 text-sm font-semibold text-muted">{{ g.label }}</p>
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <!-- tap a word to change its kind or remove it -->
+          <span v-for="r in g.items" :key="r.id" class="chip chip-on gap-1 pr-1.5">
+            <button
+              type="button"
+              :aria-label="`${r.word}：${g.label}，點擊更改`"
+              @click="editing = { kind: g.kind, id: r.id }"
+            >
+              {{ r.word }}
+            </button>
+            <button type="button" :aria-label="`移除 ${r.word}`" @click="unlink(g.kind, r.id)">
+              <X :size="14" />
+            </button>
+          </span>
+        </div>
       </div>
     </div>
 
-    <BottomSheet v-model="open" :title="`加入${kindLabel}`">
+    <BottomSheet v-model="open" title="加入關聯詞">
       <div class="space-y-3">
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="k in REL_KINDS"
+            :key="k.id"
+            type="button"
+            class="chip"
+            :class="{ 'chip-on': picking === k.id }"
+            @click="picking = k.id"
+          >
+            {{ k.label }}
+          </button>
+        </div>
         <input v-model="query" class="input" placeholder="搜尋已有的單字，或輸入新單字" />
         <button v-if="!exact" type="button" class="btn btn-soft w-full" @click="addNew">
           <Plus :size="16" /> 新增「{{ query.trim() }}」為新單字卡
@@ -125,25 +175,39 @@ function addNew() {
             :key="c.id"
             type="button"
             class="flex w-full items-center gap-3 rounded-2xl border bg-surface px-4 py-3 text-left"
-            :class="
-              picking && card.rel?.[picking]?.includes(c.id) ? 'border-primary' : 'border-line'
-            "
+            :class="card.rel?.[picking]?.includes(c.id) ? 'border-primary' : 'border-line'"
             @click="toggle(c.id)"
           >
             <span class="min-w-0 flex-1">
               <span class="block font-semibold">{{ c.word }}</span>
               <span class="block truncate text-sm text-muted">{{ c.meaning.split('\n')[0] }}</span>
             </span>
-            <Check
-              v-if="picking && card.rel?.[picking]?.includes(c.id)"
-              :size="16"
-              class="text-primary"
-            />
+            <Check v-if="card.rel?.[picking]?.includes(c.id)" :size="16" class="text-primary" />
           </button>
           <p v-if="!candidates.length" class="py-4 text-center text-sm text-muted">
             沒有符合的單字卡。
           </p>
         </div>
+      </div>
+    </BottomSheet>
+
+    <BottomSheet v-model="editOpen" :title="editing ? wordOf(editing.id) : ''">
+      <div class="space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="k in REL_KINDS"
+            :key="k.id"
+            type="button"
+            class="chip"
+            :class="{ 'chip-on': editing?.kind === k.id }"
+            @click="moveTo(k.id)"
+          >
+            {{ k.label }}
+          </button>
+        </div>
+        <button type="button" class="btn btn-ghost w-full text-danger" @click="removeEditing">
+          移除
+        </button>
       </div>
     </BottomSheet>
   </div>
