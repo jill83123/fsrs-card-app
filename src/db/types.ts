@@ -173,6 +173,8 @@ export interface SyncedSettings {
   appearance: {
     primary: string
     theme: 'system' | 'light' | 'dark'
+    /** the card list draws a count divider every this many cards; 0 = none */
+    listGroupSize: number
   }
   study: {
     rolloverHour: number
