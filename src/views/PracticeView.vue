@@ -472,7 +472,7 @@ const progress = computed(() => {
       </button>
     </div>
 
-    <CardFilterSheet v-model="showFilter" v-model:filter="filter" hide-draft hide-manual />
+    <CardFilterSheet v-model="showFilter" v-model:filter="filter" hide-draft hide-manual hide-study />
     <DeckPickSheet
       v-model="showPick"
       v-model:excluded="excluded"

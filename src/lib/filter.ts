@@ -1,10 +1,12 @@
 import type { FSRS } from 'ts-fsrs'
-import type { Card, Lang } from '@/db/types'
+import type { Card, Lang, ReviewLogRecord } from '@/db/types'
 import { cardSubtitle, cardTitle, isComplete, isLearned } from './cards'
 import { retrievability, State } from './fsrs'
 
 export type TriState = 'any' | 'yes' | 'no'
 export type FamBucket = 'any' | 'new' | 'low' | 'mid' | 'high' | 'top'
+export type StudyDays = 'any' | 'today' | '7' | '30'
+export type StudyKind = 'all' | 'new' | 'review'
 export type SortKey = 'created' | 'updated' | 'due' | 'familiarity' | 'alpha' | 'manual'
 
 export interface CardFilter {
@@ -17,6 +19,9 @@ export interface CardFilter {
   draft: TriState
   states: State[]
   fam: FamBucket
+  /** cards with a review log in the last N study days, narrowed by first-time learn or repeat review */
+  days: StudyDays
+  kind: StudyKind
   sort: SortKey
   desc: boolean
 }
@@ -31,17 +36,19 @@ export const defaultFilter = (): CardFilter => ({
   draft: 'any',
   states: [],
   fam: 'any',
+  days: 'any',
+  kind: 'all',
   sort: 'created',
   desc: true,
 })
 
-export const FAM_BUCKETS: { value: FamBucket; label: string }[] = [
+export const FAM_BUCKETS: { value: FamBucket; label: string; hint?: string }[] = [
   { value: 'any', label: '全部' },
   { value: 'new', label: '未學習' },
-  { value: 'low', label: '< 50%' },
-  { value: 'mid', label: '50–80%' },
-  { value: 'high', label: '80–95%' },
-  { value: 'top', label: '≥ 95%' },
+  { value: 'low', label: '快忘了', hint: '< 50%' },
+  { value: 'mid', label: '有點生疏', hint: '50–80%' },
+  { value: 'high', label: '還記得', hint: '80–95%' },
+  { value: 'top', label: '很熟', hint: '≥ 95%' },
 ]
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -60,15 +67,37 @@ const tri = (t: TriState, v: boolean) => t === 'any' || (t === 'yes') === v
 export function activeFilterCount(f: CardFilter) {
   const d = defaultFilter()
   let n = 0
-  for (const k of ['type', 'lang', 'starred', 'suspended', 'learned', 'draft', 'fam'] as const) {
+  for (const k of [
+    'type',
+    'lang',
+    'starred',
+    'suspended',
+    'learned',
+    'draft',
+    'fam',
+    'days',
+  ] as const) {
     if (f[k] !== d[k]) n++
   }
   if (f.states.length) n++
   return n
 }
 
-export function applyFilter(cards: Card[], f: CardFilter, fsrs: FSRS, now = Date.now()) {
+export function applyFilter(
+  cards: Card[],
+  f: CardFilter,
+  fsrs: FSRS,
+  now = Date.now(),
+  logs: ReviewLogRecord[] = [],
+) {
   const q = f.q.trim().toLowerCase()
+  const studiedIds = new Set<string>()
+  if (f.days !== 'any') {
+    for (const l of logs) {
+      const isNew = l.prev.state === State.New
+      if (f.kind === 'all' || (f.kind === 'new') === isNew) studiedIds.add(l.cardId)
+    }
+  }
   const famOf = new Map<string, number | null>()
   const fam = (c: Card) => {
     if (!famOf.has(c.id)) famOf.set(c.id, retrievability(fsrs, c.sched, now))
@@ -82,6 +111,7 @@ export function applyFilter(cards: Card[], f: CardFilter, fsrs: FSRS, now = Date
     if (!tri(f.learned, isLearned(c))) return false
     if (!tri(f.draft, !isComplete(c))) return false
     if (f.states.length && !f.states.includes(c.sched.state)) return false
+    if (f.days !== 'any' && !studiedIds.has(c.id)) return false
     if (f.fam !== 'any') {
       const r = fam(c)
       if (f.fam === 'new') {

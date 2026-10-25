@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowUp,
@@ -18,7 +18,9 @@ import {
 import CardListItem from './CardListItem.vue'
 import CardFilterSheet from './CardFilterSheet.vue'
 import MoveDeckSheet from './MoveDeckSheet.vue'
-import type { Card } from '@/db/types'
+import type { Card, ReviewLogRecord } from '@/db/types'
+import { db } from '@/db'
+import { addDays } from '@/lib/date'
 import {
   activeFilterCount,
   applyFilter,
@@ -89,7 +91,25 @@ watch(savedSort, (s) => {
 })
 
 const showFilter = ref(false)
-const sorted = computed(() => applyFilter(props.cards, filter.value, data.scheduler, data.now))
+
+// review logs inside the chosen study-day range (today's come live from the store)
+const studyLogs = shallowRef<ReviewLogRecord[]>([])
+watch(
+  [() => filter.value.days, () => data.today, () => data.todayLogs],
+  async ([days, today]) => {
+    if (days === 'any') {
+      studyLogs.value = []
+      return
+    }
+    const from = days === 'today' ? today : addDays(today, 1 - Number(days))
+    const logs = await db.logs.where('studyDay').between(from, today, true, true).toArray()
+    if (filter.value.days === days) studyLogs.value = logs.filter((l) => !l.deleted)
+  },
+  { immediate: true },
+)
+const sorted = computed(() =>
+  applyFilter(props.cards, filter.value, data.scheduler, data.now, studyLogs.value),
+)
 
 // hand-sorting: show the new order at once instead of waiting for the database round trip
 const local = ref<string[] | null>(null)
@@ -323,7 +343,9 @@ async function moveTo(deckId: string) {
         <div
           class="flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-line bg-surface p-1.5 shadow-xl scrollbar-none"
         >
-          <span class="pr-2 pl-1.5 text-sm font-bold whitespace-nowrap">{{ selectedIds.length }} 張</span>
+          <span class="pr-2 pl-1.5 text-sm font-bold whitespace-nowrap"
+            >{{ selectedIds.length }} 張</span
+          >
           <button class="icon-btn" title="加星號" @click="patch({ starred: true }, '已加星號')">
             <Star :size="18" />
           </button>
