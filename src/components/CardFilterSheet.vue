@@ -15,7 +15,7 @@ import { LANGS } from '@/db/defaults'
 
 const open = defineModel<boolean>({ required: true })
 const f = defineModel<CardFilter>('filter', { required: true })
-defineProps<{ hideDraft?: boolean; hideManual?: boolean }>()
+defineProps<{ hideDraft?: boolean; hideManual?: boolean; hideStudy?: boolean }>()
 
 // the language filter only shows for vocab cards, so it must not stay active once hidden
 watch(
@@ -58,7 +58,7 @@ function reset() {
       <div>
         <label class="label">排序</label>
         <div class="flex gap-2">
-          <SelectBox v-model="f.sort" class="py-2.5 text-xs font-medium">
+          <SelectBox v-model="f.sort" class="py-2.5 text-sm font-normal">
             <option
               v-for="o in SORT_OPTIONS.filter((o) => !(hideManual && o.value === 'manual'))"
               :key="o.value"
@@ -69,7 +69,7 @@ function reset() {
           </SelectBox>
           <button
             v-if="f.sort !== 'manual'"
-            class="btn btn-ghost shrink-0 px-4 text-xs font-medium"
+            class="btn btn-ghost shrink-0 px-4 text-sm font-medium"
             @click="f.desc = !f.desc"
           >
             {{ f.desc ? '由大到小' : '由小到大' }}
@@ -106,9 +106,53 @@ function reset() {
         </div>
       </template>
 
+      <template v-if="!hideStudy">
+        <div>
+          <label class="label">學習紀錄</label>
+          <PillTabs
+            v-model="f.days"
+            :options="[
+              { value: 'any', label: '不限' },
+              { value: 'today', label: '今天' },
+              { value: '7', label: '7 天' },
+              { value: '30', label: '30 天' },
+            ]"
+          />
+        </div>
+        <div v-if="f.days !== 'any'">
+          <label class="label">學習類型</label>
+          <PillTabs
+            v-model="f.kind"
+            :options="[
+              { value: 'all', label: '全部' },
+              { value: 'new', label: '新學習' },
+              { value: 'review', label: '複習' },
+            ]"
+          />
+        </div>
+      </template>
+
       <div>
-        <label class="label">熟悉度（目前記得的機率）</label>
-        <PillTabs v-model="f.fam" :options="FAM_BUCKETS" />
+        <label class="label">熟悉度（現在記得的程度）</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            v-for="o in FAM_BUCKETS"
+            :key="o.value"
+            type="button"
+            role="tab"
+            :aria-selected="f.fam === o.value"
+            class="min-h-10 rounded-xl border px-1.5 py-2 text-sm font-medium transition-colors"
+            :class="
+              f.fam === o.value
+                ? 'border-primary bg-primary-soft text-primary-strong'
+                : 'border-line bg-surface text-muted hover:text-ink'
+            "
+            @click="f.fam = o.value"
+          >
+            {{ o.label }}
+            <span v-if="o.hint" class="block text-[10px] font-normal opacity-70">{{ o.hint }}</span>
+          </button>
+        </div>
       </div>
 
       <div>
@@ -119,7 +163,7 @@ function reset() {
             :key="s"
             type="button"
             :aria-pressed="f.states.includes(s)"
-            class="min-w-0 flex-1 truncate rounded-xl border px-1.5 py-2.5 text-xs font-medium transition-colors"
+            class="min-h-10 min-w-0 flex-1 truncate rounded-xl border px-1.5 py-2 text-sm font-medium transition-colors"
             :class="
               f.states.includes(s)
                 ? 'border-primary bg-primary-soft text-primary-strong'
