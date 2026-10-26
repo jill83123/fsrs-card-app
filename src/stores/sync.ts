@@ -49,6 +49,10 @@ const PULL_INTERVAL = 2 * 60_000
 const PUSH_DELAY = 5_000
 /** While the app is open and visible, check for remote changes this often. */
 const POLL_INTERVAL = 60_000
+/** Before editing, skip the pull if we synced this recently. */
+const PRE_EDIT_FRESH = 15_000
+/** Before editing, never keep the user waiting longer than this for the pull. */
+const PRE_EDIT_TIMEOUT = 4_000
 
 export type SyncStatus = 'off' | 'idle' | 'dirty' | 'syncing' | 'reauth' | 'offline' | 'error'
 
@@ -379,6 +383,16 @@ export const useSync = defineStore('sync', () => {
     if (dirty() || Date.now() - lastSync.value > PULL_INTERVAL) void syncNow(false)
   }
 
+  /**
+   * Pull other devices' changes before the user starts editing or studying, so the edit lands on
+   * top of the latest copy instead of conflicting with it. Waits at most PRE_EDIT_TIMEOUT.
+   */
+  async function syncBeforeEdit() {
+    if (!connected.value || !settings.device.sync.auto || !online.value) return
+    if (Date.now() - lastSync.value < PRE_EDIT_FRESH) return
+    await Promise.race([syncNow(false), new Promise((r) => setTimeout(r, PRE_EDIT_TIMEOUT))])
+  }
+
   let debounce: ReturnType<typeof setTimeout> | undefined
   function init() {
     window.addEventListener(CHANGE_EVENT, (e) => {
@@ -420,6 +434,7 @@ export const useSync = defineStore('sync', () => {
     connect,
     disconnect,
     syncNow,
+    syncBeforeEdit,
     refreshBackups,
     backupNow,
     restoreBackup,

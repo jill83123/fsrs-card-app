@@ -144,12 +144,16 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="sync.conflict" class="flex gap-2.5 rounded-2xl bg-warn/15 p-4 text-xs">
-        <TriangleAlert :size="16" class="mt-0.5 shrink-0 text-warn" />
-        <div class="flex-1 space-y-1.5">
-          <p class="font-semibold">{{ formatDateTime(sync.conflict.time) }} 同步時發現衝突</p>
-          <p>{{ describeConflict(sync.conflict) }}</p>
-          <p class="text-muted">少了修改的話，可以從下方備份還原，或重新編輯。</p>
+      <div v-if="sync.conflict" class="space-y-1.5 rounded-2xl bg-warn/15 p-4 text-xs">
+        <div class="flex items-center gap-2">
+          <TriangleAlert :size="16" class="shrink-0 text-warn" />
+          <p class="text-sm font-semibold">
+            {{ formatDateTime(sync.conflict.time) }} 同步時發現衝突
+          </p>
+        </div>
+        <p class="pr-2 pl-6">{{ describeConflict(sync.conflict) }}</p>
+        <p class="pr-2 pl-6 text-muted">少了修改的話，可以從下方備份還原，或重新編輯。</p>
+        <div class="flex justify-end pt-1 pr-2">
           <button class="font-semibold text-primary" @click="sync.dismissConflict()">知道了</button>
         </div>
       </div>
