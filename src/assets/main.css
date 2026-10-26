@@ -127,6 +127,14 @@ button:disabled {
   .input-sm {
     @apply min-h-8.5 px-3 py-1 text-xs;
   }
+  /* custom checkbox: a rounded box that fills with the primary colour; put a lucide Check icon
+     with .check-icon right after it, and give the box the `peer` class so the icon shows once it is checked */
+  .check {
+    @apply size-5 shrink-0 cursor-pointer appearance-none rounded-md border border-line bg-surface transition checked:border-primary checked:bg-primary focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none;
+  }
+  .check-icon {
+    @apply pointer-events-none absolute inset-0 m-auto size-3.5 scale-0 text-white transition-transform peer-checked:scale-100;
+  }
   .label {
     @apply mb-1.5 block text-xs font-semibold tracking-wide text-muted uppercase;
   }
