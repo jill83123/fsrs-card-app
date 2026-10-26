@@ -10,17 +10,38 @@ import { useSettings } from '@/stores/settings'
 const props = defineProps<{ result: DictResult | null; word: string; lang: Lang }>()
 const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{
-  apply: [picked: { meanings: string[]; pos: string[]; examples: Example[]; related: RelatedWords }]
+  apply: [
+    picked: {
+      senses: { meaning: string; pos: string[] }[]
+      pos: string[]
+      examples: Example[]
+      related: RelatedWords
+    },
+  ]
 }>()
 const settings = useSettings()
 
 const meanings = computed(() => props.result?.meaning.split('\n').filter(Boolean) ?? [])
+const posLabel = (id: string) =>
+  settings.synced.pos[props.lang].find((o) => o.id === id)?.label ?? id
 const posOptions = computed(() =>
-  (props.result?.pos ?? []).map((id) => ({
-    id,
-    label: settings.synced.pos[props.lang].find((o) => o.id === id)?.label ?? id,
-  })),
+  (props.result?.pos ?? []).map((id) => ({ id, label: posLabel(id) })),
 )
+
+// meanings gathered under their part of speech, in order of first appearance; the ones a source
+// gives no part of speech for come last
+const groups = computed(() => {
+  const out: { key: string; label: string; items: { text: string; i: number }[] }[] = []
+  meanings.value.forEach((text, i) => {
+    const ids = props.result?.meaningPos[i] ?? []
+    const label = ids.map((id) => posLabel(id)).join('、')
+    let g = out.find((x) => x.label === label)
+    if (!g) out.push((g = { key: ids.join(','), label, items: [] }))
+    g.items.push({ text, i })
+  })
+  return out.sort((a, b) => +!a.label - +!b.label)
+})
+const grouped = computed(() => groups.value.some((g) => g.label))
 
 const pickedMeanings = ref<number[]>([])
 const pickedPos = ref<string[]>([])
@@ -61,7 +82,13 @@ function apply() {
   const r = props.result
   if (!r) return
   emit('apply', {
-    meanings: meanings.value.filter((_, i) => pickedMeanings.value.includes(i)),
+    // each meaning keeps its own part of speech
+    senses: meanings.value
+      .map((meaning, i) => ({
+        meaning,
+        pos: r.meaningPos[i] ?? [],
+      }))
+      .filter((_, i) => pickedMeanings.value.includes(i)),
     pos: pickedPos.value,
     examples: r.examples.filter((e) => pickedExamples.value.includes(e.id)),
     related: pickedRelated.value,
@@ -80,22 +107,27 @@ function apply() {
         {{ result.warnings.join('\n') }}
       </p>
 
-      <section v-if="meanings.length" class="space-y-2">
-        <h3 class="label">意思</h3>
-        <button
-          v-for="(m, i) in meanings"
-          :key="i"
-          type="button"
-          class="pick"
-          :class="{ 'pick-on': pickedMeanings.includes(i) }"
-          @click="toggle(pickedMeanings, i)"
-        >
-          <span class="pick-box"><Check v-if="pickedMeanings.includes(i)" :size="14" /></span>
-          <span class="flex-1">{{ m }}</span>
-        </button>
+      <section v-if="meanings.length" class="space-y-3">
+        <h3 class="label">詞義</h3>
+        <div v-for="g in groups" :key="g.key" class="space-y-2">
+          <p v-if="grouped" class="text-xs font-bold tracking-[1px] text-muted">
+            {{ g.label || '未分類' }}
+          </p>
+          <button
+            v-for="m in g.items"
+            :key="m.i"
+            type="button"
+            class="pick"
+            :class="{ 'pick-on': pickedMeanings.includes(m.i) }"
+            @click="toggle(pickedMeanings, m.i)"
+          >
+            <span class="pick-box"><Check v-if="pickedMeanings.includes(m.i)" :size="14" /></span>
+            <span class="flex-1">{{ m.text }}</span>
+          </button>
+        </div>
       </section>
 
-      <section v-if="posOptions.length" class="space-y-2">
+      <section v-if="posOptions.length && !grouped" class="space-y-2">
         <h3 class="label">詞性</h3>
         <div class="flex flex-wrap gap-2">
           <button

@@ -156,7 +156,7 @@ export const importPrompt = (posOf: (lang: Lang) => PosOption[]) =>
     "word": "單字",
     "lang": "en",
     "senses": [
-      { "pos": ["詞性"], "meaning": "繁體中文意思" }
+      { "pos": ["詞性"], "meaning": "繁體中文詞義" }
     ],
     "examples": [
       {
@@ -166,7 +166,7 @@ export const importPrompt = (posOf: (lang: Lang) => PosOption[]) =>
       }
     ],
     "derived": [
-      { "word": "衍生字", "pos": ["詞性"], "meaning": "繁體中文意思" }
+      { "word": "衍生字", "pos": ["詞性"], "meaning": "繁體中文詞義" }
     ]
   }
 ]
@@ -174,7 +174,7 @@ export const importPrompt = (posOf: (lang: Lang) => PosOption[]) =>
 ## 欄位說明
 - word：必填。
 - lang：必填，依單字判斷：英文 en、日文 ja、韓文 ko。
-- senses：單字的各個意思，至少一個。同一個單字有不同詞性或不同意思時，各自一組，例如 run → [{ "pos": ["動詞"], "meaning": "跑" }, { "pos": ["名詞"], "meaning": "跑步" }]。
+- senses：單字的各個詞義，至少一個。同一個單字有不同詞性或不同詞義時，各自一組，例如 run → [{ "pos": ["動詞"], "meaning": "跑" }, { "pos": ["名詞"], "meaning": "跑步" }]。
 - senses 的 meaning：必填。
 - senses 的 pos：依 lang 從下列選項選一個或多個，沒有就給空陣列。
 ${LANGS.map(

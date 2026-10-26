@@ -40,9 +40,18 @@ function submit() {
       >
         <form class="card w-full max-w-sm space-y-4 shadow-xl" @submit.prevent="submit">
           <h2 class="text-lg font-bold">{{ ui.dialog.title }}</h2>
-          <p v-if="ui.dialog.message" class="text-sm whitespace-pre-line text-muted">
-            {{ ui.dialog.message }}
-          </p>
+          <!-- the message and the list under it read as one block -->
+          <div v-if="ui.dialog.message || ui.dialog.items?.length" class="space-y-1.5">
+            <p v-if="ui.dialog.message" class="text-sm whitespace-pre-line text-muted">
+              {{ ui.dialog.message }}
+            </p>
+            <ul
+              v-if="ui.dialog.items?.length"
+              class="list-disc space-y-0.5 pl-5 text-sm text-muted"
+            >
+              <li v-for="item in ui.dialog.items" :key="item">{{ item }}</li>
+            </ul>
+          </div>
           <label v-if="ui.dialog.check" class="flex items-start gap-2 text-sm font-medium">
             <input v-model="ui.dialog.check.value" type="checkbox" class="mt-0.5 size-4" />
             {{ ui.dialog.check.label }}

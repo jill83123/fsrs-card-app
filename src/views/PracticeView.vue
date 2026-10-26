@@ -408,8 +408,8 @@ const progress = computed(() => {
           <PillTabs
             v-model="direction"
             :options="[
-              { value: 'forward', label: '單字 → 意思' },
-              { value: 'reverse', label: '意思 → 單字' },
+              { value: 'forward', label: '單字 → 詞義' },
+              { value: 'reverse', label: '詞義 → 單字' },
               { value: 'mixed', label: '混合' },
             ]"
           />
@@ -574,7 +574,7 @@ const progress = computed(() => {
             ref="meaningInput"
             v-model="typedMeaning"
             class="input mb-4 text-center text-lg"
-            placeholder="輸入意思"
+            placeholder="輸入詞義"
             autocomplete="off"
             @keydown.enter.prevent="check"
           />
@@ -597,7 +597,7 @@ const progress = computed(() => {
             <div
               v-for="r in [
                 { label: '單字', text: typed, ok: wordOk },
-                { label: '意思', text: typedMeaning, ok: meaningOk },
+                { label: '詞義', text: typedMeaning, ok: meaningOk },
               ]"
               :key="r.label"
               class="relative px-10"

@@ -10,7 +10,7 @@ import {
   watch,
   type VNode,
 } from 'vue'
-import { Check, ChevronDown } from '@lucide/vue'
+import { Check, ChevronDown, ChevronRight } from '@lucide/vue'
 
 /**
  * A drop-down list in the app's own style, instead of the browser's. Fill it with <option> elements,
@@ -195,7 +195,15 @@ onBeforeUnmount(() => {
       @click="open ? close() : show()"
       @keydown="onKey"
     >
-      <span class="min-w-0 flex-1 truncate">{{ selectedLabel }}</span>
+      <span class="min-w-0 flex-1 truncate">
+        <template v-for="(part, i) in selectedLabel.split(' › ')" :key="i">
+          <ChevronRight
+            v-if="i"
+            :size="14"
+            class="mx-1 inline-block shrink-0 align-[-2px] text-muted"
+          />{{ part }}
+        </template>
+      </span>
     </button>
     <ChevronDown
       :size="18"

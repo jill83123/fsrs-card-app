@@ -232,7 +232,7 @@ button:disabled {
 
 /* Discord-like spoiler */
 .spoiler {
-  background: var(--ink);
+  background: var(--primary);
   color: transparent;
   border-radius: 4px;
   padding: 0 0.15em;
@@ -246,9 +246,8 @@ button:disabled {
   visibility: hidden;
 }
 .spoiler.revealed {
-  background: color-mix(in oklab, var(--ink) 12%, transparent);
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
   color: inherit;
-  cursor: text;
   user-select: auto;
 }
 .spoiler.revealed * {

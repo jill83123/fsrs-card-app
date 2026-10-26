@@ -22,7 +22,8 @@ const ui = useUi()
 
 const text = ref('')
 watch(open, (v) => {
-  if (v) text.value = ''
+  if (!v) return
+  text.value = ''
 })
 
 const deckLang = () =>
@@ -64,6 +65,25 @@ const refill = computed(() =>
     return c && !c.derived?.length ? [{ card: c, derived: r.derived }] : []
   }),
 )
+const dupKey = (s: string) => s.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
+
+/** Words that would be imported but already exist in another deck (archived and deleted ones do not count). */
+const elsewhere = computed(() => {
+  const byKey = new Map<string, string[]>()
+  for (const c of data.cards) {
+    if (c.deckId === props.deckId) continue
+    const key = dupKey(c.type === 'basic' ? c.front : c.word)
+    const name = data.nodeById.get(c.deckId)?.name
+    if (!key || !name) continue
+    const list = byKey.get(key) ?? []
+    if (!list.includes(name)) list.push(name)
+    byKey.set(key, list)
+  }
+  return fresh.value.flatMap((r) => {
+    const decks = byKey.get(dupKey(r.word))
+    return decks ? [{ text: r.word, note: decks.join('、') }] : []
+  })
+})
 const unknownPos = computed(() => [...new Set(fresh.value.flatMap((r) => r.unknownPos))])
 
 async function copyPrompt() {
@@ -101,6 +121,30 @@ async function fillReadings(ids: string[]) {
 }
 
 async function run() {
+  // nothing to import: say why instead of leaving the button dead
+  if (!fresh.value.length && !refill.value.length) {
+    const why = [
+      dupCount.value && `${dupCount.value} 筆單字已在此牌組，會略過。`,
+      parsed.value.result?.skipped && `${parsed.value.result.skipped} 筆缺少單字或詞義，會略過。`,
+    ].filter(Boolean)
+    await ui.confirm('沒有可匯入的卡片', { message: why.join('\n'), confirmText: '知道了' })
+    return
+  }
+  // what the import leaves out or adds besides the new cards is told before it starts
+  const notes = [
+    dupCount.value && `${dupCount.value} 筆單字已在此牌組，會略過。`,
+    refill.value.length && `其中 ${refill.value.length} 張會補上衍生字。`,
+    elsewhere.value.length && `其他牌組已有 ${elsewhere.value.length} 個相同單字：`,
+  ].filter(Boolean)
+  if (
+    notes.length &&
+    !(await ui.confirm('匯入前確認', {
+      message: notes.join('\n'),
+      items: elsewhere.value.map((d) => `${d.text}（${d.note}）`),
+      confirmText: '匯入',
+    }))
+  )
+    return
   const base = Date.now()
   const cards = fresh.value.map((r, i) => {
     const c = newVocabCard(props.deckId, r.lang, r.word)
@@ -145,9 +189,9 @@ async function run() {
   <BottomSheet v-model="open" title="匯入單字">
     <div class="space-y-4">
       <div>
-        <div class="mb-1.5 flex items-center justify-between">
+        <div class="mb-1 flex items-end justify-between">
           <p class="text-sm font-medium">AI 整理的內容</p>
-          <div class="flex gap-1">
+          <div class="mb-0.5 flex gap-1">
             <button type="button" class="btn btn-ghost btn-sm" @click="copyPrompt">
               <Copy :size="14" /> 複製提示詞
             </button>
@@ -165,31 +209,22 @@ async function run() {
         <ul class="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
           <li>把圖片和提示詞交給 AI，再貼上它的回覆。</li>
           <li>語言、詞性與例句標記由 AI 判斷，不一定每項都有。</li>
-          <li>只有單字和意思是必填。</li>
+          <li>只有單字和詞義是必填。</li>
         </ul>
       </div>
 
       <p v-if="parsed.error" class="text-sm text-danger">{{ parsed.error }}</p>
       <div v-else-if="parsed.result" class="space-y-0.5 text-sm">
-        <p>
-          將匯入 <b>{{ fresh.length }}</b> 張卡片
-        </p>
-        <p v-if="dupCount" class="text-muted">{{ dupCount }} 筆單字已在此牌組，會略過</p>
-        <p v-if="refill.length" class="text-muted">其中 {{ refill.length }} 張會補上衍生字</p>
         <p v-if="parsed.result.skipped" class="text-muted">
-          {{ parsed.result.skipped }} 筆缺少單字或意思，會略過
+          {{ parsed.result.skipped }} 筆缺少單字或詞義，會略過
         </p>
         <p v-if="unknownPos.length" class="text-muted">
           找不到對應的詞性（不會設定）：{{ unknownPos.join('、') }}
         </p>
       </div>
 
-      <button
-        class="btn btn-primary w-full"
-        :disabled="!fresh.length && !refill.length"
-        @click="run"
-      >
-        匯入
+      <button class="btn btn-primary w-full" :disabled="!parsed.result" @click="run">
+        {{ fresh.length ? `匯入 ${fresh.length} 張卡片` : '匯入' }}
       </button>
     </div>
   </BottomSheet>

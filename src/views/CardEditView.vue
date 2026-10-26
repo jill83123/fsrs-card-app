@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { BookOpen, Eye, GripVertical, Highlighter, Plus, Sparkles, Trash2, X } from '@lucide/vue'
+import {
+  BookOpen,
+  Eye,
+  GripVertical,
+  Highlighter,
+  Plus,
+  Sparkles,
+  Trash2,
+  TriangleAlert,
+  X,
+} from '@lucide/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PillTabs from '@/components/PillTabs.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
@@ -79,7 +89,7 @@ const stubs = ref<VocabCard[]>([])
 const relEditor = ref<InstanceType<typeof RelationEditor> | null>(null)
 
 async function applyDict(picked: {
-  meanings: string[]
+  senses: { meaning: string; pos: string[] }[]
   pos: string[]
   examples: Example[]
   related: RelatedWords
@@ -89,14 +99,17 @@ async function applyDict(picked: {
   const known = new Set(settings.synced.pos[v.lang].map((o) => o.id))
   const pos = picked.pos.filter((p) => known.has(p))
   const senses = (v.senses ??= [])
-  if (picked.meanings.length) {
-    // fill the empty first meaning, otherwise add the dictionary's as one more
-    const text = picked.meanings.join('\n')
+  if (picked.senses.length) {
+    // one meaning each; a lone meaning without its own part of speech takes the picked ones
+    const lone = picked.senses.length === 1
+    const added = picked.senses.map((s) => {
+      const own = s.pos.filter((p) => known.has(p))
+      return { id: uid(), pos: own.length || !lone ? own : pos, meaning: s.meaning }
+    })
+    // replace the empty first meaning, otherwise add the dictionary's after the existing ones
     const first = senses[0]
-    if (senses.length === 1 && first && !first.meaning.trim() && !first.pos.length) {
-      first.meaning = text
-      first.pos = pos
-    } else senses.push({ id: uid(), pos, meaning: text })
+    if (senses.length === 1 && first && !first.meaning.trim() && !first.pos.length) senses.shift()
+    senses.push(...added)
   } else if (senses[0]) {
     for (const p of pos) if (!senses[0].pos.includes(p)) senses[0].pos.push(p)
   }
@@ -191,7 +204,7 @@ const missing = computed(() => {
     if (!c.back.trim()) m.push('反面')
   } else {
     if (!c.word.trim()) m.push('單字')
-    if (!c.senses?.some((x) => x.meaning.trim())) m.push('意思')
+    if (!c.senses?.some((x) => x.meaning.trim())) m.push('詞義')
   }
   return m
 })
@@ -199,6 +212,20 @@ const missing = computed(() => {
 const frontEmpty = computed(() => {
   const c = card.value
   return !c || (c.type === 'basic' ? !c.front.trim() : !c.word.trim())
+})
+
+const dupKey = (s: string) => s.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
+
+/** Other cards (not archived or deleted) whose word / question is the same as what is being typed. */
+const duplicates = computed(() => {
+  const c = card.value
+  if (!c) return []
+  const key = dupKey(c.type === 'basic' ? c.front : c.word)
+  if (!key) return []
+  return data.cards
+    .filter((o) => o.id !== c.id && dupKey(o.type === 'basic' ? o.front : o.word) === key)
+    .slice(0, 5)
+    .map((o) => ({ id: o.id, text: data.nodeById.get(o.deckId)?.name ?? '' }))
 })
 
 function togglePos(sense: Sense, id: string) {
@@ -288,12 +315,26 @@ async function fillReading(id: string, word: string, lang: Lang) {
   }
 }
 
+const frontOf = (c: Card) => (c.type === 'basic' ? c.front : c.word)
+
+/** Ask before saving a card whose word / question already exists; an edit that leaves it alone is not asked. */
+async function confirmDuplicates() {
+  const before = original.value ? (JSON.parse(original.value) as Card) : null
+  if (editingId.value && before && dupKey(frontOf(before)) === dupKey(frontOf(card.value!)))
+    return true
+  return ui.confirm('已有相同的卡片', {
+    items: duplicates.value.map((d) => d.text),
+    confirmText: '仍要儲存',
+  })
+}
+
 async function save(next = false) {
   const c = card.value
   if (!c) return
   if (!c.deckId || !data.nodeById.get(c.deckId)) return ui.toast('請選擇牌組', 'error')
   if (frontEmpty.value)
     return ui.toast(c.type === 'basic' ? '至少要填寫正面' : '至少要填寫單字', 'error')
+  if (duplicates.value.length && !(await confirmDuplicates())) return
   if (c.type === 'vocab') {
     applySenses(c, c.senses ?? [])
     c.examples = c.examples.filter((e) => e.sentence.trim() || e.translation.trim())
@@ -356,15 +397,6 @@ const previewRevealed = ref(false)
     </PageHeader>
 
     <div class="space-y-6">
-      <PillTabs
-        v-if="!editingId"
-        v-model="typeModel"
-        :options="[
-          { value: 'basic', label: '正反卡' },
-          { value: 'vocab', label: '單字卡' },
-        ]"
-      />
-
       <div>
         <label class="section-label">牌組</label>
         <SelectBox v-model="card.deckId">
@@ -380,6 +412,17 @@ const previewRevealed = ref(false)
             {{ d.name }}
           </option>
         </SelectBox>
+      </div>
+
+      <div v-if="!editingId">
+        <label class="section-label">卡片類型</label>
+        <PillTabs
+          v-model="typeModel"
+          :options="[
+            { value: 'basic', label: '正反卡' },
+            { value: 'vocab', label: '單字卡' },
+          ]"
+        />
       </div>
 
       <!-- basic -->
@@ -521,7 +564,7 @@ const previewRevealed = ref(false)
                 v-autosize
                 rows="1"
                 class="input resize-none overflow-hidden"
-                placeholder="這個詞性的意思"
+                placeholder="這個詞性的詞義"
               />
             </div>
             <button type="button" class="btn btn-ghost w-full" @click="addSense">
@@ -658,7 +701,7 @@ const previewRevealed = ref(false)
               </div>
               <div class="flex gap-2">
                 <input v-model="d.pos" class="input w-24 shrink-0" placeholder="詞性" />
-                <input v-model="d.meaning" class="input min-w-0 flex-1" placeholder="意思" />
+                <input v-model="d.meaning" class="input min-w-0 flex-1" placeholder="詞義" />
               </div>
             </div>
             <button type="button" class="btn btn-ghost w-full" @click="addDerived">
@@ -679,9 +722,12 @@ const previewRevealed = ref(false)
         </div>
       </template>
 
-      <div v-if="missing.length" class="space-y-0.5 rounded-2xl bg-warn/15 px-4 py-3 text-sm">
-        <p class="font-semibold">尚未填寫：{{ missing.join('、') }}</p>
-        <p>可以先儲存，卡片會標示為「未完成」，補齊後才會進入學習。</p>
+      <div v-if="missing.length" class="flex gap-2.5 rounded-2xl bg-warn/15 px-4 py-3 text-sm">
+        <TriangleAlert :size="16" class="mt-0.5 shrink-0 text-warn" />
+        <div class="space-y-0.5">
+          <p class="font-semibold">尚未填寫：{{ missing.join('、') }}</p>
+          <p>可以先儲存，卡片會標示為「未完成」，補齊後才會進入學習。</p>
+        </div>
       </div>
 
       <!-- the main action is the wide button; the extras sit side by side under it -->

@@ -151,8 +151,8 @@ const sideLabel = (sides: Side[]) =>
           :model-value="pick.side"
           :options="[
             { value: 'all', label: '全部' },
-            { value: 'f', label: '單字 → 意思' },
-            { value: 'r', label: '意思 → 單字' },
+            { value: 'f', label: '單字 → 詞義' },
+            { value: 'r', label: '詞義 → 單字' },
           ]"
           @update:model-value="setSide($event as NewPick['side'])"
         />

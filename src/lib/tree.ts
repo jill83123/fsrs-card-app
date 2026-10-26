@@ -8,7 +8,7 @@ export function childrenOf(nodes: TreeNode[], parentId: string | null): TreeNode
 
 export interface DeckRow {
   node: TreeNode
-  /** names from the top-most deck down to this one, joined with " / " */
+  /** names from the top-most deck down to this one, joined with " › " */
   path: string
   /**
    * The branches to draw before the name, one character per level: │ a line goes on past this level,
@@ -28,7 +28,7 @@ export function deckRows(nodes: TreeNode[], skip?: (n: TreeNode) => boolean): De
       const here = [...path, n.name]
       rows.push({
         node: n,
-        path: here.join(' / '),
+        path: here.join(' › '),
         tree: parentId ? guides + (last ? '└' : '├') : '',
       })
       walk(n.id, parentId ? guides + (last ? ' ' : '│') : '', here)

@@ -315,8 +315,8 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
           :text="card.word"
           :lang="card.lang"
           :reading="card.reading"
-          :size="16"
-          class="absolute top-[11px] right-[11px]"
+          :size="18"
+          class="absolute top-[10px] right-[10px]"
         />
         <!-- arrows sit inside the card on both sides, level with the divider in the middle -->
         <template v-if="browseIndex >= 0">

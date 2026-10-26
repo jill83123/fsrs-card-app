@@ -16,6 +16,8 @@ export interface DictResult {
   meaning: string
   /** default part-of-speech ids */
   pos: string[]
+  /** the part of speech of each line of `meaning` (same order); empty when the source does not say */
+  meaningPos: string[][]
   examples: Example[]
   /** synonyms, antonyms and derived words from English Wiktionary (empty when unavailable) */
   related: RelatedWords
@@ -161,6 +163,7 @@ function mapPos(lang: Lang, heading: string, word: string): string | null {
 function parseEnglishWiki(entries: WikiEntry[], lang: Lang, w: string) {
   const pos: string[] = []
   const glosses: string[] = []
+  const glossPos: string[][] = []
   const exSources: { sentence: string; english: string }[] = []
   for (const e of entries) {
     const p = mapPos(lang, e.partOfSpeech, w)
@@ -175,8 +178,10 @@ function parseEnglishWiki(entries: WikiEntry[], lang: Lang, w: string) {
         !JUNK_GLOSS.test(text) &&
         !glosses.includes(gloss) &&
         glosses.length < MAX_SENSES
-      )
+      ) {
         glosses.push(gloss)
+        glossPos.push(p ? [p] : [])
+      }
       for (const x of d.parsedExamples ?? []) {
         const sentence = plain(x.example ?? '')
         if (!sentence || exSources.length >= MAX_EXAMPLES) continue
@@ -187,12 +192,16 @@ function parseEnglishWiki(entries: WikiEntry[], lang: Lang, w: string) {
       }
     }
   }
-  return { pos: pos.slice(0, 2), glosses, exSources }
+  return { pos: pos.slice(0, 2), glosses, glossPos, exSources }
 }
 
 /** Last-resort pipeline: English Wiktionary glosses translated by MyMemory. */
 async function viaEnglishWiktionary(w: string, lang: Lang): Promise<Found | null> {
-  const { pos, glosses, exSources } = parseEnglishWiki(await fetchEntries(w, lang), lang, w)
+  const { pos, glosses, glossPos, exSources } = parseEnglishWiki(
+    await fetchEntries(w, lang),
+    lang,
+    w,
+  )
   if (!glosses.length) return null
   const [zhGlosses, zhExamples] = await Promise.all([
     Promise.all(glosses.map(translate)),
@@ -211,12 +220,13 @@ async function viaEnglishWiktionary(w: string, lang: Lang): Promise<Found | null
       })
       .join('\n'),
     pos,
+    meaningPos: glossPos,
     examples: exSources.map((x, i) => ({
       id: uid(),
       sentence: x.sentence,
       translation: zhExamples[i] ?? x.english,
     })),
-    sources: ['意思、例句：英文版 Wiktionary', '中文翻譯：MyMemory 機器翻譯'],
+    sources: ['詞義、例句：英文版 Wiktionary', '中文翻譯：MyMemory 機器翻譯'],
   }
 }
 
@@ -263,10 +273,25 @@ const EN_POS_NAMES: Record<string, number> = {
   conjunction: 6,
   exclamation: 7,
   interjection: 7,
+  // Google names the parts of speech in the target language
+  名詞: 0,
+  動詞: 1,
+  形容詞: 2,
+  副詞: 3,
+  代名詞: 4,
+  代詞: 4,
+  介系詞: 5,
+  介詞: 5,
+  連接詞: 6,
+  連詞: 6,
+  感嘆詞: 7,
+  嘆詞: 7,
 }
 
 /** Chinese senses by part of speech from Google's dictionary data. Throws when the service is down. */
-async function googleDict(w: string): Promise<{ lines: string[]; pos: string[] } | null> {
+async function googleDict(
+  w: string,
+): Promise<{ lines: string[]; linePos: string[][]; pos: string[] } | null> {
   const res = await fetch(`${gtxUrl('en')}&dt=bd&q=${encodeURIComponent(w)}`)
   if (!res.ok) throw new Error(`google ${res.status}`)
   const d = (await res.json()) as GtxData
@@ -275,6 +300,7 @@ async function googleDict(w: string): Promise<{ lines: string[]; pos: string[] }
     .join('')
     .trim()
   const lines: string[] = []
+  const linePos: string[][] = []
   const pos: string[] = []
   const key = w.toLowerCase()
   for (const [name, , detail] of d[1] ?? []) {
@@ -286,11 +312,12 @@ async function googleDict(w: string): Promise<{ lines: string[]; pos: string[] }
     lines.push(words.slice(0, 3).join('；'))
     const n = EN_POS_NAMES[name.toLowerCase()]
     const id = n === undefined ? null : DEFAULT_POS.en[n]?.id
+    linePos.push(id ? [id] : [])
     if (id && !pos.includes(id)) pos.push(id)
   }
   if (main && main.toLowerCase() !== key && !lines.some((l) => l.split('；').includes(main)))
-    lines.unshift(main)
-  return lines.length ? { lines: lines.slice(0, 4), pos } : null
+    (lines.unshift(main), linePos.unshift([]))
+  return lines.length ? { lines: lines.slice(0, 4), linePos: linePos.slice(0, 4), pos } : null
 }
 
 async function lookupEnglish(w: string, warnings: string[]): Promise<Found | null> {
@@ -306,9 +333,10 @@ async function lookupEnglish(w: string, warnings: string[]): Promise<Found | nul
     return {
       meaning: g.value.lines.join('\n'),
       pos: pos.slice(0, 2),
+      meaningPos: g.value.linePos,
       examples: sources.map((x, i) => ({ id: uid(), sentence: x.sentence, translation: zh[i]! })),
       sources: [
-        '意思、詞性：Google 翻譯詞典',
+        '詞義、詞性：Google 翻譯詞典',
         ...(sources.length ? ['例句：英文版 Wiktionary（翻譯由機器翻譯產生）'] : []),
       ],
     }
@@ -319,7 +347,7 @@ async function lookupEnglish(w: string, warnings: string[]): Promise<Found | nul
 
   if (wk.status === 'rejected') throw new Error('all sources failed')
   const fallback = await viaEnglishWiktionary(w, 'en').catch(() => null)
-  if (fallback) warnings.push('意思由英文字典＋機器翻譯產生，可能較不精準')
+  if (fallback) warnings.push('詞義由英文字典＋機器翻譯產生，可能較不精準')
   return fallback
 }
 
@@ -438,6 +466,7 @@ async function zhWiktionary(w: string, lang: 'ja' | 'ko'): Promise<Found | null>
   let headline = ''
   const pos: string[] = []
   const senses: string[] = []
+  const sensePos: string[][] = []
   const examples: { sentence: string; translation: string }[] = []
   for (const el of root.children) {
     const h = el.matches('h2, h3, h4, h5')
@@ -461,7 +490,10 @@ async function zhWiktionary(w: string, lang: 'ja' | 'ko'): Promise<Found | null>
       const c = stripRuby(li)
       c.querySelectorAll('dl, ul, ol').forEach((n) => n.remove())
       const def = textOf(c)
-      if (def && senses.length < 4) senses.push(def)
+      if (def && senses.length < 4) {
+        senses.push(def)
+        sensePos.push(p ? [p] : [])
+      }
       for (const x of zhExamples(li)) if (examples.length < MAX_EXAMPLES) examples.push(x)
     }
   }
@@ -469,8 +501,9 @@ async function zhWiktionary(w: string, lang: 'ja' | 'ko'): Promise<Found | null>
   return {
     meaning: senses.join('\n'),
     pos: pos.slice(0, 2),
+    meaningPos: sensePos,
     examples: examples.map((x) => ({ id: uid(), ...x })),
-    sources: ['意思、詞性、例句：中文版 Wiktionary'],
+    sources: ['詞義、詞性、例句：中文版 Wiktionary'],
   }
 }
 
@@ -557,13 +590,15 @@ export async function lookupWord(word: string, lang: Lang): Promise<DictResult |
           .split('\n')
           .filter(Boolean)
           .map((l) => [...new Set(l.split('，'))].join('，'))
-        if (google && !lines.includes(google)) lines.unshift(google)
+        const linePos = [...(english?.meaningPos ?? [])]
+        if (google && !lines.includes(google)) (lines.unshift(google), linePos.unshift([]))
         result = {
           meaning: lines.join('\n'),
           pos: english?.pos ?? [],
+          meaningPos: linePos,
           examples: english?.examples ?? [],
           sources: [
-            ...(google ? ['意思：Google 翻譯（機器翻譯）'] : []),
+            ...(google ? ['詞義：Google 翻譯（機器翻譯）'] : []),
             ...(english?.sources ?? []),
           ],
         }

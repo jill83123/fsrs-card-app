@@ -247,7 +247,7 @@ async function save() {
 
       <div class="card space-y-2">
         <div class="flex items-center justify-between gap-3">
-          <span class="min-w-0 text-sm font-semibold">反向學習（意思 → 單字）</span>
+          <span class="min-w-0 text-sm font-semibold">反向學習（詞義 → 單字）</span>
           <ToggleSwitch v-if="!form.parentId" v-model="form.reverse" label="反向學習" />
         </div>
         <!-- a sub-deck chooses between following its parent and its own on / off -->
