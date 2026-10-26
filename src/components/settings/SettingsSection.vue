@@ -20,7 +20,12 @@ const route = useRoute()
 const open = ref(route.hash === `#${props.id}`)
 
 async function reset() {
-  if (await ui.confirm(`將「${props.title}」還原為預設值？`, { confirmText: '還原' })) {
+  if (
+    await ui.confirm(`將「${props.title}」還原為預設值？`, {
+      message: '這個區塊的設定會回到預設值，卡片與複習紀錄不受影響。',
+      confirmText: '還原',
+    })
+  ) {
     emit('reset')
     ui.toast('已還原預設', 'success')
   }

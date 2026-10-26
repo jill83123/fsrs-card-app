@@ -323,6 +323,7 @@ async function confirmDuplicates() {
   if (editingId.value && before && dupKey(frontOf(before)) === dupKey(frontOf(card.value!)))
     return true
   return ui.confirm('已有相同的卡片', {
+    message: '儲存後會多出一張重複的卡片，之後可以再手動刪除。',
     items: duplicates.value.map((d) => d.text),
     confirmText: '仍要儲存',
   })
@@ -380,7 +381,11 @@ async function save(next = false) {
 
 onBeforeRouteLeave(async () => {
   if (saved || !dirty.value) return true
-  return ui.confirm('放棄尚未儲存的變更？', { confirmText: '放棄', danger: true })
+  return ui.confirm('放棄尚未儲存的變更？', {
+    message: '這次編輯的內容不會被儲存，也無法復原。',
+    confirmText: '放棄',
+    danger: true,
+  })
 })
 
 const showPreview = ref(false)

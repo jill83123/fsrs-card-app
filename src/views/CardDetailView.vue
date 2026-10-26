@@ -190,7 +190,12 @@ async function regenSpeech() {
 }
 async function remove() {
   if (!card.value) return
-  if (!(await ui.confirm('刪除這張卡片？', { danger: true, confirmText: '刪除' }))) return
+  const ok = await ui.confirm('刪除這張卡片？', {
+    message: '刪除後無法復原，複習紀錄也會一併失去作用。',
+    danger: true,
+    confirmText: '刪除',
+  })
+  if (!ok) return
   const deck = card.value.deckId
   await data.patchCards([card.value.id], { deleted: true })
   router.replace(`/node/${deck}`)

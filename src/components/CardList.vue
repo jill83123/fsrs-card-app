@@ -228,7 +228,7 @@ async function remove() {
     !(await ui.confirm(`刪除 ${ids.length} 張卡片？`, {
       danger: true,
       confirmText: '刪除',
-      message: '複習紀錄也會一併失去作用。',
+      message: '刪除後無法復原，複習紀錄也會一併失去作用。',
     }))
   )
     return
