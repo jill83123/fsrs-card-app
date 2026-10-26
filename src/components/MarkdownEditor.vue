@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Bold,
   Code,
@@ -17,11 +17,9 @@ import {
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view'
 import { continueList, liveMarkdown } from '@/lib/liveMarkdown'
-import MarkdownView from './MarkdownView.vue'
 
 const props = defineProps<{ placeholder?: string; rows?: number; label?: string }>()
 const model = defineModel<string>({ required: true })
-const preview = ref(false)
 const host = ref<HTMLElement>()
 let view: EditorView | undefined
 
@@ -73,7 +71,6 @@ watch(model, (v) => {
   if (view && v !== view.state.doc.toString())
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } })
 })
-watch(preview, () => nextTick(measureTools))
 
 type Action =
   { kind: 'wrap'; before: string; after: string; sample: string } | { kind: 'line'; prefix: string }
@@ -278,57 +275,35 @@ function apply(a: Action) {
 
 <template>
   <div>
-    <!-- the label and the edit / preview switch share a line above the box, so the toolbar inside gets the whole row -->
-    <div class="mb-1.5 flex items-center gap-1">
-      <span class="mr-auto text-sm font-semibold text-ink/65">{{ label }}</span>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1 text-xs font-semibold"
-        :class="!preview ? 'bg-primary text-white' : 'text-muted'"
-        @click="preview = false"
-      >
-        編輯
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2.5 py-1 text-xs font-semibold"
-        :class="preview ? 'bg-primary text-white' : 'text-muted'"
-        @click="preview = true"
-      >
-        預覽
-      </button>
-    </div>
+    <span class="mb-1.5 block text-sm font-semibold text-ink/65">{{ label }}</span>
     <div
       class="overflow-hidden rounded-2xl border border-line bg-surface focus-within:border-primary"
     >
-      <!-- hidden (not removed) in preview, so the size watcher keeps its element -->
-      <div v-show="!preview" class="flex items-center border-b border-line px-2 py-1.5">
+      <div class="flex items-center border-b border-line px-2 py-1.5">
         <div class="relative min-w-0 flex-1">
           <div
             ref="toolbar"
             class="scrollbar-none flex items-center gap-0.5 overflow-x-auto"
             @scroll.passive="measureTools"
           >
-            <template v-if="!preview">
-              <button
-                v-for="t in tools"
-                :key="t.title"
-                type="button"
-                class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg"
-                :class="
-                  active[tools.indexOf(t)]
-                    ? 'bg-primary-soft text-primary-strong'
-                    : 'text-muted hover:bg-surface-2 hover:text-ink'
-                "
-                :aria-pressed="active[tools.indexOf(t)]"
-                :title="t.title"
-                :aria-label="t.title"
-                @mousedown.prevent
-                @click="apply(t.action)"
-              >
-                <component :is="t.icon" :size="16" />
-              </button>
-            </template>
+            <button
+              v-for="t in tools"
+              :key="t.title"
+              type="button"
+              class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg"
+              :class="
+                active[tools.indexOf(t)]
+                  ? 'bg-primary-soft text-primary-strong'
+                  : 'text-muted hover:bg-surface-2 hover:text-ink'
+              "
+              :aria-pressed="active[tools.indexOf(t)]"
+              :title="t.title"
+              :aria-label="t.title"
+              @mousedown.prevent
+              @click="apply(t.action)"
+            >
+              <component :is="t.icon" :size="16" />
+            </button>
           </div>
           <div
             class="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-surface to-transparent transition-opacity"
@@ -342,16 +317,7 @@ function apply(a: Action) {
           />
         </div>
       </div>
-      <div
-        v-show="!preview"
-        ref="host"
-        class="md-editor px-4 py-3 text-ink"
-        :style="{ '--rows': rows ?? 4 }"
-      />
-      <div v-if="preview" class="min-h-24 px-4 py-3">
-        <MarkdownView v-if="model.trim()" :source="model" />
-        <p v-else class="text-muted">（沒有內容）</p>
-      </div>
+      <div ref="host" class="md-editor px-4 py-3 text-ink" :style="{ '--rows': rows ?? 4 }" />
     </div>
   </div>
 </template>
@@ -406,8 +372,12 @@ function apply(a: Action) {
   color: var(--primary);
 }
 .md-editor .cm-md-spoiler {
-  background: color-mix(in oklab, var(--ink) 12%, transparent);
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
   border-radius: 4px;
+}
+.md-editor .cm-md-covered {
+  background: var(--primary);
+  color: transparent;
 }
 .md-editor .cm-md-code {
   background: var(--surface-2);

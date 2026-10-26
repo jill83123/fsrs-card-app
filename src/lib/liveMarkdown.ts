@@ -110,7 +110,14 @@ function build(view: EditorView): { deco: DecorationSet; atomic: DecorationSet }
         const on = touches(from, to)
         sign(from, from + len, on)
         sign(to - len, to, on)
-        out.push(Decoration.mark({ class: cls }).range(from + len, to - len))
+        // a spoiler stays covered until the cursor comes into it
+        const covered = cls === 'cm-md-spoiler' && !on
+        out.push(
+          Decoration.mark({ class: covered ? `${cls} cm-md-covered` : cls }).range(
+            from + len,
+            to - len,
+          ),
+        )
       }
     }
   }

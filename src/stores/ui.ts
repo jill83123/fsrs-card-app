@@ -11,6 +11,8 @@ export interface Toast {
 export interface DialogState {
   title: string
   message?: string
+  /** shown as a bulleted list under the message */
+  items?: string[]
   confirmText: string
   cancelText: string
   danger: boolean
@@ -37,12 +39,13 @@ export const useUi = defineStore('ui', () => {
 
   function confirm(
     title: string,
-    opts: { message?: string; confirmText?: string; danger?: boolean } = {},
+    opts: { message?: string; items?: string[]; confirmText?: string; danger?: boolean } = {},
   ): Promise<boolean> {
     return new Promise((resolve) => {
       dialog.value = {
         title,
         message: opts.message,
+        items: opts.items,
         confirmText: opts.confirmText ?? '確定',
         cancelText: '取消',
         danger: opts.danger ?? false,

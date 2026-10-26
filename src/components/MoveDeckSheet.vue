@@ -17,7 +17,7 @@ const targets = computed(() =>
       id: n.id,
       label: pathTo(data.nodes, n.id)
         .map((x) => x.name)
-        .join(' / '),
+        .join(' › '),
     })),
 )
 </script>
