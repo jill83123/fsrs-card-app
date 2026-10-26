@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
+import { Check } from '@lucide/vue'
 import { useUi } from '@/stores/ui'
 
 const ui = useUi()
@@ -39,21 +40,27 @@ function submit() {
         @keydown.esc="ui.closeDialog(null)"
       >
         <form class="card w-full max-w-sm space-y-4 shadow-xl" @submit.prevent="submit">
-          <h2 class="text-lg font-bold">{{ ui.dialog.title }}</h2>
-          <!-- the message and the list under it read as one block -->
-          <div v-if="ui.dialog.message || ui.dialog.items?.length" class="space-y-1.5">
-            <p v-if="ui.dialog.message" class="text-sm whitespace-pre-line text-muted">
-              {{ ui.dialog.message }}
-            </p>
-            <ul
-              v-if="ui.dialog.items?.length"
-              class="list-disc space-y-0.5 pl-5 text-sm text-muted"
+          <!-- the title, the message (one paragraph per line) and the list under it read as one block -->
+          <div class="space-y-2.5">
+            <h2 class="text-lg font-bold">{{ ui.dialog.title }}</h2>
+            <div
+              v-if="ui.dialog.message || ui.dialog.items?.length"
+              class="space-y-2 text-sm text-muted"
             >
-              <li v-for="item in ui.dialog.items" :key="item">{{ item }}</li>
-            </ul>
+              <p v-for="(line, i) in ui.dialog.message?.split('\n')" :key="i">{{ line }}</p>
+              <ul v-if="ui.dialog.items?.length" class="list-disc space-y-0.5 pl-5">
+                <li v-for="item in ui.dialog.items" :key="item">{{ item }}</li>
+              </ul>
+            </div>
           </div>
-          <label v-if="ui.dialog.check" class="flex items-start gap-2 text-sm font-medium">
-            <input v-model="ui.dialog.check.value" type="checkbox" class="mt-0.5 size-4" />
+          <label
+            v-if="ui.dialog.check"
+            class="-mt-1.5 flex cursor-pointer items-center gap-2.5 text-sm font-medium"
+          >
+            <span class="relative inline-flex shrink-0">
+              <input v-model="ui.dialog.check.value" type="checkbox" class="check peer" />
+              <Check class="check-icon" :stroke-width="3" />
+            </span>
             {{ ui.dialog.check.label }}
           </label>
           <input

@@ -8,30 +8,118 @@
 const ONSET = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'.split('')
 const VOWEL = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ'.split('')
 const CODA = [
-  '', 'ㄱ', 'ㄲ', 'ㄱㅅ', 'ㄴ', 'ㄴㅈ', 'ㄴㅎ', 'ㄷ', 'ㄹ', 'ㄹㄱ', 'ㄹㅁ', 'ㄹㅂ', 'ㄹㅅ', 'ㄹㅌ',
-  'ㄹㅍ', 'ㄹㅎ', 'ㅁ', 'ㅂ', 'ㅂㅅ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ',
+  '',
+  'ㄱ',
+  'ㄲ',
+  'ㄱㅅ',
+  'ㄴ',
+  'ㄴㅈ',
+  'ㄴㅎ',
+  'ㄷ',
+  'ㄹ',
+  'ㄹㄱ',
+  'ㄹㅁ',
+  'ㄹㅂ',
+  'ㄹㅅ',
+  'ㄹㅌ',
+  'ㄹㅍ',
+  'ㄹㅎ',
+  'ㅁ',
+  'ㅂ',
+  'ㅂㅅ',
+  'ㅅ',
+  'ㅆ',
+  'ㅇ',
+  'ㅈ',
+  'ㅊ',
+  'ㅋ',
+  'ㅌ',
+  'ㅍ',
+  'ㅎ',
 ]
 
 const R_ONSET: Record<string, string> = {
-  ㄱ: 'g', ㄲ: 'kk', ㄴ: 'n', ㄷ: 'd', ㄸ: 'tt', ㅁ: 'm', ㅂ: 'b', ㅃ: 'pp', ㅅ: 's', ㅆ: 'ss',
-  ㅇ: '', ㅈ: 'j', ㅉ: 'jj', ㅊ: 'ch', ㅋ: 'k', ㅌ: 't', ㅍ: 'p', ㅎ: 'h',
+  ㄱ: 'g',
+  ㄲ: 'kk',
+  ㄴ: 'n',
+  ㄷ: 'd',
+  ㄸ: 'tt',
+  ㅁ: 'm',
+  ㅂ: 'b',
+  ㅃ: 'pp',
+  ㅅ: 's',
+  ㅆ: 'ss',
+  ㅇ: '',
+  ㅈ: 'j',
+  ㅉ: 'jj',
+  ㅊ: 'ch',
+  ㅋ: 'k',
+  ㅌ: 't',
+  ㅍ: 'p',
+  ㅎ: 'h',
 }
 const R_VOWEL = [
-  'a', 'ae', 'ya', 'yae', 'eo', 'e', 'yeo', 'ye', 'o', 'wa', 'wae', 'oe', 'yo', 'u', 'wo', 'we',
-  'wi', 'yu', 'eu', 'ui', 'i',
+  'a',
+  'ae',
+  'ya',
+  'yae',
+  'eo',
+  'e',
+  'yeo',
+  'ye',
+  'o',
+  'wa',
+  'wae',
+  'oe',
+  'yo',
+  'u',
+  'wo',
+  'we',
+  'wi',
+  'yu',
+  'eu',
+  'ui',
+  'i',
 ]
 // a coda is read as one of seven sounds
 const R_CODA: Record<string, string> = {
-  ㄱ: 'k', ㄴ: 'n', ㄷ: 't', ㄹ: 'l', ㅁ: 'm', ㅂ: 'p', ㅇ: 'ng',
+  ㄱ: 'k',
+  ㄴ: 'n',
+  ㄷ: 't',
+  ㄹ: 'l',
+  ㅁ: 'm',
+  ㅂ: 'p',
+  ㅇ: 'ng',
 }
 // sound a coda jamo is read as when nothing follows it
 const NEUTRAL: Record<string, string> = {
-  ㄱ: 'ㄱ', ㄲ: 'ㄱ', ㅋ: 'ㄱ', ㄴ: 'ㄴ', ㄷ: 'ㄷ', ㅅ: 'ㄷ', ㅆ: 'ㄷ', ㅈ: 'ㄷ', ㅊ: 'ㄷ',
-  ㅌ: 'ㄷ', ㅎ: 'ㄷ', ㄹ: 'ㄹ', ㅁ: 'ㅁ', ㅂ: 'ㅂ', ㅍ: 'ㅂ', ㅇ: 'ㅇ',
+  ㄱ: 'ㄱ',
+  ㄲ: 'ㄱ',
+  ㅋ: 'ㄱ',
+  ㄴ: 'ㄴ',
+  ㄷ: 'ㄷ',
+  ㅅ: 'ㄷ',
+  ㅆ: 'ㄷ',
+  ㅈ: 'ㄷ',
+  ㅊ: 'ㄷ',
+  ㅌ: 'ㄷ',
+  ㅎ: 'ㄷ',
+  ㄹ: 'ㄹ',
+  ㅁ: 'ㅁ',
+  ㅂ: 'ㅂ',
+  ㅍ: 'ㅂ',
+  ㅇ: 'ㅇ',
 }
 // of two coda consonants, the one that is still pronounced before another consonant
 const COMPOUND_KEEP: Record<string, string> = {
-  ㄱㅅ: 'ㄱ', ㄴㅈ: 'ㄴ', ㄹㄱ: 'ㄱ', ㄹㅁ: 'ㅁ', ㄹㅂ: 'ㄹ', ㄹㅅ: 'ㄹ', ㄹㅌ: 'ㄹ', ㄹㅍ: 'ㅂ',
+  ㄱㅅ: 'ㄱ',
+  ㄴㅈ: 'ㄴ',
+  ㄹㄱ: 'ㄱ',
+  ㄹㅁ: 'ㅁ',
+  ㄹㅂ: 'ㄹ',
+  ㄹㅅ: 'ㄹ',
+  ㄹㅌ: 'ㄹ',
+  ㄹㅍ: 'ㅂ',
   ㅂㅅ: 'ㅂ',
 }
 const ASPIRATE: Record<string, string> = { ㄱ: 'ㅋ', ㄷ: 'ㅌ', ㅈ: 'ㅊ', ㅂ: 'ㅍ' }
@@ -46,7 +134,11 @@ interface Syl {
 function romanizeWord(word: string): string {
   const syls: Syl[] = [...word].map((ch) => {
     const n = ch.charCodeAt(0) - 0xac00
-    return { l: ONSET[Math.floor(n / 588)]!, v: VOWEL[Math.floor((n % 588) / 28)]!, t: CODA[n % 28]! }
+    return {
+      l: ONSET[Math.floor(n / 588)]!,
+      v: VOWEL[Math.floor((n % 588) / 28)]!,
+      t: CODA[n % 28]!,
+    }
   })
 
   for (let i = 0; i < syls.length - 1; i++) {

@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { CircleCheck, CloudDownload, CloudUpload, LogOut, RefreshCw, Trash2, TriangleAlert } from '@lucide/vue'
+import {
+  CircleCheck,
+  CloudDownload,
+  CloudUpload,
+  LogOut,
+  RefreshCw,
+  Trash2,
+  TriangleAlert,
+} from '@lucide/vue'
 import ToggleSwitch from '../ToggleSwitch.vue'
 import SettingRow from './SettingRow.vue'
 import { useSettings } from '@/stores/settings'

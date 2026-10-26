@@ -82,10 +82,7 @@ function onDragEnd() {
 
 <template>
   <div class="space-y-3">
-    <PillTabs
-      v-model="lang"
-      :options="LANGS.map((l) => ({ value: l.id, label: l.label }))"
-    />
+    <PillTabs v-model="lang" :options="LANGS.map((l) => ({ value: l.id, label: l.label }))" />
     <ul ref="listEl" class="space-y-1.5">
       <li v-for="p in settings.synced.pos[lang]" :key="p.id">
         <div class="flex items-center gap-1.5">

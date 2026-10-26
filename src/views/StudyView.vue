@@ -292,11 +292,7 @@ const waitText = computed(() =>
         <button class="icon-btn" title="查字典" @click="openDict">
           <BookOpen :size="16" />
         </button>
-        <button
-          class="icon-btn"
-          title="編輯"
-          @click="router.push(`/card/${current.id}/edit`)"
-        >
+        <button class="icon-btn" title="編輯" @click="router.push(`/card/${current.id}/edit`)">
           <Pencil :size="16" />
         </button>
       </div>
@@ -351,7 +347,13 @@ const waitText = computed(() =>
     >
       <PartyPopper :size="44" class="text-primary" />
       <p class="text-xl font-bold">
-        {{ session?.done ? '完成了！' : session?.extra.length ? '已達今日複習上限' : '目前沒有要' + title + '的卡片' }}
+        {{
+          session?.done
+            ? '完成了！'
+            : session?.extra.length
+              ? '已達今日複習上限'
+              : '目前沒有要' + title + '的卡片'
+        }}
       </p>
       <p v-if="session?.done" class="text-sm text-muted">這一輪共評分 {{ session.done }} 次</p>
       <p v-if="session?.extra.length" class="text-sm text-muted">
@@ -375,7 +377,9 @@ const waitText = computed(() =>
         placeholder="輸入要查的字（可先在卡片上選取文字）"
       />
       <DictLinks :word="dictWord" :lang="current?.type === 'vocab' ? current.lang : undefined" />
-      <p v-if="!settings.synced.dictionaries.some((d) => !d.hidden)" class="text-sm text-muted">尚未設定字典</p>
+      <p v-if="!settings.synced.dictionaries.some((d) => !d.hidden)" class="text-sm text-muted">
+        尚未設定字典
+      </p>
     </BottomSheet>
   </div>
 </template>
