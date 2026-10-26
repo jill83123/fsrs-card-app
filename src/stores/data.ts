@@ -11,6 +11,7 @@ import { purgeExpired, type ArchivedDeck, type DeletedDeck } from '@/lib/purge'
 import { makeScheduler, State, toFsrs, fromFsrs, type Grade } from '@/lib/fsrs'
 import { REL_KINDS } from '@/lib/relations'
 import { useSettings } from './settings'
+import { useSync } from './sync'
 
 export interface ScopeStats {
   total: number
@@ -48,6 +49,7 @@ const emptyStats = (): ScopeStats => ({
 
 export const useData = defineStore('data', () => {
   const settings = useSettings()
+  const sync = useSync()
 
   /** every non-deleted node / card, archived ones included */
   const allNodes = shallowRef<TreeNode[]>([])
@@ -355,6 +357,7 @@ export const useData = defineStore('data', () => {
 
   // --- node mutations ------------------------------------------------------
   async function createNode(parentId: string | null, name: string, color: DeckColor) {
+    await sync.syncBeforeEdit()
     const t = stamp()
     const siblings = childrenOf(nodes.value, parentId)
     const node: TreeNode = {
@@ -373,11 +376,13 @@ export const useData = defineStore('data', () => {
   }
 
   async function updateNode(id: string, patch: Partial<TreeNode>) {
+    await sync.syncBeforeEdit()
     await db.nodes.update(id, { ...patch, updatedAt: stamp() })
     markLocalChange()
   }
 
   async function reorderNodes(ids: string[]) {
+    await sync.syncBeforeEdit()
     await db.transaction('rw', db.nodes, async () => {
       for (const [i, id] of ids.entries())
         await db.nodes.update(id, { order: i + 1, updatedAt: stamp() })
@@ -387,6 +392,7 @@ export const useData = defineStore('data', () => {
 
   /** Store the hand-made card order; only cards whose position changed are touched (and so synced). */
   async function reorderCards(ids: string[]) {
+    await sync.syncBeforeEdit()
     const t = stamp()
     await db.transaction('rw', db.cards, async () => {
       for (const [i, id] of ids.entries()) {
@@ -398,11 +404,13 @@ export const useData = defineStore('data', () => {
   }
 
   async function setPaused(id: string, paused: boolean) {
+    await sync.syncBeforeEdit()
     await db.nodes.update(id, { paused: paused || undefined, updatedAt: stamp() })
     markLocalChange()
   }
 
   async function setArchived(id: string, archived: boolean) {
+    await sync.syncBeforeEdit()
     await db.nodes.update(id, { archived: archived || undefined, updatedAt: stamp() })
     markLocalChange()
   }
@@ -413,6 +421,7 @@ export const useData = defineStore('data', () => {
    * than DELETED_KEEP_DAYS are purged for good (see `purgeExpired`).
    */
   async function deleteNode(id: string) {
+    await sync.syncBeforeEdit()
     const ids = subtreeIds(allNodes.value, id)
     const t = stamp()
     await db.transaction('rw', db.nodes, db.cards, db.logs, async () => {
@@ -476,6 +485,7 @@ export const useData = defineStore('data', () => {
   }
 
   async function restoreNode(id: string) {
+    await sync.syncBeforeEdit()
     const root = await db.nodes.get(id)
     if (!root?.deleted) return
     const batchT = root.updatedAt
@@ -508,6 +518,7 @@ export const useData = defineStore('data', () => {
 
   /** Permanently remove a deleted deck and its deleted sub-decks right now. */
   async function purgeDeleted(id: string) {
+    await sync.syncBeforeEdit()
     const root = await db.nodes.get(id)
     if (!root?.deleted) return
     const batchT = root.updatedAt
@@ -567,6 +578,7 @@ export const useData = defineStore('data', () => {
   }
 
   async function addCards(cards: Card[]) {
+    await sync.syncBeforeEdit()
     const t = stamp()
     const list = cards.map((c) => ({ ...c, updatedAt: t }))
     await db.cards.bulkPut(list)
@@ -610,6 +622,7 @@ export const useData = defineStore('data', () => {
     ids: string[],
     patch: Partial<Pick<Card, 'starred' | 'suspended' | 'deckId' | 'deleted'>>,
   ) {
+    await sync.syncBeforeEdit()
     const t = stamp()
     await db.cards
       .where('id')
@@ -620,6 +633,7 @@ export const useData = defineStore('data', () => {
 
   /** Put cards back to new; `clearLogs` also deletes their review logs (and so their stats). */
   async function resetCards(ids: string[], clearLogs = false) {
+    await sync.syncBeforeEdit()
     const t = stamp()
     await db.transaction('rw', db.cards, db.logs, async () => {
       if (clearLogs)

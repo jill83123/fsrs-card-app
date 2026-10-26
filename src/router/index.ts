@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
+import { useSync } from '@/stores/sync'
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -17,18 +18,24 @@ const router = createRouter({
       component: () => import('@/views/DeckStatsView.vue'),
       meta: { nav: true },
     },
-    { path: '/card/new', name: 'card-new', component: () => import('@/views/CardEditView.vue') },
+    {
+      path: '/card/new',
+      name: 'card-new',
+      component: () => import('@/views/CardEditView.vue'),
+      meta: { syncFirst: true },
+    },
     { path: '/card/:id', name: 'card', component: () => import('@/views/CardDetailView.vue') },
     {
       path: '/card/:id/edit',
       name: 'card-edit',
       component: () => import('@/views/CardEditView.vue'),
+      meta: { syncFirst: true },
     },
     {
       path: '/study/:mode(review|learn)',
       name: 'study',
       component: () => import('@/views/StudyView.vue'),
-      meta: { focus: true },
+      meta: { focus: true, syncFirst: true },
     },
     { path: '/practice', name: 'practice', component: () => import('@/views/PracticeView.vue') },
     {
@@ -49,6 +56,11 @@ const router = createRouter({
     if (to.hash) return { el: to.hash, top: 72, behavior: 'smooth' }
     return saved ?? { top: 0 }
   },
+})
+
+// pages that write data: pull the other devices' changes first so they don't conflict
+router.beforeEach(async (to) => {
+  if (to.meta.syncFirst) await useSync().syncBeforeEdit()
 })
 
 export default router

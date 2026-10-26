@@ -38,7 +38,7 @@ import { moved, useDragSort } from '@/composables/useDragSort'
 import { deckPickerOptions } from '@/lib/tree'
 import { db } from '@/db'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
-import { lookupWord, type DictResult } from '@/lib/dictLookup'
+import type { DictResult } from '@/lib/dictLookup'
 import DictResultSheet from '@/components/DictResultSheet.vue'
 import RelationEditor from '@/components/RelationEditor.vue'
 import type { RelatedWords } from '@/lib/relations'
@@ -66,24 +66,9 @@ async function autoReading() {
   }
 }
 
-const lookupBusy = ref(false)
+// the dictionary lookup was removed; the sheet stays until a new source is wired in
 const dictResult = ref<DictResult | null>(null)
 const showDict = ref(false)
-/** Look the word up and let the user pick what to add. */
-async function fillFromDict() {
-  const v = vocab.value
-  if (!v || lookupBusy.value) return
-  if (!v.word.trim()) return ui.toast('請先輸入單字', 'error')
-  lookupBusy.value = true
-  try {
-    dictResult.value = await lookupWord(v.word, v.lang)
-    showDict.value = true
-  } catch {
-    ui.toast('所有字典來源都無法使用，請確認網路連線', 'error')
-  } finally {
-    lookupBusy.value = false
-  }
-}
 
 const stubs = ref<VocabCard[]>([])
 const relEditor = ref<InstanceType<typeof RelationEditor> | null>(null)
@@ -523,12 +508,12 @@ const previewRevealed = ref(false)
         <div>
           <div class="flex items-center justify-between">
             <label class="section-label">詞義</label>
+            <!-- hidden: no lookup source for now -->
             <button
+              v-if="false"
               class="mb-1.5 flex items-center gap-1 text-xs font-semibold text-primary disabled:opacity-50"
-              :disabled="lookupBusy"
-              @click="fillFromDict"
             >
-              <BookOpen :size="14" /> {{ lookupBusy ? '查詢中…' : '從字典填入' }}
+              <BookOpen :size="14" /> 從字典填入
             </button>
           </div>
           <div class="space-y-3">
