@@ -2,7 +2,12 @@
 import { ChevronLeft } from '@lucide/vue'
 import { useRouter } from 'vue-router'
 
-const props = defineProps<{ title?: string; subtitle?: string; back?: string; hideBack?: boolean }>()
+const props = defineProps<{
+  title?: string
+  subtitle?: string
+  back?: string
+  hideBack?: boolean
+}>()
 const router = useRouter()
 
 function goBack() {

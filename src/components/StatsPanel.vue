@@ -17,13 +17,7 @@ import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { useLiveQuery } from '@/composables/useLiveQuery'
 import { db } from '@/db'
-import {
-  addDays,
-  formatDayLabel,
-  parseYmd,
-  studyDayEnd,
-  studyDayStart,
-} from '@/lib/date'
+import { addDays, formatDayLabel, parseYmd, studyDayEnd, studyDayStart } from '@/lib/date'
 import { isLearned, isStudyable } from '@/lib/cards'
 import { GRADES, Rating, State } from '@/lib/fsrs'
 

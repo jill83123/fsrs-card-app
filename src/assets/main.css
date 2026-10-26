@@ -202,7 +202,13 @@ button:disabled {
    band inside the inline box, so the line height does not change */
 .md mark {
   --hl: color-mix(in oklab, var(--primary) 24%, transparent);
-  background: linear-gradient(to bottom, transparent 0.66em, var(--hl) 0.66em, var(--hl) 1.32em, transparent 1.32em);
+  background: linear-gradient(
+    to bottom,
+    transparent 0.66em,
+    var(--hl) 0.66em,
+    var(--hl) 1.32em,
+    transparent 1.32em
+  );
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   color: inherit;
