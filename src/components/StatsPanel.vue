@@ -18,7 +18,7 @@ import { useSettings } from '@/stores/settings'
 import { useLiveQuery } from '@/composables/useLiveQuery'
 import { db } from '@/db'
 import { addDays, formatDayLabel, parseYmd, studyDayEnd, studyDayStart } from '@/lib/date'
-import { isLearned, isStudyable } from '@/lib/cards'
+import { isLearned, isStudyable, schedOf, type Side } from '@/lib/cards'
 import { GRADES, Rating, State } from '@/lib/fsrs'
 
 /** deck id to limit the stats to its subtree; null = everything */
@@ -247,12 +247,17 @@ const pctText = (r: number) => `${(r * 100).toFixed(1).replace(/\.0$/, '')}%`
 // due counts for the next 30 days
 const forecast = computed(() => {
   const hour = settings.synced.study.rolloverHour
-  const cards = scopeCards.value.filter((c) => isStudyable(c) && c.sched.state !== State.New)
+  // each active side (forward / reverse) is its own review
+  const dues = scopeCards.value
+    .filter(isStudyable)
+    .flatMap((c) => data.sidesOf(c).map((side) => schedOf(c, side)))
+    .filter((s) => s.state !== State.New)
+    .map((s) => s.due)
   return Array.from({ length: 30 }, (_, i) => {
     const day = addDays(data.today, i)
     const start = i === 0 ? -Infinity : studyDayStart(day, hour)
     const end = studyDayEnd(day, hour)
-    return { day, n: cards.filter((c) => c.sched.due >= start && c.sched.due < end).length }
+    return { day, n: dues.filter((d) => d >= start && d < end).length }
   })
 })
 
@@ -299,8 +304,11 @@ const STABILITY_BUCKETS = [
 const stabilityRows = computed(() => {
   const n = STABILITY_BUCKETS.map(() => 0)
   for (const c of scopeCards.value) {
-    if (!isStudyable(c) || c.sched.state === State.New) continue
-    n[STABILITY_BUCKETS.findIndex((b) => c.sched.stability < b.max)]!++
+    if (!isStudyable(c)) continue
+    for (const side of data.sidesOf(c)) {
+      const s = schedOf(c, side)
+      if (s.state !== State.New) n[STABILITY_BUCKETS.findIndex((b) => s.stability < b.max)]!++
+    }
   }
   return STABILITY_BUCKETS.map((b, i) => ({
     label: b.label,
@@ -318,16 +326,26 @@ const HARD_LEVELS = [
   { min: 6.5, label: '偏難', color: 'var(--warn)' },
 ]
 const hardLevel = (difficulty: number) => HARD_LEVELS.find((l) => difficulty >= l.min)
+// a card is listed once, by its harder side
 const hardAll = computed(() =>
   scopeCards.value
-    .filter(
-      (c) =>
-        c.sched.state !== State.New &&
-        c.sched.reps >= HARD_MIN_REPS &&
-        hardLevel(c.sched.difficulty),
-    )
-    .sort((a, b) => b.sched.difficulty - a.sched.difficulty),
+    .flatMap((c) => {
+      const sides = data
+        .sidesOf(c)
+        .map((side) => ({ side, s: schedOf(c, side) }))
+        .filter((x) => x.s.state !== State.New && x.s.reps >= HARD_MIN_REPS)
+        .sort((a, b) => b.s.difficulty - a.s.difficulty)
+      const top = sides[0]
+      return top && hardLevel(top.s.difficulty)
+        ? [{ card: c, side: top.side, difficulty: top.s.difficulty }]
+        : []
+    })
+    .sort((a, b) => b.difficulty - a.difficulty),
 )
+const hardNote = (h: { side: Side; difficulty: number }) => {
+  const label = hardLevel(h.difficulty)?.label
+  return label && h.side === 'r' ? `${label}（反向）` : label
+}
 const HARD_PAGE_SIZE = 10
 const hardPage = ref(0)
 const hardPages = computed(() => Math.max(1, Math.ceil(hardAll.value.length / HARD_PAGE_SIZE)))
@@ -483,17 +501,17 @@ const hardCards = computed(() =>
           </div>
         </template>
         <div v-if="hardCards.length" class="space-y-1.5">
-          <div v-for="(c, i) in hardCards" :key="c.id" class="flex items-center gap-2">
+          <div v-for="(h, i) in hardCards" :key="h.card.id" class="flex items-center gap-2">
             <span class="w-4 shrink-0 text-right text-xs font-semibold text-muted tabular-nums">{{
               hardPage * HARD_PAGE_SIZE + i + 1
             }}</span>
             <CardListItem
               class="min-w-0 flex-1"
-              :card="c"
+              :card="h.card"
               compact
-              :note="hardLevel(c.sched.difficulty)?.label"
-              :note-color="hardLevel(c.sched.difficulty)?.color"
-              @click="router.push(`/card/${c.id}`)"
+              :note="hardNote(h)"
+              :note-color="hardLevel(h.difficulty)?.color"
+              @click="router.push(`/card/${h.card.id}`)"
             />
           </div>
           <!-- invisible copies of a row keep a short last page as tall as a full one,
@@ -506,7 +524,12 @@ const hardCards = computed(() =>
               aria-hidden="true"
             >
               <span class="w-4 shrink-0" />
-              <CardListItem class="min-w-0 flex-1" :card="hardCards[0]!" compact tabindex="-1" />
+              <CardListItem
+                class="min-w-0 flex-1"
+                :card="hardCards[0]!.card"
+                compact
+                tabindex="-1"
+              />
             </div>
           </template>
           <div v-if="hardPages > 1" class="flex items-center justify-center gap-3 pt-2">
