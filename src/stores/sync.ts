@@ -102,6 +102,8 @@ export const useSync = defineStore('sync', () => {
   const lastSync = ref(readNum(LS_LAST_SYNC))
   const localChange = ref(lastLocalChange())
   const busy = ref(false)
+  /** how many pre-edit syncs are being waited on; drives the full-screen loading cover */
+  const preEditWaiting = ref(0)
   const needsAuth = ref(false)
   const error = ref<string | null>(null)
   const online = ref(navigator.onLine)
@@ -390,7 +392,12 @@ export const useSync = defineStore('sync', () => {
   async function syncBeforeEdit() {
     if (!connected.value || !settings.device.sync.auto || !online.value) return
     if (Date.now() - lastSync.value < PRE_EDIT_FRESH) return
-    await Promise.race([syncNow(false), new Promise((r) => setTimeout(r, PRE_EDIT_TIMEOUT))])
+    preEditWaiting.value++
+    try {
+      await Promise.race([syncNow(false), new Promise((r) => setTimeout(r, PRE_EDIT_TIMEOUT))])
+    } finally {
+      preEditWaiting.value--
+    }
   }
 
   let debounce: ReturnType<typeof setTimeout> | undefined
@@ -428,6 +435,7 @@ export const useSync = defineStore('sync', () => {
     error,
     backups,
     busy,
+    preEditWaiting,
     conflict,
     dismissConflict,
     init,

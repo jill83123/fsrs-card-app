@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
-import { Check } from '@lucide/vue'
+import { Check, LoaderCircle } from '@lucide/vue'
+import { useSync } from '@/stores/sync'
 import { useUi } from '@/stores/ui'
 
 const ui = useUi()
+const sync = useSync()
 const inputEl = ref<HTMLInputElement>()
 
 watch(
@@ -32,6 +34,17 @@ function submit() {
 
 <template>
   <Teleport to="body">
+    <!-- the delayed fade-in keeps quick syncs from flashing the cover -->
+    <div
+      v-if="sync.preEditWaiting > 0"
+      class="sync-cover fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-black/40 backdrop-blur-sm"
+      role="status"
+      aria-live="polite"
+    >
+      <LoaderCircle class="size-10 animate-spin text-white" :stroke-width="2.5" />
+      <p class="text-sm font-bold text-white"><span class="relative">同步中，請稍後<span class="absolute left-full">…</span></span></p>
+    </div>
+
     <Transition name="fade">
       <div
         v-if="ui.dialog"
@@ -113,3 +126,17 @@ function submit() {
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.sync-cover {
+  animation: sync-cover-in 0.2s ease 0.3s both;
+}
+@keyframes sync-cover-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+</style>
