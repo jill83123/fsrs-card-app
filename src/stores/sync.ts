@@ -83,14 +83,20 @@ function readConflict(): SyncConflict | null {
   }
 }
 
-export function describeConflict(c: SyncConflict) {
-  const parts = [
+/** What was edited on both devices, one entry per kind (cards, decks, review logs, settings). */
+export function conflictItems(c: SyncConflict) {
+  return [
     c.cards && `${c.cards} 張卡片`,
     c.nodes && `${c.nodes} 個牌組`,
     c.logs && `${c.logs} 筆複習紀錄`,
     c.settings && '設定',
-  ].filter(Boolean)
-  return `${parts.join('、')}在兩台裝置上都被修改過，已保留較晚修改的版本，較早的那次修改沒有套用。`
+  ].filter(Boolean) as string[]
+}
+
+const CONFLICT_RESULT = '已保留較晚修改的版本，較早的那次修改沒有套用。'
+
+export function describeConflict(c: SyncConflict) {
+  return `${conflictItems(c).join('、')}在兩台裝置都修改過，${CONFLICT_RESULT}`
 }
 
 export const useSync = defineStore('sync', () => {
