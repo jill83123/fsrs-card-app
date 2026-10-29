@@ -8,11 +8,12 @@ import {
   RefreshCw,
   Trash2,
   TriangleAlert,
+  X,
 } from '@lucide/vue'
 import ToggleSwitch from '../ToggleSwitch.vue'
 import SettingRow from './SettingRow.vue'
 import { useSettings } from '@/stores/settings'
-import { describeConflict, useSync } from '@/stores/sync'
+import { conflictItems, useSync } from '@/stores/sync'
 import { useUi } from '@/stores/ui'
 import { formatDateTime } from '@/lib/date'
 import { preloadGis } from '@/lib/google/gis'
@@ -144,17 +145,23 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="sync.conflict" class="space-y-1.5 rounded-2xl bg-warn/15 p-4 text-xs">
-        <div class="flex items-center gap-2">
-          <TriangleAlert :size="16" class="shrink-0 text-warn" />
-          <p class="text-sm font-semibold">
+      <div v-if="sync.conflict" class="space-y-2 rounded-2xl bg-warn/15 p-4 text-xs">
+        <div class="flex items-start gap-2">
+          <TriangleAlert :size="16" class="mt-0.5 shrink-0 text-warn" />
+          <p class="min-w-0 flex-1 text-sm font-semibold">
             {{ formatDateTime(sync.conflict.time) }} 同步時發現衝突
           </p>
+          <button
+            class="-mt-0.5 -mr-[7px] -mb-0.5 -ml-1 shrink-0 p-1 text-muted hover:text-ink"
+            aria-label="知道了"
+            @click="sync.dismissConflict()"
+          >
+            <X :size="16" />
+          </button>
         </div>
-        <p class="pr-2 pl-6">{{ describeConflict(sync.conflict) }}</p>
-        <p class="pr-2 pl-6 text-muted">少了修改的話，可以從下方備份還原，或重新編輯。</p>
-        <div class="flex justify-end pt-1 pr-2">
-          <button class="font-semibold text-primary" @click="sync.dismissConflict()">知道了</button>
+        <div class="space-y-1 px-6">
+          <p>{{ conflictItems(sync.conflict).join('、') }}在兩台裝置都修改過。</p>
+          <p class="text-muted">已保留較晚修改的版本，可從下方備份還原。</p>
         </div>
       </div>
 
