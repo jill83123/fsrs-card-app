@@ -42,7 +42,7 @@ function submit() {
       aria-live="polite"
     >
       <LoaderCircle class="size-10 animate-spin text-white" :stroke-width="2.5" />
-      <p class="text-sm font-bold text-white"><span class="relative">同步中，請稍後<span class="absolute left-full">…</span></span></p>
+      <p class="text-sm font-bold text-white">同步中，請稍後</p>
     </div>
 
     <Transition name="fade">
