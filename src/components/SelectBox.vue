@@ -30,8 +30,13 @@ interface Opt {
   /** branches to draw before the label, see `deckRows` */
   tree: string
   disabled: boolean
+  /** `collapsible` only: has sub-options below it, and whether they are showing */
+  hasKids?: boolean
+  expanded?: boolean
 }
 
+/** `collapsible`: options drawn as a tree (see `tree`) get a button to fold their sub-options away. */
+const props = defineProps<{ collapsible?: boolean }>()
 const slots = useSlots()
 
 function textOf(children: VNode['children']): string {
@@ -67,6 +72,45 @@ function options(): Opt[] {
 }
 
 const same = (a: unknown, b: unknown) => a === b || (a == null && b == null)
+
+// the options whose sub-options are showing; everything starts folded
+const unfolded = ref(new Set<unknown>())
+const depth = (o: Opt) => o.tree.length
+
+// the options in the list right now: those under a folded one are left out
+function visible(): Opt[] {
+  const all = options()
+  if (!props.collapsible) return all
+  const out: Opt[] = []
+  let hideBelow = -1
+  all.forEach((o, i) => {
+    const d = depth(o)
+    if (hideBelow >= 0 && d > hideBelow) return
+    hideBelow = -1
+    const hasKids = !!all[i + 1] && depth(all[i + 1]!) > d
+    const expanded = unfolded.value.has(o.value)
+    out.push({ ...o, hasKids, expanded })
+    if (hasKids && !expanded) hideBelow = d
+  })
+  return out
+}
+function toggle(o: Opt) {
+  if (unfolded.value.has(o.value)) unfolded.value.delete(o.value)
+  else unfolded.value.add(o.value)
+}
+// unfold the way down to the chosen option, so it is not hidden when the list opens
+function revealSelected() {
+  const all = options()
+  const i = all.findIndex((o) => same(o.value, model.value))
+  if (i < 0) return
+  let d = depth(all[i]!)
+  for (let j = i - 1; j >= 0 && d > 0; j--) {
+    if (depth(all[j]!) < d) {
+      unfolded.value.add(all[j]!.value)
+      d = depth(all[j]!)
+    }
+  }
+}
 const selectedLabel = computed(() => {
   const o = options().find((o) => same(o.value, model.value))
   return o ? o.full : ''
@@ -100,7 +144,8 @@ function position() {
 }
 
 async function show() {
-  const list = options()
+  if (props.collapsible) revealSelected()
+  const list = visible()
   if (!list.length) return
   position()
   open.value = true
@@ -123,7 +168,7 @@ function choose(o: Opt) {
   trigger.value?.focus()
 }
 function step(dir: 1 | -1) {
-  const list = options()
+  const list = visible()
   let i = active.value
   for (let n = 0; n < list.length; n++) {
     i = (i + dir + list.length) % list.length
@@ -149,10 +194,18 @@ function onKey(e: KeyboardEvent) {
     step(e.key === 'ArrowDown' ? 1 : -1)
   } else if (e.key === 'Home' || e.key === 'End') {
     e.preventDefault()
-    active.value = e.key === 'Home' ? 0 : options().length - 1
+    active.value = e.key === 'Home' ? 0 : visible().length - 1
+  } else if (
+    props.collapsible &&
+    (e.key === 'ArrowRight' || e.key === 'ArrowLeft') &&
+    visible()[active.value]?.hasKids &&
+    visible()[active.value]!.expanded === (e.key === 'ArrowLeft')
+  ) {
+    e.preventDefault()
+    toggle(visible()[active.value]!)
   } else if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault()
-    const o = options()[active.value]
+    const o = visible()[active.value]
     if (o) choose(o)
   } else if (e.key === 'Escape' || e.key === 'Tab') {
     if (e.key === 'Escape') e.stopPropagation()
@@ -200,6 +253,7 @@ onBeforeUnmount(() => {
           <ChevronRight
             v-if="i"
             :size="14"
+            :stroke-width="2.5"
             class="mx-1 inline-block shrink-0 align-[-2px] text-muted"
           />{{ part }}
         </template>
@@ -220,7 +274,7 @@ onBeforeUnmount(() => {
         :style="place"
       >
         <li
-          v-for="(o, i) in options()"
+          v-for="(o, i) in visible()"
           :id="`${id}-${i}`"
           :key="i"
           role="option"
@@ -237,8 +291,9 @@ onBeforeUnmount(() => {
           @click="choose(o)"
         >
           <!-- the branches of the tree: one column per level, drawn with hairlines -->
+          <!-- foldable lists are indented like a file tree instead, so every fold button sits right above the names of its sub-options -->
           <span
-            v-for="(g, k) in o.tree.split('')"
+            v-for="(g, k) in props.collapsible ? '' : o.tree.split('')"
             :key="k"
             class="relative w-4 shrink-0 self-stretch"
           >
@@ -252,12 +307,38 @@ onBeforeUnmount(() => {
               class="absolute top-1/2 left-1/2 h-px w-1/2 bg-line"
             />
           </span>
+          <!-- fold button before the name; rows without sub-options keep an empty slot so names line up -->
+          <span
+            v-if="props.collapsible"
+            class="flex w-7 shrink-0 items-center justify-center"
+            :style="{ marginLeft: `${depth(o) * 1.25}rem` }"
+          >
+            <button
+              v-if="o.hasKids"
+              type="button"
+              tabindex="-1"
+              class="grid size-7 place-items-center rounded-lg text-muted hover:bg-surface-2"
+              :aria-label="o.expanded ? '收合' : '展開'"
+              @click.stop="toggle(o)"
+            >
+              <ChevronDown
+                :size="16"
+                class="transition-transform"
+                :class="{ '-rotate-90': !o.expanded }"
+              />
+            </button>
+          </span>
           <span
             class="flex min-w-0 flex-1 items-center justify-between gap-2 py-2.5"
-            :class="o.tree ? 'pl-1.5' : ''"
+            :class="o.tree && !props.collapsible ? 'pl-1.5' : ''"
           >
             <span class="min-w-0 flex-1 break-words">{{ o.label }}</span>
-            <Check v-if="same(o.value, model)" :size="16" class="shrink-0 text-primary" />
+            <Check
+              v-if="same(o.value, model)"
+              :size="16"
+              :stroke-width="2.5"
+              class="shrink-0 text-primary"
+            />
           </span>
         </li>
       </ul>

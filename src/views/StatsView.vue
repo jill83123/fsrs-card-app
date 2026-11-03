@@ -41,8 +41,9 @@ const options = computed(() => deckRows(data.nodes))
 <template>
   <div>
     <PageHeader title="統計" hide-back />
-    <div class="mb-4">
-      <SelectBox v-model="scope" aria-label="牌組">
+    <!-- pinned right under the sticky header (3.25rem = its py-3 + text-lg line) -->
+    <div class="sticky top-[3.25rem] z-10 -mx-4 -mt-4 mb-4 bg-bg/80 px-4 pt-1 pb-3 backdrop-blur">
+      <SelectBox v-model="scope" collapsible aria-label="牌組">
         <option :value="null">全部牌組</option>
         <option
           v-for="o in options"

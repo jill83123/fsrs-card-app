@@ -19,7 +19,7 @@ function goBack() {
 
 <template>
   <header
-    class="sticky top-0 z-20 -mx-4 mb-4 flex items-center gap-3 bg-bg/90 px-4 py-3 backdrop-blur"
+    class="sticky top-0 z-20 -mx-4 mb-4 flex items-center gap-3 bg-bg/80 px-4 py-3 backdrop-blur"
   >
     <!-- both sides grow from zero equally, so the title stays centered on the page
          however wide the buttons beside it are -->
