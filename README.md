@@ -193,10 +193,12 @@ node scripts/gen-vapid.mjs
 
 它會產生兩樣東西：
 
-| 項目 | 去哪裡看 | 怎麼處理 |
+| 項目 | 設定名稱 | 要自己填嗎 |
 |---|---|---|
-| 公鑰 | 自動寫進 `worker/wrangler.local.toml` 的 `VAPID_PUBLIC_KEY` | 不用自己填；這個檔案已被 git 忽略 |
-| 私鑰 | 自動寫進同一個 `wrangler.local.toml` 的 `VAPID_PRIVATE_JWK`，不會印在畫面上 | 不用自己填；這個檔案已被 git 忽略，所以不會被 commit |
+| 公鑰 | `VAPID_PUBLIC_KEY` | 不用，自動寫入 |
+| 私鑰 | `VAPID_PRIVATE_JWK` | 不用，自動寫入，不會印在畫面上 |
+
+兩把金鑰都寫在 `worker/wrangler.local.toml`。這個檔案已被 git 忽略，所以不會被 commit。
 
 `wrangler.local.toml` 裡已經有私鑰時，腳本會拒絕再產生一組（新的金鑰會讓所有已開啟提醒的裝置失效），確定要重來才加 `--force`。
 
