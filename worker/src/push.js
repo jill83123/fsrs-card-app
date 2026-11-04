@@ -133,7 +133,7 @@ export function messageOf(slot) {
   const parts = []
   if (slot.review > 0) parts.push(`${slot.review} 張卡片待複習`)
   if (slot.fresh > 0) parts.push(`${slot.fresh} 張新卡可以學習`)
-  return parts.length ? { title: '該讀書了', body: parts.join('，'), url: './' } : null
+  return parts.length ? { title: '今日學習提醒', body: parts.join('，'), url: './' } : null
 }
 
 function pushHost(endpoint) {

@@ -59,6 +59,7 @@ async function test() {
       <div class="space-y-0.5 text-xs text-muted">
         <p>通知由同步服務（Cloudflare Worker）送出。</p>
         <p>通知需要各裝置授權，所以每台裝置都要自己開啟「每日提醒」並允許通知。</p>
+        <p>提醒會依最近一次開啟 App 時的進度安排，連續超過一週沒開啟就會停止。</p>
       </div>
 
       <div class="flex items-center justify-between gap-4">
@@ -88,14 +89,9 @@ async function test() {
       </SettingRow>
       <p v-if="!r.review && !r.learn" class="text-xs text-warn">兩項都關閉時不會收到任何通知。</p>
 
-      <template v-if="device.enabled">
-        <button class="btn btn-ghost w-full" :disabled="reminder.busy" @click="test">
-          <BellRing :size="16" /> 傳送測試通知
-        </button>
-        <p class="text-xs text-muted">
-          提醒會依最近一次開啟 App 時的進度安排，連續超過一週沒開啟就會停止。
-        </p>
-      </template>
+      <button v-if="device.enabled" class="btn btn-ghost w-full" :disabled="reminder.busy" @click="test">
+        <BellRing :size="16" /> 傳送測試通知
+      </button>
     </template>
   </div>
 </template>
