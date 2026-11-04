@@ -131,11 +131,12 @@ function done() {
   </button>
 
   <BottomSheet v-model="open" :title="title ?? '選擇時間'">
-    <div class="relative mx-auto flex w-3/4 max-w-sm min-w-64 items-center justify-center">
-      <!-- the band the chosen row sits in -->
+    <div class="relative">
+      <!-- the band the chosen row sits in: as wide as the sheet's content, rounded -->
       <div
-        class="pointer-events-none absolute inset-x-0 top-1/2 h-11 -translate-y-1/2 rounded-xl bg-surface"
+        class="pointer-events-none absolute inset-x-0 top-1/2 h-11 -translate-y-1/2 rounded-2xl bg-surface/70"
       />
+    <div class="relative mx-auto flex w-3/4 max-w-sm min-w-64 items-center justify-center gap-10">
       <div
         v-for="(wheel, w) in [
           { values: HOURS, row: hourRow, label: '時' },
@@ -159,16 +160,19 @@ function done() {
             role="option"
             :aria-selected="i === wheel.row"
             class="flex h-11 cursor-pointer snap-center items-center justify-center tabular-nums transition-all"
-            :class="i === wheel.row ? 'text-2xl font-semibold text-ink' : 'text-lg text-muted'"
+            :class="i === wheel.row ? 'text-2xl font-semibold text-primary' : 'text-lg text-muted'"
             @click="pick(w ? minuteWheel : hourWheel, i)"
           >
             {{ pad(v) }}
           </div>
         </div>
       </div>
-      <span class="pointer-events-none absolute inset-x-0 text-center text-xl font-semibold"
+      <!-- same size and line box as the chosen row, so it lines up with the digits -->
+      <span
+        class="pointer-events-none absolute inset-x-0 top-1/2 flex h-11 -translate-y-1/2 items-center justify-center pb-1.5 text-2xl leading-none font-semibold"
         >:</span
       >
+    </div>
     </div>
     <button type="button" class="btn btn-primary mt-5 w-full" @click="done">完成</button>
   </BottomSheet>
