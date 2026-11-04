@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Languages,
   RotateCcw,
+  Smartphone,
   Tags,
   Trash2,
   TriangleAlert,
@@ -143,6 +144,11 @@ async function wipe() {
   await wipeLocal()
   localStorage.removeItem('sr.google.lastSync')
   location.reload()
+}
+
+// --- install ---------------------------------------------------------------
+async function installApp() {
+  if (await pwa.install()) ui.toast('已安裝', 'success')
 }
 
 // --- version ---------------------------------------------------------------
@@ -432,6 +438,30 @@ const def = defaultSynced()
         <button class="btn btn-ghost -mt-2 w-full text-danger" @click="wipe">
           <Trash2 :size="16" /> 清除這台裝置的所有資料
         </button>
+      </SettingsSection>
+
+      <SettingsSection
+        id="install"
+        title="安裝應用程式"
+        hint="加入主畫面，像一般 App 開啟"
+        :icon="Smartphone"
+      >
+        <p v-if="pwa.installed" class="text-sm text-muted">已安裝，目前就是從 App 開啟。</p>
+        <div v-else-if="pwa.canInstall" class="flex items-center justify-between gap-3">
+          <p class="text-sm text-muted">安裝後可從主畫面或桌面直接開啟。</p>
+          <button class="btn btn-primary shrink-0 py-2" @click="installApp">
+            <Download :size="16" /> 安裝
+          </button>
+        </div>
+        <div v-else-if="pwa.isIos" class="space-y-0.5 text-sm text-muted">
+          <p>iPhone / iPad 請用 Safari 開啟，然後：</p>
+          <p>1. 點下方的「分享」按鈕</p>
+          <p>2. 選「加入主畫面」</p>
+        </div>
+        <div v-else class="space-y-0.5 text-sm text-muted">
+          <p>目前瀏覽器沒有提供一鍵安裝。</p>
+          <p>請從瀏覽器選單選擇「安裝應用程式」或「加入主畫面」。</p>
+        </div>
       </SettingsSection>
 
       <SettingsSection id="about" title="版本與更新" :hint="appVersion" :icon="Info">

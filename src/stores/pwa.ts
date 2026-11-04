@@ -50,5 +50,53 @@ export const usePwa = defineStore('pwa', () => {
     }
   }
 
-  return { needRefresh, checking, checkNow, update: () => updateServiceWorker(true) }
+  // --- install to home screen ------------------------------------------------
+  // Chromium fires beforeinstallprompt once the app is installable; keep it so the
+  // settings page can trigger the prompt. iOS Safari never fires it (manual steps only).
+  interface InstallPromptEvent extends Event {
+    prompt(): Promise<void>
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+  }
+  let deferredPrompt: InstallPromptEvent | null = null
+  const canInstall = ref(false)
+  const standaloneQuery = window.matchMedia('(display-mode: standalone)')
+  const installed = ref(
+    standaloneQuery.matches || (navigator as Navigator & { standalone?: boolean }).standalone === true,
+  )
+  standaloneQuery.addEventListener('change', (e) => (installed.value = e.matches))
+  const isIos =
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    deferredPrompt = e as InstallPromptEvent
+    canInstall.value = true
+  })
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null
+    canInstall.value = false
+    installed.value = true
+  })
+
+  /** Show the browser's install dialog. Resolves true when the user accepted. */
+  async function install(): Promise<boolean> {
+    const p = deferredPrompt
+    if (!p) return false
+    deferredPrompt = null
+    canInstall.value = false
+    await p.prompt()
+    return (await p.userChoice).outcome === 'accepted'
+  }
+
+  return {
+    needRefresh,
+    checking,
+    checkNow,
+    update: () => updateServiceWorker(true),
+    canInstall,
+    installed,
+    isIos,
+    install,
+  }
 })
