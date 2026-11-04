@@ -53,7 +53,7 @@ Google 換取長效授權需要 Client Secret，但密鑰不能放在前端，�
 
 - **第一次連線**：Google 登入視窗只出現一次，App 把授權碼交給 Worker，Worker 補上 Client Secret 向 Google 換到 Token，再交還給 App。
 - **之後**：App 帶著長效的 Refresh Token 請 Worker 換新的 Access Token（約每小時一次），全程在背景進行，不會再跳出視窗。
-- Worker 不儲存任何資料，Token 只是經過。
+- Google 登入這一段，Worker 不儲存任何資料，Token 只是經過。（每日提醒會另外存推播訂閱，見下方。）
 
 ### 設定流程
 
@@ -132,6 +132,100 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET    # 貼上用戶端密鑰（貼上
 1. 在 `worker/` 建立 `.dev.vars`（已被 git 忽略），寫入 `GOOGLE_CLIENT_SECRET=...`。
 2. 執行 `npx wrangler dev`，Worker 會跑在 `http://localhost:8787`。
 3. 把 App 設定裡的「同步服務網址」改成這個網址。測完記得改回雲端的網址。
+
+## 每日提醒（選用）
+
+每天在指定時間推播通知，有待複習的卡片或可學的新卡才會響，App 沒開也會響。不設定也能正常使用。
+
+需要先完成上面的「Google Drive 同步」的 Worker 部署（提醒是由同一個 Worker 送出的），再多做一次下面的設定。
+
+### 運作方式
+
+網頁在關閉後無法自己定時叫醒，所以由 Worker 負責準時送出：
+
+- App 算出接下來一週每天提醒時的待複習與可學新卡數量，連同這台裝置的推播訂閱傳給 Worker。
+- Worker 每 5 分鐘檢查一次，時間到而且數量大於 0 才推播，沒有要做的卡片就不會發送通知。
+- Worker 只存推播訂閱和數量，不存卡片內容。訂閱存在 Cloudflare KV；超過 30 天沒更新的訂閱會自動清掉。
+- 可以多人共用同一個 Worker：每台裝置各存一筆，Worker 每次只讀「時間快到」的那幾筆，人多也不會變慢。Worker 只會對 Chrome、Firefox、Safari、Edge 的推播服務網址發送通知。
+
+### 設定流程
+
+| 步驟 | 要做什麼 | 你會得到 |
+|---|---|---|
+| 1. KV | 建立存放訂閱的 KV | 一串 id |
+| 2. 推播金鑰 | 產生一組 VAPID 金鑰 | 公鑰與私鑰 |
+| 3. 部署 | 填入設定、存下私鑰、重新部署 Worker | 推播功能上線 |
+| 4. App | 在設定頁開啟每日提醒並測試 | 收到測試通知 |
+
+以下指令都在 `worker/` 資料夾執行。還沒登入 Cloudflare 的話先 `npx wrangler login`。
+
+### 1. 建立 KV
+
+```sh
+npx wrangler kv namespace create fsrs-push
+```
+
+指令會印出一段設定，裡面的 `id`（一串 32 字的英數字）貼到 [worker/wrangler.toml](worker/wrangler.toml)，取代 `REPLACE_WITH_KV_NAMESPACE_ID`：
+
+```toml
+[[kv_namespaces]]
+binding = "PUSH"
+id = "你拿到的 id"
+```
+
+KV 的名稱（`fsrs-push`）只是標籤，可以自己取；`binding` 是程式讀取用的名字，必須維持 `"PUSH"`。指令印出的設定裡的 `binding` 不用照抄，只拿 `id`。KV 在 Cloudflare 免費方案就能用。
+
+### 2. 產生推播金鑰
+
+推播金鑰（VAPID）是自己產生的，不用去任何地方申請：
+
+```sh
+node scripts/gen-vapid.mjs
+```
+
+它會印出兩樣東西：
+
+| 項目 | 長相 | 怎麼處理 |
+|---|---|---|
+| 公鑰 | 以 `B` 開頭的一長串字 | 填進 `wrangler.toml` 的 `VAPID_PUBLIC_KEY`，不是祕密，可以放在 repo |
+| 私鑰 | 一行 JSON，像 `{"kty":"EC",...,"d":"..."}` | **不要寫進任何檔案或 commit**，下一步存成密鑰 |
+
+同時把 `wrangler.toml` 的 `VAPID_SUBJECT` 改成自己的信箱，格式是 `mailto:你的信箱`（推播服務有狀況時用來聯絡你）。
+
+### 3. 存下私鑰並部署
+
+```sh
+npx wrangler secret put VAPID_PRIVATE_JWK    # 貼上剛剛那一整行 JSON，按 Enter（貼上時不會顯示字元）
+npx wrangler deploy
+```
+
+部署前請再確認 `wrangler.toml` 裡的 `GOOGLE_CLIENT_ID` 與 `ALLOWED_ORIGINS` 是你真實的值，不是範例佔位字。部署會用檔案裡的值取代線上的設定，填錯會讓 Google 登入失效。已經設過的密鑰（例如 `GOOGLE_CLIENT_SECRET`）不會被清掉。
+
+### 4. 在 App 開啟
+
+1. 到「設定 → 每日提醒」，打開開關，瀏覽器問是否允許通知時選「允許」。
+2. 選提醒時間，以及要提醒「複習」、「新學習」或兩者。
+3. 按「傳送測試通知」，幾秒內收到就完成了。
+
+每台想收到通知的裝置，都要各自做第 4 步；提醒時間與內容會跟著同步，但通知授權每台要自己給。在其他裝置開過提醒時，沒開啟的裝置首頁會問要不要一起開。
+
+### 注意事項與限制
+
+- 送達時間可能比設定的時間晚幾分鐘。
+- 提醒依最後一次開啟 App 時的進度安排，連續一週沒開啟 App 就會停止。
+- iPhone 要 iOS 16.4 以上，並先用 Safari「加入主畫面」，再從主畫面的圖示開啟。
+- 推播金鑰只要產生一次。重新產生會讓所有訂閱失效，各裝置要重新開啟提醒。
+- 私鑰無法從 Cloudflare 讀回；弄丟的話重新產生一組、重新設定即可。
+
+### 疑難排解
+
+| 狀況 | 處理方式 |
+|---|---|
+| 開啟時提示要先填同步服務網址 | 到「Google Drive 同步與備份」填入 Worker 網址，按提示的「前往設定」可直接跳過去。 |
+| 「Worker 尚未設定推播」 | KV 的 id、`VAPID_PUBLIC_KEY` 或私鑰其中一項沒設好，回頭檢查上面第 1 到 3 步並重新部署。 |
+| 「通知權限已被封鎖」 | 瀏覽器已拒絕過通知。到瀏覽器的網站設定把通知改成允許，再回來開啟。 |
+| 測試通知收不到 | 確認 App 已「安裝」或加入主畫面；用 `npx wrangler tail` 看 Worker 紀錄。 |
+| 想重新來過 | 在 App 關閉再開啟「每日提醒」，會重新建立這台裝置的訂閱。 |
 
 ## 外部資源
 
