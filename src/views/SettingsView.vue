@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import {
   Archive,
+  Bell,
   BookOpen,
   BrainCircuit,
   ChevronRight,
@@ -30,6 +31,7 @@ import PosSettings from '@/components/settings/PosSettings.vue'
 import DictSettings from '@/components/settings/DictSettings.vue'
 import ReadingSettings from '@/components/settings/ReadingSettings.vue'
 import TtsSettings from '@/components/settings/TtsSettings.vue'
+import ReminderSettings from '@/components/settings/ReminderSettings.vue'
 import SyncSettings from '@/components/settings/SyncSettings.vue'
 import ArchiveSettings from '@/components/settings/ArchiveSettings.vue'
 import SelectBox from '@/components/SelectBox.vue'
@@ -391,6 +393,15 @@ const def = defaultSynced()
         :icon="Cloud"
       >
         <SyncSettings />
+      </SettingsSection>
+
+      <SettingsSection
+        id="reminder"
+        title="每日提醒"
+        hint="定時通知還沒完成的複習與新學習"
+        :icon="Bell"
+      >
+        <ReminderSettings />
       </SettingsSection>
 
       <SettingsSection

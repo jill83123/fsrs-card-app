@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ChevronDown, RotateCcw } from '@lucide/vue'
 import { useUi } from '@/stores/ui'
@@ -18,6 +18,13 @@ const route = useRoute()
 
 // links such as /settings#sync open their section directly
 const open = ref(route.hash === `#${props.id}`)
+// ...and so does a link followed while the page is already showing
+watch(
+  () => route.hash,
+  (hash) => {
+    if (hash === `#${props.id}`) open.value = true
+  },
+)
 
 async function reset() {
   if (

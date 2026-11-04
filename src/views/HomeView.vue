@@ -6,6 +6,7 @@ import NodeLegend from '@/components/NodeLegend.vue'
 import NodeList from '@/components/NodeList.vue'
 import NodeFormSheet from '@/components/NodeFormSheet.vue'
 import StudyEntry from '@/components/StudyEntry.vue'
+import ReminderPrompt from '@/components/ReminderPrompt.vue'
 import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { childrenOf } from '@/lib/tree'
@@ -43,6 +44,8 @@ const sorting = ref(false)
         <Moon v-else :size="20" />
       </button>
     </header>
+
+    <ReminderPrompt />
 
     <section class="card mb-5 space-y-4">
       <div class="flex items-end justify-between gap-3">

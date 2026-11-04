@@ -193,6 +193,17 @@ export interface SyncedSettings {
   dictionaries: Dictionary[]
   /** how the reading of an English word is written when it is generated */
   reading: { enStyle: 'ipa' | 'kk' }
+  /** what the daily reminder says and when; whether this device gets it is a device setting */
+  reminder: {
+    /** local time of day, "HH:MM" */
+    time: string
+    /** remind about cards waiting for review */
+    review: boolean
+    /** remind about new cards that can be learned */
+    learn: boolean
+    /** turned on from some device, so the other devices offer to do the same */
+    used: boolean
+  }
 }
 
 export type TtsEngine = 'piper' | 'system'
@@ -211,6 +222,12 @@ export interface DeviceSettings {
     /** address of the Cloudflare Worker in worker/ (it also supplies the Google client ID) */
     workerUrl: string
     auto: boolean
+  }
+  /** daily reminder pushed by the Worker; the push subscription belongs to this device */
+  reminder: {
+    enabled: boolean
+    /** the home page offer to turn it on here was closed, or it was turned off here on purpose */
+    dismissed: boolean
   }
 }
 

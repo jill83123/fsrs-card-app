@@ -46,6 +46,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // daily reminder notifications (see public/push-sw.js)
+        importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         runtimeCaching: [

@@ -1,12 +1,15 @@
 /**
  * Holds the Google OAuth client secret so the browser app can use a refresh token.
- * Stateless: nothing is stored here, tokens only pass through.
+ * The Google part is stateless: tokens only pass through.
  *
  *   GET  /config                      -> { clientId }
  *   POST /token    { code }           -> { access_token, expires_in, refresh_token, scope }
  *   POST /refresh  { refresh_token }  -> { access_token, expires_in, scope }
  *   POST /revoke   { token }          -> {}
+ *   /push/*                           -> daily reminders, see push.js (the only thing stored here)
  */
+
+import { handlePush, sendDue } from './push.js'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
@@ -52,6 +55,11 @@ export default {
     if (!cors) return json({ error: 'forbidden_origin' }, 403, {})
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
     const path = new URL(request.url).pathname
+    if (path.startsWith('/push/')) {
+      const pushBody = request.method === 'POST' ? await request.json().catch(() => null) : {}
+      if (!pushBody || typeof pushBody !== 'object') return json({ error: 'bad_request' }, 400, cors)
+      return handlePush(request, env, path, pushBody, (b, status) => json(b, status, cors))
+    }
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
       return json({ error: 'worker_not_configured' }, 500, cors)
     if (request.method === 'GET' && path === '/config')
@@ -94,5 +102,9 @@ export default {
     }
 
     return json({ error: 'not_found' }, 404, cors)
+  },
+
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(sendDue(env))
   },
 }

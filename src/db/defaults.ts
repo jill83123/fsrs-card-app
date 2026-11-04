@@ -155,6 +155,7 @@ export const defaultSynced = (): SyncedSettings => ({
   pos: structuredClone(DEFAULT_POS),
   dictionaries: structuredClone(DEFAULT_DICTIONARIES),
   reading: { enStyle: 'ipa' },
+  reminder: { time: '20:00', review: true, learn: true, used: false },
 })
 
 export const defaultDevice = (): DeviceSettings => ({
@@ -169,4 +170,5 @@ export const defaultDevice = (): DeviceSettings => ({
     workerUrl: '',
     auto: true,
   },
+  reminder: { enabled: false, dismissed: false },
 })

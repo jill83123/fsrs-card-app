@@ -8,6 +8,7 @@ import router from './router'
 import { useSettings } from './stores/settings'
 import { useData } from './stores/data'
 import { useSync } from './stores/sync'
+import { useReminder } from './stores/reminder'
 
 const app = createApp(App)
 app.use(createPinia())
@@ -15,6 +16,7 @@ app.use(createPinia())
 await useSettings().load()
 useData().start()
 useSync().init()
+useReminder().init()
 
 app.use(router)
 app.mount('#app')

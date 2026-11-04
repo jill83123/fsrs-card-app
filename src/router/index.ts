@@ -53,7 +53,15 @@ const router = createRouter({
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
   scrollBehavior(to, _from, saved) {
-    if (to.hash) return { el: to.hash, top: 72, behavior: 'smooth' }
+    if (to.hash) {
+      // a section that fits on screen is centred, a taller one starts below the header
+      const height = document.querySelector(to.hash)?.getBoundingClientRect().height ?? 0
+      return {
+        el: to.hash,
+        top: Math.max(72, (window.innerHeight - height) / 2),
+        behavior: 'smooth',
+      }
+    }
     return saved ?? { top: 0 }
   },
 })
