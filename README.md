@@ -95,7 +95,15 @@ npm install
 npx wrangler login      # 瀏覽器開啟授權頁，按允許
 ```
 
-編輯 [worker/wrangler.toml](worker/wrangler.toml)：
+[worker/wrangler.toml](worker/wrangler.toml) 是會被 commit 的範例，真實的值不要寫在裡面。先產生你自己的設定檔 `worker/wrangler.local.toml`（已被 git 忽略，之後都用這份）：
+
+```sh
+npm run sync-config
+```
+
+它會從範例複製一份。之後範例新增了設定，再執行一次（或直接部署，部署時會自動做），新的項目會補進你的檔案，已填的值不會被動到。
+
+編輯 `wrangler.local.toml`：
 
 | 欄位 | 填什麼 |
 |---|---|
@@ -105,11 +113,11 @@ npx wrangler login      # 瀏覽器開啟授權頁，按允許
 部署並設定密鑰：
 
 ```sh
-npx wrangler deploy                             # 印出 Worker 網址
+npm run deploy                                  # 印出 Worker 網址
 npx wrangler secret put GOOGLE_CLIENT_SECRET    # 貼上用戶端密鑰（貼上時不會顯示字元）
 ```
 
-`deploy` 印出的 `https://fsrs-sync-auth.<子網域>.workers.dev` 就是「同步服務網址」。之後改了 Worker 程式只要重跑 `npx wrangler deploy`，密鑰會保留。
+`deploy` 印出的 `https://fsrs-sync-auth.<子網域>.workers.dev` 就是「同步服務網址」。之後改了 Worker 程式只要重跑 `npm run deploy`，密鑰會保留。部署前它會先檢查 `wrangler.local.toml` 有沒有還沒填的項目，有的話會列出來並停下，不會把佔位字部署上去。
 
 ### 3. App
 
@@ -129,8 +137,8 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET    # 貼上用戶端密鑰（貼上
 
 **本機跑 Worker：**
 
-1. 在 `worker/` 建立 `.dev.vars`（已被 git 忽略），寫入 `GOOGLE_CLIENT_SECRET=...`。
-2. 執行 `npx wrangler dev`，Worker 會跑在 `http://localhost:8787`。
+1. 在 `worker/` 建立 `.dev.vars`（已被 git 忽略），寫入 `GOOGLE_CLIENT_SECRET=...`（只有在本機跑 Worker 才需要）。
+2. 執行 `npm run dev`，Worker 會跑在 `http://localhost:8787`。
 3. 把 App 設定裡的「同步服務網址」改成這個網址。測完記得改回雲端的網址。
 
 ## 每日提醒（選用）
@@ -154,7 +162,7 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET    # 貼上用戶端密鑰（貼上
 |---|---|---|
 | 1. KV | 建立存放訂閱的 KV | 一串 id |
 | 2. 推播金鑰 | 產生一組 VAPID 金鑰 | 公鑰與私鑰 |
-| 3. 部署 | 填入設定、存下私鑰、重新部署 Worker | 推播功能上線 |
+| 3. 部署 | 填入其餘設定、重新部署 Worker | 推播功能上線 |
 | 4. App | 在設定頁開啟每日提醒並測試 | 收到測試通知 |
 
 以下指令都在 `worker/` 資料夾執行。還沒登入 Cloudflare 的話先 `npx wrangler login`。
@@ -165,7 +173,7 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET    # 貼上用戶端密鑰（貼上
 npx wrangler kv namespace create fsrs-push
 ```
 
-指令會印出一段設定，裡面的 `id`（一串 32 字的英數字）貼到 [worker/wrangler.toml](worker/wrangler.toml)，取代 `REPLACE_WITH_KV_NAMESPACE_ID`：
+指令會印出一段設定，裡面的 `id`（一串 32 字的英數字）貼到 `worker/wrangler.local.toml`（沒有的話先執行 `npm run sync-config` 產生），取代 `REPLACE_WITH_KV_NAMESPACE_ID`：
 
 ```toml
 [[kv_namespaces]]
@@ -183,23 +191,28 @@ KV 的名稱（`fsrs-push`）只是標籤，可以自己取；`binding` 是程�
 node scripts/gen-vapid.mjs
 ```
 
-它會印出兩樣東西：
+它會產生兩樣東西：
 
-| 項目 | 長相 | 怎麼處理 |
+| 項目 | 去哪裡看 | 怎麼處理 |
 |---|---|---|
-| 公鑰 | 以 `B` 開頭的一長串字 | 填進 `wrangler.toml` 的 `VAPID_PUBLIC_KEY`，不是祕密，可以放在 repo |
-| 私鑰 | 一行 JSON，像 `{"kty":"EC",...,"d":"..."}` | **不要寫進任何檔案或 commit**，下一步存成密鑰 |
+| 公鑰 | 自動寫進 `worker/wrangler.local.toml` 的 `VAPID_PUBLIC_KEY` | 不用自己填；這個檔案已被 git 忽略 |
+| 私鑰 | 自動寫進同一個 `wrangler.local.toml` 的 `VAPID_PRIVATE_JWK`，不會印在畫面上 | 不用自己填；這個檔案已被 git 忽略，所以不會被 commit |
 
-同時把 `wrangler.toml` 的 `VAPID_SUBJECT` 改成自己的信箱，格式是 `mailto:你的信箱`（推播服務有狀況時用來聯絡你）。
+`wrangler.local.toml` 裡已經有私鑰時，腳本會拒絕再產生一組（新的金鑰會讓所有已開啟提醒的裝置失效），確定要重來才加 `--force`。
 
-### 3. 存下私鑰並部署
+另外把 `wrangler.local.toml` 的 `VAPID_SUBJECT` 改成自己的信箱，格式是 `mailto:你的信箱`（推播服務有狀況時用來聯絡你）。
+
+### 3. 部署
+
+填好 `wrangler.local.toml` 裡其餘的值（KV 的 `id`、`VAPID_SUBJECT`，以及同步用的 `GOOGLE_CLIENT_ID`、`ALLOWED_ORIGINS`）後：
 
 ```sh
-npx wrangler secret put VAPID_PRIVATE_JWK    # 貼上剛剛那一整行 JSON，按 Enter（貼上時不會顯示字元）
-npx wrangler deploy
+npm run deploy
 ```
 
-部署前請再確認 `wrangler.toml` 裡的 `GOOGLE_CLIENT_ID` 與 `ALLOWED_ORIGINS` 是你真實的值，不是範例佔位字。部署會用檔案裡的值取代線上的設定，填錯會讓 Google 登入失效。已經設過的密鑰（例如 `GOOGLE_CLIENT_SECRET`）不會被清掉。
+`npm run deploy` 會先部署設定，再把私鑰以 Cloudflare 的加密「密鑰」存上去，所以儀表板看不到它的明文。私鑰只留在你本機被 git 忽略的 `wrangler.local.toml`。
+
+部署前請再確認 `wrangler.local.toml` 裡的 `GOOGLE_CLIENT_ID` 與 `ALLOWED_ORIGINS` 是你真實的值，不是範例佔位字。部署會用檔案裡的值取代線上的設定，填錯會讓 Google 登入失效。已經設過的密鑰（例如 `GOOGLE_CLIENT_SECRET`）不會被清掉。
 
 ### 4. 在 App 開啟
 
@@ -215,7 +228,7 @@ npx wrangler deploy
 - 提醒依最後一次開啟 App 時的進度安排，連續一週沒開啟 App 就會停止。
 - iPhone 要 iOS 16.4 以上，並先用 Safari「加入主畫面」，再從主畫面的圖示開啟。
 - 推播金鑰只要產生一次。重新產生會讓所有訂閱失效，各裝置要重新開啟提醒。
-- 私鑰無法從 Cloudflare 讀回；弄丟的話重新產生一組、重新設定即可。
+- 私鑰無法從 Cloudflare 讀回，但本機的 `wrangler.local.toml` 還在就能重新部署；兩邊都弄丟的話，用 `--force` 重新產生一組、重新設定即可。
 
 ### 疑難排解
 
