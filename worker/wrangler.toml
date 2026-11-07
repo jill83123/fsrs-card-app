@@ -27,12 +27,13 @@ VAPID_PRIVATE_JWK = ""
 # Google 用戶端密鑰不存在這裡，用這個指令設定：npx wrangler secret put GOOGLE_CLIENT_SECRET
 
 # --- 每日提醒（Web Push）---
-# 推播訂閱與提醒時間存在這個 KV。用這個指令建立，再把印出的 id 貼到下面：
-# npx wrangler kv namespace create fsrs-push
-[[kv_namespaces]]
-binding = "PUSH"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+# 每台裝置的推播訂閱與提醒時間存在各自的 Durable Object，提醒時間到時由它自己的鬧鐘叫醒，
+# 不需要建立任何資源，部署時 Cloudflare 會自動建立。
+[[durable_objects.bindings]]
+name = "PUSH"
+class_name = "PushDevice"
 
-# 每 5 分鐘檢查一次有沒有到時間的提醒
-[triggers]
-crons = ["*/5 * * * *"]
+# 免費方案只能用 SQLite 版本的 Durable Object，所以用 new_sqlite_classes
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PushDevice"]

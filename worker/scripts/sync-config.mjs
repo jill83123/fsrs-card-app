@@ -13,6 +13,9 @@ const local = new URL('../wrangler.local.toml', import.meta.url)
 // 範例裡的佔位字：空字串，或是範例才會出現的假值
 const PLACEHOLDER = /^(""|''|".*(xxxx|username\.github\.io|you@example\.com|REPLACE_WITH).*")$/
 
+// 已經不用的舊區塊（KV、cron），本機設定檔裡有的話會被移除
+const OBSOLETE = new Set(['[[kv_namespaces]]', '[triggers]'])
+
 const isHeader = (l) => l.trim().startsWith('[')
 const isSetting = (l) => !l.trim().startsWith('#') && !isHeader(l) && l.includes('=')
 const keyOf = (l) => l.split('=')[0].trim()
@@ -61,6 +64,7 @@ export function syncConfig() {
   // 你自己加的、範例沒有的項目
   const extras = []
   for (const [h, settings] of mine) {
+    if (OBSOLETE.has(h)) continue
     for (const [key, line] of settings) {
       if (seen.get(h)?.has(key)) continue
       if (lastSetting.has(h)) extras.push({ at: lastSetting.get(h), line })
