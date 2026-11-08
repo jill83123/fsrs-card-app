@@ -59,23 +59,29 @@ export async function subscribePush(workerUrl: string): Promise<PushSubscription
   })
 }
 
-export async function unsubscribePush(workerUrl: string) {
+/** A new random reminder group id (see worker/src/push.js). */
+export const newGroupId = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('')
+
+export async function unsubscribePush(workerUrl: string, group: string) {
   const sub = await currentSubscription()
   if (!sub) return
   const endpoint = sub.endpoint
   await sub.unsubscribe().catch(() => {})
-  if (workerUrl.trim()) await call(workerUrl, '/push/unsubscribe', { endpoint }).catch(() => {})
+  if (workerUrl.trim() && group)
+    await call(workerUrl, '/push/unsubscribe', { group, endpoint }).catch(() => {})
 }
 
 export async function uploadSlots(
   workerUrl: string,
+  group: string,
   sub: PushSubscription,
   slots: { t: number; review: number; fresh: number }[],
   keepalive = false,
 ) {
-  await call(workerUrl, '/push/sync', { subscription: sub.toJSON(), slots }, keepalive)
+  await call(workerUrl, '/push/sync', { group, subscription: sub.toJSON(), slots }, keepalive)
 }
 
-export async function sendTestPush(workerUrl: string, sub: PushSubscription) {
-  await call(workerUrl, '/push/test', { endpoint: sub.endpoint })
+export async function sendTestPush(workerUrl: string, group: string, sub: PushSubscription) {
+  await call(workerUrl, '/push/test', { group, endpoint: sub.endpoint })
 }

@@ -155,7 +155,7 @@ export const defaultSynced = (): SyncedSettings => ({
   pos: structuredClone(DEFAULT_POS),
   dictionaries: structuredClone(DEFAULT_DICTIONARIES),
   reading: { enStyle: 'ipa' },
-  reminder: { time: '20:00', review: true, learn: true, used: false },
+  reminder: { time: '20:00', review: true, learn: true, used: false, group: '' },
 })
 
 export const defaultDevice = (): DeviceSettings => ({

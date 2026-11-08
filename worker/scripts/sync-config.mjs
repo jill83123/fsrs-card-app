@@ -16,6 +16,9 @@ const PLACEHOLDER = /^(""|''|".*(xxxx|username\.github\.io|you@example\.com|REPL
 // 已經不用的舊區塊（KV、cron），本機設定檔裡有的話會被移除
 const OBSOLETE = new Set(['[[kv_namespaces]]', '[triggers]'])
 
+// [[...]] 區塊可以重複出現（例如每個 migration 一段），無法逐項對應，一律以範例為準
+const isTable = (h) => h.startsWith('[[')
+
 const isHeader = (l) => l.trim().startsWith('[')
 const isSetting = (l) => !l.trim().startsWith('#') && !isHeader(l) && l.includes('=')
 const keyOf = (l) => l.split('=')[0].trim()
@@ -53,10 +56,10 @@ export function syncConfig() {
     if (isHeader(l)) header = l.trim()
     if (isSetting(l)) {
       const key = keyOf(l)
-      const theirs = mine.get(header)?.get(key)
+      const theirs = isTable(header) ? undefined : mine.get(header)?.get(key)
       if (!seen.has(header)) seen.set(header, new Set())
       seen.get(header).add(key)
-      if (theirs === undefined) added.push(header && header !== '[vars]' ? `${header} ${key}` : key)
+      if (theirs === undefined && !isTable(header)) added.push(header && header !== '[vars]' ? `${header} ${key}` : key)
       out.push(theirs ?? l)
       lastSetting.set(header, out.length)
     } else out.push(l)
@@ -64,7 +67,7 @@ export function syncConfig() {
   // 你自己加的、範例沒有的項目
   const extras = []
   for (const [h, settings] of mine) {
-    if (OBSOLETE.has(h)) continue
+    if (OBSOLETE.has(h) || isTable(h)) continue
     for (const [key, line] of settings) {
       if (seen.get(h)?.has(key)) continue
       if (lastSetting.has(h)) extras.push({ at: lastSetting.get(h), line })

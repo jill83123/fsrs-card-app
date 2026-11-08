@@ -203,6 +203,8 @@ export interface SyncedSettings {
     learn: boolean
     /** turned on from some device, so the other devices offer to do the same */
     used: boolean
+    /** random id shared by all of one person's devices so the Worker keeps one reminder for them; empty until first needed */
+    group: string
   }
 }
 

@@ -152,9 +152,9 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET    # 貼上用戶端密鑰（貼上
 網頁在關閉後無法自己定時叫醒，所以由 Worker 負責準時送出（不使用 cron，也不使用 KV）：
 
 - App 算出接下來一週每天提醒時的待複習與可學新卡數量，連同這台裝置的推播訂閱傳給 Worker。
-- 每台裝置對應一個 Cloudflare Durable Object，它替自己設一個鬧鐘，時間到而且數量大於 0 才推播，沒有要做的卡片就不會發送通知；推播服務暫時失敗會 5 分鐘後重試。
+- 同一個人的所有裝置共用一個提醒群組（群組代號存在會同步的設定裡），對應一個 Cloudflare Durable Object，它設一個鬧鐘，時間到而且數量大於 0 才推播給群組內每台裝置。任何一台裝置複習後都會更新全部裝置的提醒，所以在手機複習完，沒開過應用的電腦也不會再收到通知。沒有要做的卡片就不會發送通知；推播服務暫時失敗會 5 分鐘後重試。
 - Worker 只存推播訂閱和數量，不存卡片內容。資料存在該裝置的 Durable Object；超過 30 天沒更新就會自動清掉。App 重複上傳相同內容時不會再寫入。
-- 可以多人共用同一個 Worker：每台裝置各自一個 Durable Object、各自的鬧鐘，不會掃描全部資料，人多也不會變慢。Worker 只會對 Chrome、Firefox、Safari、Edge 的推播服務網址發送通知。
+- 可以多人共用同一個 Worker：每個群組各自一個 Durable Object、各自的鬧鐘，不會掃描全部資料，人多也不會變慢。Worker 只會對 Chrome、Firefox、Safari、Edge 的推播服務網址發送通知。
 
 ### 設定流程
 
@@ -195,7 +195,7 @@ node scripts/gen-vapid.mjs
 npm run deploy
 ```
 
-Durable Object（`PushDevice`）不用事先建立，第一次部署時會依 `wrangler.toml` 的 `[[migrations]]` 自動建立（免費方案只能用 SQLite 版本，已設好）。`npm run deploy` 會先部署設定，再把私鑰以 Cloudflare 的加密「密鑰」存上去，所以儀表板看不到它的明文。私鑰只留在你本機被 git 忽略的 `wrangler.local.toml`。
+Durable Object（`PushGroup`）不用事先建立，第一次部署時會依 `wrangler.toml` 的 `[[migrations]]` 自動建立（免費方案只能用 SQLite 版本，已設好）。`npm run deploy` 會先部署設定，再把私鑰以 Cloudflare 的加密「密鑰」存上去，所以儀表板看不到它的明文。私鑰只留在你本機被 git 忽略的 `wrangler.local.toml`。
 
 部署前請再確認 `wrangler.local.toml` 裡的 `GOOGLE_CLIENT_ID` 與 `ALLOWED_ORIGINS` 是你真實的值，不是範例佔位字。部署會用檔案裡的值取代線上的設定，填錯會讓 Google 登入失效。已經設過的密鑰（例如 `GOOGLE_CLIENT_SECRET`）不會被清掉。
 

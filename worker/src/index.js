@@ -6,13 +6,13 @@
  *   POST /token    { code }           -> { access_token, expires_in, refresh_token, scope }
  *   POST /refresh  { refresh_token }  -> { access_token, expires_in, scope }
  *   POST /revoke   { token }          -> {}
- *   /push/*                           -> daily reminders, see push.js (one Durable Object per device, the only thing stored here)
+ *   /push/*                           -> daily reminders, see push.js (one Durable Object per reminder group, the only thing stored here)
  */
 
 import { handlePush } from './push.js'
 
 // Durable Object class must be exported from the entry file
-export { PushDevice } from './push.js'
+export { PushGroup } from './push.js'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'

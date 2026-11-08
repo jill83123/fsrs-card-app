@@ -27,13 +27,20 @@ VAPID_PRIVATE_JWK = ""
 # Google 用戶端密鑰不存在這裡，用這個指令設定：npx wrangler secret put GOOGLE_CLIENT_SECRET
 
 # --- 每日提醒（Web Push）---
-# 每台裝置的推播訂閱與提醒時間存在各自的 Durable Object，提醒時間到時由它自己的鬧鐘叫醒，
+# 同一個人所有裝置的推播訂閱與提醒時間存在同一個 Durable Object，提醒時間到時由它自己的鬧鐘叫醒，
+# 任何一台裝置複習後更新，所有裝置的提醒都會跟著更新，
 # 不需要建立任何資源，部署時 Cloudflare 會自動建立。
 [[durable_objects.bindings]]
 name = "PUSH"
-class_name = "PushDevice"
+class_name = "PushGroup"
 
 # 免費方案只能用 SQLite 版本的 Durable Object，所以用 new_sqlite_classes
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["PushDevice"]
+
+# v2：改成以「提醒群組」為單位，PushDevice 改名為 PushGroup。
+# 舊的每台裝置紀錄格式不同，鬧鐘叫醒時會被清掉（重新開啟應用會自動重新登記）
+[[migrations]]
+tag = "v2"
+renamed_classes = [{ from = "PushDevice", to = "PushGroup" }]

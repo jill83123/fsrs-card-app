@@ -2,14 +2,14 @@
  * Daily study reminders over Web Push.
  *
  * The app uploads its push subscription together with the reminder slots it worked out
- * (a time plus how many cards will be waiting then). Each device gets its own Durable Object,
- * which sets an alarm for its next slot and sends it when the time has come. Only the
- * subscription and counts are stored, never card content.
+ * (a time plus how many cards will be waiting then). All devices of one person share a group id
+ * and a Durable Object, which sets an alarm for the next slot and sends it to every device of the
+ * group when the time has come. Only the subscriptions and counts are stored, never card content.
  *
  *   GET  /push/key                              -> { publicKey }
- *   POST /push/sync   { subscription, slots }   -> {}
- *   POST /push/unsubscribe { endpoint }         -> {}
- *   POST /push/test   { endpoint }              -> {}
+ *   POST /push/sync        { group, subscription, slots } -> {}
+ *   POST /push/unsubscribe { group, endpoint }            -> {}
+ *   POST /push/test        { group, endpoint }            -> {}
  *
  * slot = { t: epoch ms, review: number, fresh: number }
  */
@@ -32,6 +32,9 @@ const PUSH_HOSTS = [
   'notify.windows.com',
 ]
 
+/** random id shared by one person's devices; whoever knows it can change that group's reminders */
+const GROUP_ID = /^[0-9a-f]{32}$/
+
 const enc = new TextEncoder()
 
 function b64uDecode(s) {
@@ -53,11 +56,6 @@ function concat(...parts) {
     at += p.length
   }
   return out
-}
-
-async function sha256Hex(text) {
-  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(text)))
-  return [...d].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 async function hkdf(salt, ikm, info, bytes) {
@@ -172,11 +170,15 @@ const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 /**
- * One Durable Object per device (named by the SHA-256 of its push endpoint).
- * Storage holds a single record: { sub, slots, sent, touched }.
+ * One Durable Object per reminder group: every device of one person shares the group id
+ * (it travels with the synced settings), so a device that studied updates the reminder
+ * for all of them, even for a device that has not been opened since.
+ * Storage holds a single record:
+ *   { subs: { [endpoint]: subscription }, slots, sent, touched, retry? }
+ * retry = { t, endpoints }: devices that a due slot could not be delivered to yet.
  * The alarm is set to the next unsent slot, or to the clean-up time when nothing is pending.
  */
-export class PushDevice {
+export class PushGroup {
   constructor(ctx, env) {
     this.ctx = ctx
     this.env = env
@@ -194,6 +196,13 @@ export class PushDevice {
     await this.ctx.storage.deleteAll()
   }
 
+  /** Forget one device; the whole group goes when it was the last. */
+  async drop(rec, endpoint) {
+    delete rec.subs[endpoint]
+    if (Object.keys(rec.subs).length) await this.ctx.storage.put('rec', rec)
+    else await this.wipe()
+  }
+
   async fetch(request) {
     const path = new URL(request.url).pathname
     const body = await request.json().catch(() => ({}))
@@ -205,30 +214,32 @@ export class PushDevice {
       const sub = { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } }
       const sent = old?.sent ?? 0
       const slots = body.slots.filter((s) => s.t > sent)
-      const same = old && JSON.stringify([old.sub, old.slots]) === JSON.stringify([sub, slots])
+      const subs = { ...old?.subs, [endpoint]: sub }
+      const same = old && JSON.stringify([old.subs, old.slots]) === JSON.stringify([subs, slots])
       // identical upload: skip the write, only refresh the "last seen" time now and then
       if (same && now - old.touched < TOUCH_MS) return json({})
-      const rec = { sub, slots, sent, touched: now }
+      const rec = { subs, slots, sent, touched: now, retry: old?.retry }
       await this.ctx.storage.put('rec', rec)
       await this.schedule(rec, now)
       return json({})
     }
 
     if (path === '/unsubscribe') {
-      await this.wipe()
+      if (old) await this.drop(old, body.endpoint)
       return json({})
     }
 
     if (path === '/test') {
-      if (!old) return json({ error: 'not_subscribed' }, 404)
+      const sub = old?.subs[body.endpoint]
+      if (!sub) return json({ error: 'not_subscribed' }, 404)
       try {
-        const ok = await send(this.env, old.sub, {
+        const ok = await send(this.env, sub, {
           title: '測試通知',
           body: '收到這則通知，每日提醒就能正常運作。',
           url: './',
         })
         if (!ok) {
-          await this.wipe()
+          await this.drop(old, body.endpoint)
           return json({ error: 'subscription_expired' }, 410)
         }
         return json({})
@@ -240,29 +251,48 @@ export class PushDevice {
     return json({ error: 'not_found' }, 404)
   }
 
-  /** Send the slot that is due, then set the alarm for the next one. */
+  /** Send the slot that is due to every device of the group, then set the alarm for the next one. */
   async alarm() {
     const rec = await this.ctx.storage.get('rec')
     if (!rec) return
-    const now = Date.now()
-    if (now - rec.touched >= RECORD_TTL_MS && !dueSlot(rec.slots, rec.sent, now)) {
-      await this.wipe() // the device stopped syncing long ago
+    if (!rec.subs) {
+      await this.wipe() // a record from the one-object-per-device days
       return
     }
+    const now = Date.now()
     const slot = dueSlot(rec.slots, rec.sent, now)
+    if (!slot && now - rec.touched >= RECORD_TTL_MS) {
+      await this.wipe() // no device of the group has synced for a long time
+      return
+    }
     if (slot) {
       const message = messageOf(slot)
-      try {
-        const ok = message ? await send(this.env, rec.sub, message) : true
-        if (!ok) {
-          await this.wipe() // subscription is gone
-          return
+      // after a partial failure only the devices that did not get it yet are tried again
+      const targets = rec.retry?.t === slot.t ? rec.retry.endpoints : Object.keys(rec.subs)
+      const failed = []
+      if (message) {
+        for (const endpoint of targets) {
+          const sub = rec.subs[endpoint]
+          if (!sub) continue
+          try {
+            if (!(await send(this.env, sub, message))) delete rec.subs[endpoint] // subscription is gone
+          } catch {
+            failed.push(endpoint)
+          }
         }
-      } catch {
+      }
+      if (!Object.keys(rec.subs).length) {
+        await this.wipe()
+        return
+      }
+      if (failed.length) {
         // temporary failure: retry in a few minutes, until the slot's grace time is over
+        rec.retry = { t: slot.t, endpoints: failed }
+        await this.ctx.storage.put('rec', rec)
         await this.ctx.storage.setAlarm(now + RETRY_MS)
         return
       }
+      rec.retry = undefined
       rec.sent = slot.t
       rec.slots = rec.slots.filter((s) => s.t > rec.sent)
       await this.ctx.storage.put('rec', rec)
@@ -281,20 +311,20 @@ export async function handlePush(request, env, path, body, reply) {
     return reply({ publicKey: env.VAPID_PUBLIC_KEY }, 200)
   if (request.method !== 'POST') return reply({ error: 'method_not_allowed' }, 405)
 
-  let endpoint
+  if (typeof body.group !== 'string' || !GROUP_ID.test(body.group))
+    return reply({ error: 'bad_request' }, 400)
+
   let payload
   if (path === '/push/sync') {
     if (!validSub(body.subscription) || !Array.isArray(body.slots))
       return reply({ error: 'bad_request' }, 400)
-    endpoint = body.subscription.endpoint
     payload = { subscription: body.subscription, slots: body.slots.filter(validSlot).slice(0, MAX_SLOTS) }
   } else if (path === '/push/unsubscribe' || path === '/push/test') {
     if (typeof body.endpoint !== 'string' || !body.endpoint) return reply({ error: 'bad_request' }, 400)
-    endpoint = body.endpoint
-    payload = {}
+    payload = { endpoint: body.endpoint }
   } else return reply({ error: 'not_found' }, 404)
 
-  const stub = env.PUSH.get(env.PUSH.idFromName(await sha256Hex(endpoint)))
+  const stub = env.PUSH.get(env.PUSH.idFromName(body.group))
   const res = await stub.fetch(`https://push.internal/${path.slice('/push/'.length)}`, {
     method: 'POST',
     body: JSON.stringify(payload),
