@@ -117,7 +117,7 @@ npm run deploy                                  # 印出 Worker 網址
 npx wrangler secret put GOOGLE_CLIENT_SECRET    # 貼上用戶端密鑰（貼上時不會顯示字元）
 ```
 
-`deploy` 印出的 `https://fsrs-sync-auth.<子網域>.workers.dev` 就是「同步服務網址」。之後改了 Worker 程式只要重跑 `npm run deploy`，密鑰會保留。部署前它會先檢查 `wrangler.local.toml` 有沒有還沒填的項目，有的話會列出來並停下，不會把佔位字部署上去。
+`deploy` 印出的 `https://fsrs-card-auth.<子網域>.workers.dev` 就是「同步服務網址」。之後改了 Worker 程式只要重跑 `npm run deploy`，密鑰會保留。部署前它會先檢查 `wrangler.local.toml` 有沒有還沒填的項目，有的話會列出來並停下，不會把佔位字部署上去。
 
 ### 3. App
 

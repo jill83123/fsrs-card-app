@@ -3,7 +3,7 @@
 # node scripts/gen-vapid.mjs 時會自動建立，範例有新增設定時也會自動補進去）。
 # 部署：npm run deploy
 
-name = "fsrs-sync-auth"
+name = "fsrs-card-auth"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
 
