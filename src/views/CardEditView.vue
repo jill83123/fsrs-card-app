@@ -226,6 +226,16 @@ const exDrag = useDragSort((from, to) => {
   if (v) v.examples = moved(v.examples, from, to)
 })
 
+const derDrag = useDragSort((from, to) => {
+  const v = vocab.value
+  if (v?.derived) v.derived = moved(v.derived, from, to)
+})
+
+// derived words pick their part of speech from the same list as the meanings
+const derivedPosOptions = computed(() =>
+  vocab.value ? settings.synced.pos[vocab.value.lang].filter((o) => !o.hidden) : [],
+)
+
 /** Grow a textarea with its text, so a one-line sentence takes one line. */
 function fit(el: HTMLElement) {
   el.style.height = 'auto'
@@ -677,8 +687,24 @@ const previewRevealed = ref(false)
         <div>
           <label class="section-label">衍生字</label>
           <div class="space-y-3">
-            <div v-for="(d, i) in vocab.derived" :key="d.id" class="card space-y-2 p-4">
+            <div
+              v-for="(d, i) in vocab.derived"
+              :key="d.id"
+              data-sort-item
+              class="card space-y-2 p-4"
+              :class="{ 'shadow-lg': derDrag.dragging(i) }"
+              :style="derDrag.style(i)"
+            >
               <div class="flex items-center gap-2">
+                <button
+                  v-if="(vocab.derived?.length ?? 0) > 1"
+                  type="button"
+                  class="-ml-1 flex size-7 shrink-0 touch-none items-center justify-center rounded-lg text-muted hover:bg-surface-2"
+                  aria-label="拖曳排序"
+                  @pointerdown="derDrag.start($event, i)"
+                >
+                  <GripVertical :size="16" />
+                </button>
                 <input v-model="d.word" class="input min-w-0 flex-1" placeholder="衍生字" />
                 <button
                   type="button"
@@ -690,7 +716,20 @@ const previewRevealed = ref(false)
                 </button>
               </div>
               <div class="flex gap-2">
-                <input v-model="d.pos" class="input w-24 shrink-0" placeholder="詞性" />
+                <div class="w-28 shrink-0">
+                  <SelectBox v-model="d.pos" aria-label="詞性">
+                    <option value="" disabled>詞性</option>
+                    <option
+                      v-if="d.pos && !derivedPosOptions.some((o) => o.label === d.pos)"
+                      :value="d.pos"
+                    >
+                      {{ d.pos }}
+                    </option>
+                    <option v-for="o in derivedPosOptions" :key="o.id" :value="o.label">
+                      {{ o.label }}
+                    </option>
+                  </SelectBox>
+                </div>
                 <input v-model="d.meaning" class="input min-w-0 flex-1" placeholder="詞義" />
               </div>
             </div>
