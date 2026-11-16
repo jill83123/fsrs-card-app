@@ -40,22 +40,23 @@ const options = computed(() => deckRows(data.nodes))
 
 <template>
   <div>
-    <PageHeader title="統計" hide-back scroll-away />
-    <!-- the title scrolls off; only the deck picker stays pinned -->
-    <div class="sticky top-0 z-10 -mx-4 -mt-4 mb-2 bg-bg/80 px-4 py-3 backdrop-blur">
-      <SelectBox v-model="scope" collapsible aria-label="牌組">
-        <option :value="null">全部牌組</option>
-        <option
-          v-for="o in options"
-          :key="o.node.id"
-          :value="o.node.id"
-          :path="o.path"
-          :tree="o.tree"
-        >
-          {{ o.node.name }}
-        </option>
-      </SelectBox>
-    </div>
+    <!-- the deck is the title; tap it to switch -->
+    <PageHeader hide-back>
+      <template #title>
+        <SelectBox v-model="scope" collapsible title aria-label="牌組">
+          <option :value="null">全部牌組</option>
+          <option
+            v-for="o in options"
+            :key="o.node.id"
+            :value="o.node.id"
+            :path="o.path"
+            :tree="o.tree"
+          >
+            {{ o.node.name }}
+          </option>
+        </SelectBox>
+      </template>
+    </PageHeader>
     <StatsPanel :scope="scope" />
   </div>
 </template>

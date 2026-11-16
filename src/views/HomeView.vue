@@ -32,7 +32,7 @@ const sorting = ref(false)
 
 <template>
   <div>
-    <header class="flex items-center justify-between gap-3 py-4">
+    <header class="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-3 bg-bg px-4 py-4">
       <SyncChip />
       <button
         class="icon-btn"

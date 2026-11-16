@@ -500,7 +500,7 @@ const progress = computed(() => {
         : 'min-h-[calc(100dvh-2.5rem)]'
     "
   >
-    <header class="flex shrink-0 items-center gap-3 py-3">
+    <header class="sticky top-0 z-20 -mx-4 flex shrink-0 items-center gap-3 bg-bg px-4 py-3">
       <button class="icon-btn" aria-label="結束練習" @click="running = false">
         <X :size="20" />
       </button>

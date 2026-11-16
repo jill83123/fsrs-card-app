@@ -36,7 +36,11 @@ interface Opt {
 }
 
 /** `collapsible`: options drawn as a tree (see `tree`) get a button to fold their sub-options away. */
-const props = defineProps<{ collapsible?: boolean }>()
+const props = defineProps<{
+  collapsible?: boolean
+  /** shown as a bold page title with a chevron beside it, instead of a field */
+  title?: boolean
+}>()
 const slots = useSlots()
 
 function textOf(children: VNode['children']): string {
@@ -113,7 +117,7 @@ function revealSelected() {
 }
 const selectedLabel = computed(() => {
   const o = options().find((o) => same(o.value, model.value))
-  return o ? o.full : ''
+  return o ? (props.title ? o.label : o.full) : ''
 })
 
 const id = useId()
@@ -131,11 +135,16 @@ function position() {
   const above = r.top - gap - 8
   const flip = below < 160 && above > below
   const max = Math.max(120, Math.min(288, flip ? above : below))
+  // a title is narrow, so its list spans the page width, in line with the cards
+  const listW = props.title ? Math.max(r.width, Math.min(window.innerWidth - 32, 608)) : r.width
+  const left = props.title
+    ? Math.min(Math.max(8, r.left + r.width / 2 - listW / 2), window.innerWidth - listW - 8)
+    : r.left
   place.value = {
-    left: `${r.left}px`,
-    minWidth: `${r.width}px`,
+    left: `${left}px`,
+    minWidth: `${listW}px`,
     width: 'max-content',
-    maxWidth: `${Math.max(r.width, window.innerWidth - r.left - 8)}px`,
+    maxWidth: `${Math.max(listW, window.innerWidth - left - 8)}px`,
     maxHeight: `${max}px`,
     ...(flip
       ? { bottom: `${window.innerHeight - r.top + gap}px` }
@@ -234,11 +243,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative w-full">
+  <div class="relative" :class="title ? 'inline-block max-w-full' : 'w-full'">
     <button
       ref="trigger"
       type="button"
-      class="input flex cursor-pointer items-center pr-10 text-left"
+      :class="
+        title
+          ? 'flex max-w-full cursor-pointer items-center gap-1 text-lg font-bold'
+          : 'input flex cursor-pointer items-center pr-10 text-left'
+      "
       v-bind="$attrs"
       role="combobox"
       aria-haspopup="listbox"
@@ -258,8 +271,16 @@ onBeforeUnmount(() => {
           />{{ part }}
         </template>
       </span>
+      <!-- a title keeps its chevron inside the button, so tapping the icon opens the list too -->
+      <ChevronDown
+        v-if="title"
+        :size="18"
+        class="shrink-0 text-muted transition-transform"
+        :class="{ 'rotate-180': open }"
+      />
     </button>
     <ChevronDown
+      v-if="!title"
       :size="18"
       class="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-muted transition-transform"
       :class="{ 'rotate-180': open }"

@@ -253,7 +253,7 @@ const waitText = computed(() =>
 
 <template>
   <div class="flex min-h-[calc(100dvh-2.5rem)] flex-col">
-    <header class="flex items-center gap-3 py-3">
+    <header class="sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-bg px-4 py-3">
       <button class="icon-btn" aria-label="離開" @click="exit"><X :size="20" /></button>
       <div class="min-w-0 flex-1 text-center">
         <div class="font-bold">{{ title }}</div>
