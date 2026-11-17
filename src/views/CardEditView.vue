@@ -409,6 +409,9 @@ const previewRevealed = ref(false)
         <button class="btn px-2 text-muted hover:text-ink" @click="router.back()">取消</button>
       </template>
       <template #title>{{ editingId ? '編輯卡片' : '新卡片' }}</template>
+      <template #right>
+        <button class="btn btn-primary px-4" :disabled="frontEmpty" @click="save()">儲存</button>
+      </template>
     </PageHeader>
 
     <div class="space-y-6">
