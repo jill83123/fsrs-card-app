@@ -220,11 +220,34 @@ watch(
       <button v-if="!showExample" class="btn btn-ghost text-sm" @click.stop="revealExample">
         <MessageSquareQuote :size="16" /> 查看例句
       </button>
-      <div v-else class="flex w-full items-start gap-1 rounded-2xl bg-surface-2 px-4 py-3">
-        <p class="flex-1">
-          <ExampleText :sentence="picked.sentence" :marks="picked.marks" />
-        </p>
-        <SpeakButton :text="picked.sentence" :lang="card.lang" class="-my-1.5" />
+      <div v-else class="w-full space-y-2">
+        <div class="flex items-start gap-1 rounded-2xl bg-surface-2 px-4 py-3">
+          <p class="flex-1">
+            <ExampleText :sentence="picked.sentence" :marks="picked.marks" />
+          </p>
+          <SpeakButton :text="picked.sentence" :lang="card.lang" class="-my-1.5" />
+        </div>
+        <template v-if="others.length">
+          <button
+            v-if="!showAllExamples"
+            class="flex w-full items-center justify-center gap-1 py-1 text-sm font-semibold text-primary"
+            @click.stop="showAllExamples = true"
+          >
+            查看更多例句（{{ others.length }}）<ChevronDown :size="16" />
+          </button>
+          <div v-else class="space-y-2">
+            <div
+              v-for="e in others"
+              :key="e.id"
+              class="flex items-start gap-1 rounded-2xl bg-surface-2 px-4 py-3"
+            >
+              <p class="flex-1">
+                <ExampleText :sentence="e.sentence" :marks="e.marks" />
+              </p>
+              <SpeakButton :text="e.sentence" :lang="card.lang" class="-my-1.5" />
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
