@@ -6,6 +6,7 @@ import {
   Eye,
   GripVertical,
   Highlighter,
+  Pin,
   Plus,
   Sparkles,
   Trash2,
@@ -32,6 +33,7 @@ import {
   newBasicCard,
   newVocabCard,
   sensesOf,
+  sortPinned,
 } from '@/lib/cards'
 import { uid } from '@/lib/id'
 import { moved, useDragSort } from '@/composables/useDragSort'
@@ -217,9 +219,22 @@ function togglePos(sense: Sense, id: string) {
   sense.pos = sense.pos.includes(id) ? sense.pos.filter((p) => p !== id) : [...sense.pos, id]
 }
 
+function togglePin(sense: Sense) {
+  const v = vocab.value
+  if (!v?.senses) return
+  sense.pinned = !sense.pinned
+  v.senses = sortPinned(v.senses)
+}
+
 function addSense() {
   vocab.value?.senses?.push({ id: uid(), pos: [], meaning: '' })
 }
+
+// dragging reorders meanings, but pinned ones always stay above the rest
+const senseDrag = useDragSort((from, to) => {
+  const v = vocab.value
+  if (v?.senses) v.senses = sortPinned(moved(v.senses, from, to))
+})
 
 const exDrag = useDragSort((from, to) => {
   const v = vocab.value
@@ -530,12 +545,33 @@ const previewRevealed = ref(false)
             <div
               v-for="(s, i) in vocab.senses"
               :key="s.id"
+              data-sort-item
               class="card space-y-3 p-4"
-              :class="{ 'pt-2': vocab.senses!.length > 1 }"
+              :class="{ 'pt-2': vocab.senses!.length > 1, 'shadow-lg': senseDrag.dragging(i) }"
+              :style="senseDrag.style(i)"
             >
               <div class="flex items-center gap-2">
+                <button
+                  v-if="vocab.senses!.length > 1"
+                  type="button"
+                  class="-ml-1 flex size-7 touch-none items-center justify-center rounded-lg text-muted hover:bg-surface-2"
+                  aria-label="拖曳排序"
+                  @pointerdown="senseDrag.start($event, i)"
+                >
+                  <GripVertical :size="16" />
+                </button>
                 <span class="text-xs font-bold tracking-[1px] text-muted">#{{ i + 1 }}</span>
                 <div class="flex-1" />
+                <button
+                  v-if="vocab.senses!.length > 1"
+                  class="icon-btn bg-surface-2"
+                  :class="s.pinned ? 'text-primary' : 'text-muted'"
+                  :aria-label="s.pinned ? '取消釘選' : '釘選詞義'"
+                  :aria-pressed="!!s.pinned"
+                  @click="togglePin(s)"
+                >
+                  <Pin :size="16" :fill="s.pinned ? 'currentColor' : 'none'" />
+                </button>
                 <button
                   v-if="vocab.senses!.length > 1"
                   class="icon-btn bg-surface-2 text-danger"

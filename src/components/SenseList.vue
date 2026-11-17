@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Pin } from '@lucide/vue'
 
 const props = defineProps<{
-  rows: { id: string; pos: string[]; meaning: string }[]
+  rows: { id: string; pos: string[]; meaning: string; pinned?: boolean }[]
   large?: boolean
 }>()
 
@@ -11,6 +12,9 @@ const props = defineProps<{
 // without a part of speech would leave its column empty, and one with line breaks reads badly
 // beside a tag, so then each one is stacked and centered (tags above the meaning)
 const stacked = computed(() => props.rows.some((r) => r.meaning.includes('\n') || !r.pos.length))
+
+// pinned meanings carry a pin icon; the column for it exists only when one is pinned
+const anyPinned = computed(() => props.rows.some((r) => r.pinned))
 </script>
 
 <template>
@@ -19,18 +23,39 @@ const stacked = computed(() => props.rows.some((r) => r.meaning.includes('\n') |
       <div v-if="s.pos.length" class="flex flex-wrap justify-center gap-1">
         <span v-for="p in s.pos" :key="p" class="chip">{{ p }}</span>
       </div>
-      <p class="whitespace-pre-line">{{ s.meaning }}</p>
+      <div class="flex items-start justify-center gap-1.5">
+        <p class="whitespace-pre-line">{{ s.meaning }}</p>
+        <Pin
+          v-if="s.pinned"
+          :size="16"
+          fill="currentColor"
+          class="mt-1 shrink-0 text-primary"
+          aria-label="已釘選"
+        />
+      </div>
     </div>
   </div>
   <!-- as wide as its content but never wider than the space there is, so a long meaning wraps in
        its own column instead of spilling out or running under the tags -->
   <div v-else class="flex justify-center" :class="large ? 'text-lg' : 'text-base'">
-    <div class="grid max-w-full grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+    <div
+      class="grid max-w-full items-baseline gap-x-3 gap-y-1.5"
+      :class="anyPinned ? 'grid-cols-[auto_minmax(0,1fr)_auto]' : 'grid-cols-[auto_minmax(0,1fr)]'"
+    >
       <template v-for="s in rows" :key="s.id">
         <span class="flex flex-wrap justify-end gap-1">
           <span v-for="p in s.pos" :key="p" class="chip">{{ p }}</span>
         </span>
         <p class="text-left whitespace-pre-line">{{ s.meaning }}</p>
+        <span v-if="anyPinned" class="self-center">
+          <Pin
+            v-if="s.pinned"
+            :size="16"
+            fill="currentColor"
+            class="text-primary"
+            aria-label="已釘選"
+          />
+        </span>
       </template>
     </div>
   </div>

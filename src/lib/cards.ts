@@ -160,11 +160,17 @@ export function sensesOf(c: VocabCard): Sense[] {
     : []
 }
 
+/** Pinned meanings first; each group keeps its own order. */
+export const sortPinned = (senses: Sense[]): Sense[] => [
+  ...senses.filter((s) => s.pinned),
+  ...senses.filter((s) => !s.pinned),
+]
+
 /** Set the meanings, and keep `meaning` and `pos` (read by lists, search and spelling) in step with them. */
 export function applySenses(c: VocabCard, senses: Sense[]) {
-  const kept = senses
-    .map((s) => ({ ...s, meaning: s.meaning.trim() }))
-    .filter((s) => s.meaning || s.pos.length)
+  const kept = sortPinned(
+    senses.map((s) => ({ ...s, meaning: s.meaning.trim() })).filter((s) => s.meaning || s.pos.length),
+  )
   c.senses = kept
   c.meaning = kept
     .map((s) => s.meaning)

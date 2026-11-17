@@ -96,6 +96,8 @@ export interface Sense {
   id: string
   pos: string[]
   meaning: string
+  /** pinned meanings are listed above the others */
+  pinned?: boolean
 }
 
 /** A word derived from the card's word, listed on the card; it becomes a card of its own when asked for. */

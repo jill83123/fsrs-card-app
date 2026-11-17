@@ -297,7 +297,7 @@ const waitText = computed(() =>
         </button>
       </div>
       <section class="card flex min-h-[45dvh] flex-1 flex-col justify-center px-6 py-8">
-        <CardFace :card="current" :revealed="revealed" :reverse="reverse" />
+        <CardFace :card="current" :revealed="revealed" :reverse="reverse" show-pins />
       </section>
 
       <div class="sticky bottom-0 mt-4 bg-bg pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">

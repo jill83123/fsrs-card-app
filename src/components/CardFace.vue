@@ -20,6 +20,8 @@ const props = defineProps<{
   listExamples?: boolean
   /** the page plays the word itself, so showing the card must not */
   silent?: boolean
+  /** vocab only: mark the pinned meanings with a pin icon */
+  showPins?: boolean
 }>()
 
 const settings = useSettings()
@@ -34,6 +36,7 @@ const senseRows = computed(() => {
     id: s.id,
     pos: s.pos.flatMap((id) => opts.find((o) => o.id === id)?.label ?? []),
     meaning: s.meaning,
+    pinned: props.showPins && s.pinned,
   }))
 })
 

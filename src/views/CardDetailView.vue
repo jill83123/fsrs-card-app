@@ -344,7 +344,7 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
         </template>
         <!-- equal room above and below, so the divider stays level with the arrows -->
         <div class="flex flex-1 flex-col px-10 py-2">
-          <CardFace class="flex-1" :card="card" :revealed="revealed" list-examples />
+          <CardFace class="flex-1" :card="card" :revealed="revealed" list-examples show-pins />
         </div>
       </section>
     </div>
