@@ -10,12 +10,14 @@
 
 ## 功能
 
-- **牌組與卡片**：樹狀牌組，支援正反卡與單字卡（英、日、韓），卡片內容可用 Markdown，並有 `||防劇透||` 語法。
-- **學習與練習**：每日複習／新學習，可設定上限與換日時間；另有不影響排程的練習模式。
-- **統計**：學習熱力圖、未來到期卡片、熟練程度分佈。
+- **牌組與卡片**：樹狀牌組（可暫停、封存，刪除後保留 30 天可還原），支援正反卡與單字卡（英、日、韓），卡片內容可用 Markdown，並有 `||防劇透||` 語法。
+- **單字卡**：多個詞義（各自的詞性、可釘選與排序）、多句例句、衍生字、同義／反義／易混淆等關聯字，可批次匯入。
+- **學習與練習**：每日複習／新學習，可設定上限與換日時間，牌組可開啟反向學習（意思→單字）；另有不影響排程的練習模式（翻卡、單字聽寫）。
+- **統計**：記憶保留率、學習熱力圖、未來到期卡片、評分分布、熟練程度、難記的卡片，可依牌組查看。
 - **發音**：系統語音，或在瀏覽器內執行的 Kokoro、Piper 離線語音合成。
-- **字典**：單字卡可自訂字典連結，並能查詢字典自動帶入意思與例句。
+- **字典**：單字卡可自訂字典連結，一鍵開新分頁查詢。
 - **備份與同步**：匯出／匯入 JSON，或同步到自己的 Google Drive（選用）。
+- **每日提醒**：有待複習或可學的卡片時推播通知（選用，需要 Worker）。
 - **離線可用**：資料存在瀏覽器本機，不需要帳號。
 
 ## 文件
@@ -32,6 +34,7 @@ npm install
 npm run dev        # 開發伺服器 http://localhost:5173
 npm run build      # 型別檢查 + 建置到 dist/
 npm run lint       # oxlint + eslint
+npm test           # vitest
 ```
 
 ## 部署（GitHub Pages）
@@ -39,7 +42,7 @@ npm run lint       # oxlint + eslint
 1. 推送到 `main` 分支，`.github/workflows/deploy.yml` 會自動建置並部署。
 2. 在 repo 的 **Settings → Pages** 把 Source 設為 **GitHub Actions**。
 
-`vite.config.ts` 使用 `base: './'` 搭配 hash 路由，所以不需要設定 repo 名稱。只改 `worker/` 內的檔案不會觸發部署。
+`vite.config.ts` 使用 `base: './'` 搭配 hash 路由，所以不需要設定 repo 名稱。只改 `worker/`、文件（`docs/`、`*.md`）、編輯器與 lint 設定的 push 不會觸發部署（見 `deploy.yml` 的 `paths-ignore`）。
 
 ## Google Drive 同步（選用）
 
@@ -153,7 +156,7 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET    # 貼上用戶端密鑰（貼上
 
 - App 算出接下來一週每天提醒時的待複習與可學新卡數量，連同這台裝置的推播訂閱傳給 Worker。
 - 同一個人的所有裝置共用一個提醒群組（群組代號存在會同步的設定裡），對應一個 Cloudflare Durable Object，它設一個鬧鐘，時間到而且數量大於 0 才推播給群組內每台裝置。任何一台裝置複習後都會更新全部裝置的提醒，所以在手機複習完，沒開過應用的電腦也不會再收到通知。沒有要做的卡片就不會發送通知；推播服務暫時失敗會 5 分鐘後重試。
-- Worker 只存推播訂閱和數量，不存卡片內容。資料存在該裝置的 Durable Object；超過 30 天沒更新就會自動清掉。App 重複上傳相同內容時不會再寫入。
+- Worker 只存推播訂閱和數量，不存卡片內容。資料存在該群組的 Durable Object；某台裝置超過 30 天沒更新，它的訂閱就會自動清掉。App 重複上傳相同內容時不會再寫入。
 - 可以多人共用同一個 Worker：每個群組各自一個 Durable Object、各自的鬧鐘，不會掃描全部資料，人多也不會變慢。Worker 只會對 Chrome、Firefox、Safari、Edge 的推播服務網址發送通知。
 
 ### 設定流程
@@ -199,7 +202,7 @@ Durable Object（`PushGroup`）不用事先建立，第一次部署時會依 `wr
 
 部署前請再確認 `wrangler.local.toml` 裡的 `GOOGLE_CLIENT_ID` 與 `ALLOWED_ORIGINS` 是你真實的值，不是範例佔位字。部署會用檔案裡的值取代線上的設定，填錯會讓 Google 登入失效。已經設過的密鑰（例如 `GOOGLE_CLIENT_SECRET`）不會被清掉。
 
-### 4. 在 App 開啟
+### 3. 在 App 開啟
 
 1. 到「設定 → 每日提醒」，打開開關，瀏覽器問是否允許通知時選「允許」。
 2. 選提醒時間，以及要提醒「複習」、「新學習」或兩者。
@@ -236,5 +239,5 @@ Durable Object（`PushGroup`）不用事先建立，第一次部署時會依 `wr
 | 韓文聲音 `ko_KR-kss-medium` | huggingface.co | 約 63MB |
 | misaki 詞表 `ja_words.txt` | 隨專案部署 | 約 0.5MB（gzip） |
 | misaki 英文發音字典 `us_gold.json`、`us_silver.json` | 隨專案部署 | 約 1.5MB（gzip） |
-| onnxruntime WASM（CPU／WebGPU） | 隨專案部署 | 約 14MB／27MB |
+| onnxruntime WASM（標準／高速模式共用） | 隨專案部署 | 約 21MB |
 | espeak-ng（韓文發音、英文字典查不到的字） | 隨專案部署 | 約 18MB |

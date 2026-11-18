@@ -4,44 +4,14 @@
 
 ## 目錄結構
 
-```
-src/
-  main.ts / App.vue            入口、版面（頂部列＋底部導覽）
-  assets/main.css              Tailwind v4 ＋ 主題變數（主色、深色模式）
-  db/
-    types.ts                   Node / Card / ReviewLog / Settings 型別
-    index.ts                   Dexie schema、通用寫入（自動更新 updatedAt）
-    defaults.ts                設定預設值、詞性預設、字典預設
-  lib/
-    id.ts / date.ts            UUID、學習日計算
-    fsrs.ts                    依設定建立 scheduler、評分、重評、熟悉度、間隔提示
-    queue.ts                   建立複習／新學習佇列、每日上限
-    tree.ts                    牌組樹、範圍內的牌組與卡片
-    cards.ts                   卡片完成度、顯示文字、篩選排序
-    markdown.ts                markdown-it ＋ ||防劇透|| ＋ DOMPurify
-    color.ts                   主色 → 色階
-    tts/                       index（統一入口）、piper、webspeech
-    google/                    gis（token）、drive（REST）、sync（合併、備份）
-    backup.ts                  匯出／匯入 JSON 快照
-  stores/
-    settings.ts                同步設定＋裝置設定、主題套用
-    sync.ts                    同步狀態機
-  composables/
-    useLiveQuery.ts            Dexie liveQuery → Vue ref
-    useStudyDay.ts             目前學習日（每分鐘更新）
-  components/                  共用 UI（PillTabs、IconButton、Sheet、MarkdownView、
-                               MarkdownEditor、CardFace、RatingBar、Heatmap…）
-  views/
-    HomeView                   學習日＋換日時間、同步狀態、牌組樹、新增
-    NodeView                   牌組頁：入口、子牌組、卡片列表（篩選／排序／批次）
-    CardEditView               新增／編輯卡片（正反卡、單字卡）
-    CardDetailView             預覽、FSRS 資訊、紀錄、重新評分
-    StudyView                  正式複習／新學習
-    PracticeSetupView          練習：選卡與選項
-    PracticeView               練習進行
-    StatsView                  熱力圖、未來 7 天
-    SettingsView               分組設定
-```
+檔案、公開函式與樣式規則的最新索引在專案根目錄的 [CLAUDE.md](../CLAUDE.md)（每次改動都會同步更新），這裡不再重複列出，避免過時。大致分層：
+
+- `src/db/`：Dexie schema、型別、預設值
+- `src/lib/`：純邏輯（FSRS、佇列、牌組樹、篩選、同步快照、語音 `tts/`、Google `google/`）
+- `src/stores/`：Pinia stores（資料、設定、同步、UI、提醒、PWA、語音補產）
+- `src/composables/`：`useLiveQuery`、`useDragSort`、`useTicker`
+- `src/views/`、`src/components/`：畫面與元件
+- `worker/`：Cloudflare Worker（Google 授權代理、每日提醒推播）
 
 ## 路由
 
@@ -49,13 +19,14 @@ src/
 |---|---|
 | `/` | 首頁 |
 | `/node/:id` | 牌組 |
-| `/card/new?deck=` | 新增卡片 |
+| `/node/:id/stats` | 牌組統計 |
+| `/card/new?deck=&type=&lang=` | 新增卡片 |
 | `/card/:id` | 卡片詳情 |
 | `/card/:id/edit` | 編輯卡片 |
-| `/study/:mode(review\|learn)?scope=` | 正式複習／新學習（scope 不帶＝全部） |
-| `/practice?scope=&cards=` | 練習設定 → 開始 |
+| `/study/:mode(review\|learn)` | 正式複習／新學習（範圍等以 query 帶入） |
+| `/practice` | 練習（設定與進行都在同一頁，範圍以 query 帶入） |
 | `/stats` | 統計 |
-| `/settings` | 設定 |
+| `/settings` | 設定（`#區塊` 會展開該區塊） |
 
 ## 實作階段
 
@@ -73,6 +44,6 @@ src/
 
 ## 驗收方式
 
-- `npm run type-check`、`npm run lint`、`npm run build` 都通過。
+- `npm run type-check`、`npm run lint`、`npm test`、`npm run build` 都通過。
 - 在內建瀏覽器實際操作：建立牌組→子牌組→兩種卡片→新學習→複習→撤銷／重評→練習→統計→設定切換主色／深色。
-- Google 同步需要使用者提供 Client ID 才能實測；會先確認程式流程和錯誤狀態。
+- Google 同步需要部署 Worker 並提供 Client ID 才能實測；會先確認程式流程和錯誤狀態。
