@@ -10,7 +10,8 @@ export interface ImportRow {
   pos: string[]
   /** the meanings one by one, each with its own parts of speech */
   senses: { pos: string[]; meaning: string }[]
-  examples: { sentence: string; translation: string; marks?: string[] }[]
+  /** `sense` is the 1-based position in `senses` of the meaning the sentence illustrates, when known */
+  examples: { sentence: string; translation: string; marks?: string[]; sense?: number }[]
   /** derived words on the picture, kept in the note as a table; made into cards by hand later */
   derived: DerivedRow[]
   /** pos texts that matched no option */
@@ -126,7 +127,17 @@ export function parseImport(
       const marks = (Array.isArray(rawMarks) ? rawMarks : [rawMarks])
         .map(asText)
         .filter((m, i, a) => m && sentence.includes(m) && a.indexOf(m) === i)
-      return [{ sentence, translation, ...(marks.length ? { marks } : {}) }]
+      // which meaning it belongs to: a 1-based position in senses; anything else is left out
+      const n = Number(asText(pick(x, ['sense', '詞義'])))
+      const sense = Number.isInteger(n) && n >= 1 && n <= senses.length ? n : undefined
+      return [
+        {
+          sentence,
+          translation,
+          ...(marks.length ? { marks } : {}),
+          ...(sense ? { sense } : {}),
+        },
+      ]
     })
     const rawDer = pick(o, ['derived', '衍生字'])
     const derived = (Array.isArray(rawDer) ? rawDer : []).flatMap((d): DerivedRow[] => {
@@ -162,7 +173,8 @@ export const importPrompt = (posOf: (lang: Lang) => PosOption[]) =>
       {
         "sentence": "例句",
         "translation": "繁體中文翻譯",
-        "marks": ["例句中的單字"]
+        "marks": ["例句中的單字"],
+        "sense": 1
       }
     ],
     "derived": [
@@ -184,6 +196,9 @@ ${LANGS.map(
       .join('、')}`,
 ).join('\n')}
 - examples：圖片上沒有例句或翻譯就省略或給空陣列，不要自己編造。
+- sense：這句例句對應 senses 的第幾個詞義，用從 1 開始的數字。
+  - 單字有多個詞義，而圖片上看得出例句屬於哪一個時才填；看不出來就省略，不要猜。
+  - 只有一個詞義時可以省略。
 - marks：標出例句中對應該單字的字詞。
   - 必須是 sentence 裡原封不動出現的文字（大小寫、標點一致），不要多帶前後的詞。
   - 單字在例句中有變化（過去式、過去分詞、進行式、第三人稱單數、複數、比較級、動詞或形容詞活用等）時，標變化後的樣子。例：word 為 "run"、sentence 為 "He ran home." → ["ran"]。

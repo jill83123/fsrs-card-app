@@ -23,6 +23,26 @@ describe('parseImport', () => {
     expect(rows[0]!.senses).toHaveLength(2)
     expect(rows[0]!.examples[0]!.marks).toEqual(['run'])
   })
+  it('reads which meaning an example belongs to and drops invalid numbers', () => {
+    const data = [
+      {
+        word: 'run',
+        senses: [
+          { pos: 'v.', meaning: '跑' },
+          { pos: 'n.', meaning: '跑步' },
+        ],
+        examples: [
+          { sentence: 'I run', sense: 1 },
+          { sentence: 'A long run', sense: '2' },
+          { sentence: 'Out of range', sense: 3 },
+          { sentence: 'Zero', sense: 0 },
+          { sentence: 'Not given' },
+        ],
+      },
+    ]
+    const { rows } = parseImport(JSON.stringify(data), posOf, 'en')
+    expect(rows[0]!.examples.map((e) => e.sense)).toEqual([1, 2, undefined, undefined, undefined])
+  })
   it('accepts the single-meaning format, Chinese keys, and object-wrapped lists', () => {
     const { rows } = parseImport(
       '{"cards":[{"單字":"猫","語言":"日文","意思":"cat"}]}',

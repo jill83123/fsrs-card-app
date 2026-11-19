@@ -148,18 +148,19 @@ async function run() {
   const base = Date.now()
   const cards = fresh.value.map((r, i) => {
     const c = newVocabCard(props.deckId, r.lang, r.word)
-    applySenses(
-      c,
-      r.senses.map((x) => ({ id: uid(), ...x })),
-    )
+    const senses = r.senses.map((x) => ({ id: uid(), ...x }))
+    applySenses(c, senses)
     c.examples = r.examples.map((e) => {
-      if (e.marks?.length) return { id: uid(), ...e }
-      const mark = findWordMark(r.word, r.lang, e.sentence)
+      // a lone meaning takes every sentence; otherwise the one the AI named, if any
+      const senseId = senses.length === 1 ? senses[0]?.id : senses[(e.sense ?? 0) - 1]?.id
+      const mark = e.marks?.length ? undefined : findWordMark(r.word, r.lang, e.sentence)
+      const marks = e.marks?.length ? e.marks : mark ? [mark] : undefined
       return {
         id: uid(),
         sentence: e.sentence,
         translation: e.translation,
-        ...(mark ? { marks: [mark] } : {}),
+        ...(marks ? { marks } : {}),
+        ...(senseId ? { senseId } : {}),
       }
     })
     if (r.derived.length) c.derived = r.derived.map((d) => ({ id: uid(), ...d }))
