@@ -391,11 +391,8 @@ function removeExample(e: Example) {
   if (v) v.examples.splice(v.examples.indexOf(e), 1)
 }
 
-/** Title of a meaning above its examples: its number and the start of the meaning. */
-function senseLabel(s: Sense, i: number) {
-  const text = s.meaning.trim().split('\n')[0] ?? ''
-  return `#${i + 1} ${text.length > 20 ? `${text.slice(0, 20)}…` : text}`.trim()
-}
+/** First line of a meaning, for the title above its examples. */
+const firstLine = (s: Sense) => s.meaning.trim().split('\n')[0] ?? ''
 
 function addDerived() {
   const v = vocab.value
@@ -718,10 +715,20 @@ const previewRevealed = ref(false)
           </div>
           <div class="space-y-5">
             <div v-for="g in exGroups" :key="g.key" class="space-y-3">
-              <p v-if="g.titled" class="text-xs font-semibold text-muted">
-                {{
-                  g.sense ? senseLabel(g.sense, vocab.senses!.indexOf(g.sense)) : '尚未歸類的例句'
-                }}
+              <p
+                v-if="g.titled"
+                class="flex items-baseline gap-1.5 text-xs font-semibold text-muted"
+              >
+                <template v-if="g.sense">
+                  <span class="shrink-0 text-muted/70"
+                    >#{{ vocab.senses!.indexOf(g.sense) + 1 }}</span
+                  >
+                  <span v-for="p in g.sense.pos" :key="p" class="shrink-0">
+                    [ {{ posLabel(p) }} ]
+                  </span>
+                  <span class="truncate">{{ firstLine(g.sense) }}</span>
+                </template>
+                <template v-else>尚未歸類的例句</template>
               </p>
               <div
                 v-for="(e, i) in g.items"

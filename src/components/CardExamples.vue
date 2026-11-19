@@ -127,10 +127,11 @@ function confirmMake() {
   <!-- with several meanings each one gets a card of its own, titled with the meaning -->
   <template v-if="card.type === 'vocab'">
     <section v-for="g in groups" :key="g.sense?.id ?? 'rest'" class="card mb-3">
-      <h2 class="label flex items-center gap-2">
-        例句<span
+      <h2 class="label flex items-baseline gap-2">
+        <span class="shrink-0" :class="{ 'text-muted/70': grouped }">例句</span>
+        <span
           v-if="grouped"
-          class="flex min-w-0 items-center gap-1 tracking-normal normal-case"
+          class="flex min-w-0 items-baseline gap-1.5 tracking-normal normal-case"
         >
           <template v-if="g.sense">
             <span v-for="p in posLabels(g.sense.pos)" :key="p" class="shrink-0">[ {{ p }} ]</span>
