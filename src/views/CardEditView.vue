@@ -299,7 +299,20 @@ function fit(el: HTMLElement) {
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
 }
-const vAutosize = { mounted: fit, updated: fit }
+// also when the box gets narrower or wider (small screens, fonts loading), as the text then wraps differently
+const observers = new WeakMap<HTMLElement, ResizeObserver>()
+const vAutosize = {
+  mounted(el: HTMLElement) {
+    fit(el)
+    const ro = new ResizeObserver(() => fit(el))
+    ro.observe(el)
+    observers.set(el, ro)
+  },
+  updated: fit,
+  unmounted(el: HTMLElement) {
+    observers.get(el)?.disconnect()
+  },
+}
 
 // examples whose automatic mark the user removed by hand: do not add it again
 const autoOff = new Set<string>()
