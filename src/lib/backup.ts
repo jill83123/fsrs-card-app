@@ -8,7 +8,7 @@ export async function exportJson() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `recall-backup-${ymd(new Date())}.json`
+  a.download = `fsrs-cards-backup-${ymd(new Date())}.json`
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
