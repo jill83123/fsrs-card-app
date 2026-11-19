@@ -5,6 +5,7 @@ import {
   cardSubtitle,
   cardTitle,
   findWordMark,
+  groupExamples,
   isComplete,
   isStudyable,
   parseKey,
@@ -12,6 +13,7 @@ import {
   schedOf,
   sensesOf,
   sideKey,
+  sortExamples,
 } from '../cards'
 import { State } from '../fsrs'
 import { basic, vocab } from './helpers'
@@ -105,5 +107,40 @@ describe('senses', () => {
     expect(c.senses).toHaveLength(2)
     expect(c.meaning).toBe('跑\n跑步')
     expect(c.pos).toEqual(['v', 'n'])
+  })
+})
+
+describe('examples by meaning', () => {
+  const senses = [
+    { id: 'a', pos: [], meaning: '跑' },
+    { id: 'b', pos: [], meaning: '經營' },
+  ]
+  const ex = (id: string, senseId?: string) => ({
+    id,
+    sentence: id,
+    translation: '',
+    ...(senseId ? { senseId } : {}),
+  })
+
+  it('keeps older examples as one plain group', () => {
+    const list = [ex('1'), ex('2')]
+    expect(groupExamples(list, senses)).toEqual([{ sense: null, items: list }])
+    expect(groupExamples([ex('1', 'a')], [senses[0]!])).toEqual([
+      { sense: null, items: [ex('1', 'a')] },
+    ])
+  })
+
+  it('groups by meaning and puts the unassigned last', () => {
+    const g = groupExamples([ex('1'), ex('2', 'b'), ex('3', 'a'), ex('4', 'gone')], senses)
+    expect(g.map((x) => [x.sense?.id ?? null, x.items.map((e) => e.id)])).toEqual([
+      ['a', ['3']],
+      ['b', ['2']],
+      [null, ['1', '4']],
+    ])
+  })
+
+  it('sorts by meaning without disturbing the order inside one', () => {
+    const sorted = sortExamples([ex('1'), ex('2', 'b'), ex('3', 'a'), ex('4', 'b')], senses)
+    expect(sorted.map((e) => e.id)).toEqual(['3', '2', '4', '1'])
   })
 })

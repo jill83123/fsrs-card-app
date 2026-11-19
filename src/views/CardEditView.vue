@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import {
   BookOpen,
+  Check,
   Eye,
   GripVertical,
   Highlighter,
@@ -33,6 +34,7 @@ import {
   newBasicCard,
   newVocabCard,
   sensesOf,
+  sortExamples,
   sortPinned,
 } from '@/lib/cards'
 import { uid } from '@/lib/id'
@@ -236,10 +238,51 @@ const senseDrag = useDragSort((from, to) => {
   if (v?.senses) v.senses = sortPinned(moved(v.senses, from, to))
 })
 
-const exDrag = useDragSort((from, to) => {
+/**
+ * The examples as the page lists them. With several meanings each one gets its own group, so a new
+ * sentence is added under the meaning it is meant for; ones without a meaning (older cards) wait in
+ * the last group to be moved. With one meaning there is a single list, as before.
+ */
+interface ExGroup {
+  key: string
+  sense: Sense | null
+  items: Example[]
+  titled: boolean
+}
+const exGroups = computed<ExGroup[]>(() => {
   const v = vocab.value
-  if (v) v.examples = moved(v.examples, from, to)
+  if (!v) return []
+  const senses = v.senses ?? []
+  if (senses.length < 2)
+    return [{ key: 'all', sense: senses[0] ?? null, items: v.examples, titled: false }]
+  const known = new Set(senses.map((s) => s.id))
+  const out: ExGroup[] = senses.map((s) => ({
+    key: s.id,
+    sense: s,
+    items: v.examples.filter((e) => e.senseId === s.id),
+    titled: true,
+  }))
+  const rest = v.examples.filter((e) => !e.senseId || !known.has(e.senseId))
+  if (rest.length) out.push({ key: 'rest', sense: null, items: rest, titled: true })
+  return out
 })
+
+// one drag state per group, so dragging in one list does not shift the others
+const exDrags = new Map<string, ReturnType<typeof useDragSort>>()
+function exDrag(key: string) {
+  let d = exDrags.get(key)
+  if (!d) {
+    d = useDragSort((from, to) => {
+      const v = vocab.value
+      const g = exGroups.value.find((x) => x.key === key)
+      if (!v || !g) return
+      const next = moved(g.items, from, to)
+      v.examples = exGroups.value.flatMap((x) => (x.key === key ? next : x.items))
+    })
+    exDrags.set(key, d)
+  }
+  return d
+}
 
 const derDrag = useDragSort((from, to) => {
   const v = vocab.value
@@ -304,8 +347,41 @@ function autoMarkAll() {
   else ui.toast('沒有偵測到可標示的字詞，請在例句中選取文字後手動標示', 'info')
 }
 
-function addExample() {
-  vocab.value?.examples.push({ id: uid(), sentence: '', translation: '' })
+function addExample(g: ExGroup) {
+  const v = vocab.value
+  if (!v) return
+  v.examples.push({
+    id: uid(),
+    sentence: '',
+    translation: '',
+    ...(g.sense ? { senseId: g.sense.id } : {}),
+  })
+}
+
+// the example being filed under a meaning; the sheet lists every meaning to pick from
+const filing = ref<Example | null>(null)
+const filingOpen = computed({
+  get: () => filing.value !== null,
+  set: (v) => {
+    if (!v) filing.value = null
+  },
+})
+function fileUnder(s: Sense) {
+  if (filing.value) filing.value.senseId = s.id
+  filing.value = null
+}
+const posLabel = (id: string) =>
+  vocab.value ? (settings.synced.pos[vocab.value.lang].find((o) => o.id === id)?.label ?? '') : ''
+
+function removeExample(e: Example) {
+  const v = vocab.value
+  if (v) v.examples.splice(v.examples.indexOf(e), 1)
+}
+
+/** Title of a meaning above its examples: its number and the start of the meaning. */
+function senseLabel(s: Sense, i: number) {
+  const text = s.meaning.trim().split('\n')[0] ?? ''
+  return `#${i + 1} ${text.length > 20 ? `${text.slice(0, 20)}…` : text}`.trim()
 }
 
 function addDerived() {
@@ -349,6 +425,10 @@ async function save(next = false) {
   if (c.type === 'vocab') {
     applySenses(c, c.senses ?? [])
     c.examples = c.examples.filter((e) => e.sentence.trim() || e.translation.trim())
+    // a deleted meaning leaves its examples unassigned; the rest are kept in the meanings' order
+    const ids = new Set((c.senses ?? []).map((s) => s.id))
+    for (const e of c.examples) if (e.senseId && !ids.has(e.senseId)) delete e.senseId
+    c.examples = sortExamples(c.examples, c.senses ?? [])
     c.derived = c.derived?.filter((d) => d.word.trim())
     if (!c.derived?.length) delete c.derived
     // marks whose text was edited away no longer apply
@@ -623,88 +703,109 @@ const previewRevealed = ref(false)
               <Highlighter :size="14" /> 自動標示單字
             </button>
           </div>
-          <div class="space-y-3">
-            <div
-              v-for="(e, i) in vocab.examples"
-              :key="e.id"
-              data-sort-item
-              class="card space-y-2 p-4 pt-2"
-              :class="{ 'shadow-lg': exDrag.dragging(i) }"
-              :style="exDrag.style(i)"
-            >
-              <div class="flex items-center gap-2">
-                <button
-                  v-if="vocab.examples.length > 1"
-                  type="button"
-                  class="-ml-1 flex size-7 touch-none items-center justify-center rounded-lg text-muted hover:bg-surface-2"
-                  aria-label="拖曳排序"
-                  @pointerdown="exDrag.start($event, i)"
-                >
-                  <GripVertical :size="16" />
-                </button>
-                <span class="text-xs font-bold tracking-[1px] text-muted">#{{ i + 1 }}</span>
-                <div class="flex-1" />
-                <SpeakButton :text="e.sentence" :lang="vocab.lang" />
-                <button
-                  class="icon-btn bg-surface-2 text-danger"
-                  aria-label="刪除例句"
-                  @click="vocab.examples.splice(i, 1)"
-                >
-                  <Trash2 :size="16" />
-                </button>
-              </div>
-              <!-- sentence and translation share one box, so they read as a pair -->
+          <div class="space-y-5">
+            <div v-for="g in exGroups" :key="g.key" class="space-y-3">
+              <p v-if="g.titled" class="text-xs font-semibold text-muted">
+                {{
+                  g.sense ? senseLabel(g.sense, vocab.senses!.indexOf(g.sense)) : '尚未歸類的例句'
+                }}
+              </p>
               <div
-                class="overflow-hidden rounded-xl border border-line bg-surface focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+                v-for="(e, i) in g.items"
+                :key="e.id"
+                data-sort-item
+                class="card space-y-2 p-4 pt-2"
+                :class="{ 'shadow-lg': exDrag(g.key).dragging(i) }"
+                :style="exDrag(g.key).style(i)"
               >
-                <textarea
-                  v-model="e.sentence"
-                  v-autosize
-                  rows="1"
-                  class="block w-full resize-none overflow-hidden bg-transparent px-3.5 py-2.5 outline-none placeholder:text-muted"
-                  placeholder="例句"
-                  @blur="autoMark(e)"
-                />
-                <textarea
-                  v-model="e.translation"
-                  v-autosize
-                  rows="1"
-                  class="block w-full resize-none overflow-hidden border-t border-dashed border-line bg-transparent px-3.5 py-2.5 text-muted outline-none placeholder:text-muted"
-                  placeholder="翻譯"
-                />
-              </div>
-              <div class="flex flex-wrap items-center gap-2 pt-1.5">
-                <button
-                  type="button"
-                  class="icon-btn shrink-0 bg-surface-2"
-                  aria-label="標示選取的文字"
-                  title="標示選取的文字"
-                  @mousedown.prevent
-                  @click="markSelection($event, e)"
-                >
-                  <Highlighter :size="15" />
-                </button>
-                <span
-                  v-if="!e.marks?.some((x) => e.sentence.includes(x))"
-                  class="text-xs text-muted"
-                >
-                  選取文字後點此標示單字
-                </span>
-                <span
-                  v-for="m in (e.marks ?? []).filter((x) => e.sentence.includes(x))"
-                  :key="m"
-                  class="chip chip-on gap-1 pr-1.5"
-                >
-                  {{ m }}
-                  <button type="button" :aria-label="`取消標示 ${m}`" @click="unmark(e, m)">
-                    <X :size="14" />
+                <div class="flex items-center gap-2">
+                  <button
+                    v-if="g.items.length > 1"
+                    type="button"
+                    class="-ml-1 flex size-7 touch-none items-center justify-center rounded-lg text-muted hover:bg-surface-2"
+                    aria-label="拖曳排序"
+                    @pointerdown="exDrag(g.key).start($event, i)"
+                  >
+                    <GripVertical :size="16" />
                   </button>
-                </span>
+                  <span class="text-xs font-bold tracking-[1px] text-muted">#{{ i + 1 }}</span>
+                  <div class="flex-1" />
+                  <button
+                    v-if="vocab.senses!.length > 1"
+                    type="button"
+                    class="text-xs font-semibold"
+                    :class="g.sense ? 'text-muted' : 'text-primary'"
+                    @click="filing = e"
+                  >
+                    {{ g.sense ? '移到其他詞義' : '歸到詞義' }}
+                  </button>
+                  <SpeakButton :text="e.sentence" :lang="vocab.lang" />
+                  <button
+                    class="icon-btn bg-surface-2 text-danger"
+                    aria-label="刪除例句"
+                    @click="removeExample(e)"
+                  >
+                    <Trash2 :size="16" />
+                  </button>
+                </div>
+                <!-- sentence and translation share one box, so they read as a pair -->
+                <div
+                  class="overflow-hidden rounded-xl border border-line bg-surface focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+                >
+                  <textarea
+                    v-model="e.sentence"
+                    v-autosize
+                    rows="1"
+                    class="block w-full resize-none overflow-hidden bg-transparent px-3.5 py-2.5 outline-none placeholder:text-muted"
+                    placeholder="例句"
+                    @blur="autoMark(e)"
+                  />
+                  <textarea
+                    v-model="e.translation"
+                    v-autosize
+                    rows="1"
+                    class="block w-full resize-none overflow-hidden border-t border-dashed border-line bg-transparent px-3.5 py-2.5 text-muted outline-none placeholder:text-muted"
+                    placeholder="翻譯"
+                  />
+                </div>
+                <div class="flex flex-wrap items-center gap-2 pt-1.5">
+                  <button
+                    type="button"
+                    class="icon-btn shrink-0 bg-surface-2"
+                    aria-label="標示選取的文字"
+                    title="標示選取的文字"
+                    @mousedown.prevent
+                    @click="markSelection($event, e)"
+                  >
+                    <Highlighter :size="15" />
+                  </button>
+                  <span
+                    v-if="!e.marks?.some((x) => e.sentence.includes(x))"
+                    class="text-xs text-muted"
+                  >
+                    選取文字後點此標示單字
+                  </span>
+                  <span
+                    v-for="m in (e.marks ?? []).filter((x) => e.sentence.includes(x))"
+                    :key="m"
+                    class="chip chip-on gap-1 pr-1.5"
+                  >
+                    {{ m }}
+                    <button type="button" :aria-label="`取消標示 ${m}`" @click="unmark(e, m)">
+                      <X :size="14" />
+                    </button>
+                  </span>
+                </div>
               </div>
+              <button
+                v-if="g.sense || !g.titled"
+                type="button"
+                class="btn btn-ghost w-full"
+                @click="addExample(g)"
+              >
+                <Plus :size="18" /> 新增例句
+              </button>
             </div>
-            <button type="button" class="btn btn-ghost w-full" @click="addExample">
-              <Plus :size="18" /> 新增例句
-            </button>
           </div>
         </div>
         <div>
@@ -826,6 +927,32 @@ const previewRevealed = ref(false)
       :lang="vocab.lang"
       @apply="applyDict"
     />
+
+    <BottomSheet v-model="filingOpen" title="歸到哪個詞義">
+      <div class="space-y-2">
+        <button
+          v-for="s in vocab?.senses"
+          :key="s.id"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-2xl bg-surface px-4 py-3 text-left disabled:opacity-50"
+          :disabled="filing?.senseId === s.id"
+          @click="fileUnder(s)"
+        >
+          <span class="min-w-0 flex-1">
+            <span v-if="s.pos.length" class="mr-2 text-xs text-muted">
+              {{ s.pos.map(posLabel).join(' ') }}
+            </span>
+            <span class="font-semibold whitespace-pre-line">{{ s.meaning || '（尚未填寫）' }}</span>
+          </span>
+          <span
+            v-if="filing?.senseId === s.id"
+            class="flex shrink-0 items-center gap-1 text-xs text-muted"
+          >
+            <Check :size="14" /> 目前
+          </span>
+        </button>
+      </div>
+    </BottomSheet>
 
     <BottomSheet v-model="showPreview" title="預覽">
       <div class="card min-h-48" @click="previewRevealed = true">

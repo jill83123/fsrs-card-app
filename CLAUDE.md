@@ -113,7 +113,7 @@ Node 需要 `^22.18.0 || >=24.12.0`。路徑別名 `@` → `src/`。程式碼風
 ## 邏輯（`src/lib/`，純函式為主，測試在 `src/lib/__tests__/`）
 
 - `src/lib/fsrs.ts` — ts-fsrs 包裝：`makeScheduler`、`toFsrs`／`fromFsrs`、`emptySched`、`retrievability`、`previewIntervals`、`retentionImpact`、`parseSteps`／`isValidSteps`、`GRADES`、`STATE_LABEL`、重匯出 `Rating`／`State`。
-- `src/lib/cards.ts` — 卡片輔助：`isComplete`／`isStudyable`、`Side`、`schedOf`、`sideKey`／`parseKey`、`activeSides`、`canReverse`、`isLearned`、`plainText`、`sensesOf`／`sortPinned`／`applySenses`、`findWordMark`、`cardTitle`／`cardSubtitle`／`typeBadge`、`templateLabel`、`newBasicCard`／`newVocabCard`。
+- `src/lib/cards.ts` — 卡片輔助：`isComplete`／`isStudyable`、`Side`、`schedOf`、`sideKey`／`parseKey`、`activeSides`、`canReverse`、`isLearned`、`plainText`、`sensesOf`／`sortPinned`／`applySenses`、`groupExamples`／`sortExamples`（例句依詞義分組與排序）、`findWordMark`、`cardTitle`／`cardSubtitle`／`typeBadge`、`templateLabel`、`newBasicCard`／`newVocabCard`。
 - `src/lib/session.ts` — 學習佇列：`buildSession`、`newKeys`、`pickNext`、`remaining`、`snapshotOf`、`getSession`／`putSession`／`dropSession`（記憶體 Map；key 由 `StudyView` 組成：`模式:範圍:牌組清單:學習日[:新卡挑選]`）、`NewFilter`。
 - `src/lib/newPick.ts` — 「挑選要學的新卡」暫存（依範圍存記憶體）：`emptyPick`、`isPickActive`、`setPick`／`getPick`、`toFilter`。
 - `src/lib/tree.ts` — 牌組樹：`childrenOf`、`deckRows`、`deckPickerOptions`、`subtreeIds`、`decksInScope`、`pickedDecks`、`pathTo`、`validParents`，以及繼承設定 `effectiveReverse`／`effectiveLimits`／`effectiveTemplate`。
@@ -175,7 +175,7 @@ Node 需要 `^22.18.0 || >=24.12.0`。路徑別名 `@` → `src/`。程式碼風
 - `src/views/DeckStatsView.vue` — 單一牌組統計（包 `StatsPanel`，帶牌組範圍）。
 - `src/views/StatsView.vue` — 全域統計，可選牌組範圍（記在 `sr.stats.deck`）。
 - `src/views/CardDetailView.vue` — 卡片詳細：卡面、例句、關聯、複習紀錄（可改上一次評分）、星號／暫停／刪除／重設、移動牌組、重新產生語音；鍵盤左右鍵或橫向滑動前後翻（依 `sr.browse.cards`）。
-- `src/views/CardEditView.vue` — 新增／編輯卡片（基本卡與單字卡），含詞義釘選與拖曳排序、讀音自動產生、關聯編輯；儲存按鈕在右上角。
+- `src/views/CardEditView.vue` — 新增／編輯卡片（基本卡與單字卡），含詞義釘選與拖曳排序、例句依詞義分組（各組自己新增，例句可用「歸到詞義」面板歸類或移到其他詞義）、讀音自動產生、關聯編輯；儲存按鈕在右上角。
 - `src/views/StudyView.vue` — 複習／學習：依 `lib/session.ts` 的佇列出題、FSRS 評分與間隔預覽、復原（`undoLog`）、學習中卡片倒數。
 - `src/views/PracticeView.vue` — 不影響排程的練習：牌組挑選、卡片篩選、翻卡／拼寫／意思作答（也會讀 sessionStorage 的 `sr.practice.cards`）。
 - `src/views/SettingsView.vue` — 設定頁，以 `SettingsSection` 分區（id）：`appearance`、`study`、`fsrs`、`pos`、`tts`、`reading`、`dict`、`sync`、`reminder`、`archive`、`data`（匯出／匯入／清除）、`install`、`about`（版本與更新）。
@@ -203,8 +203,8 @@ Node 需要 `^22.18.0 || >=24.12.0`。路徑別名 `@` → `src/`。程式碼風
 - `src/components/CardList.vue` — 牌組內卡片列表：篩選、排序（存在牌組上）、長按拖曳手動排序、多選後批次星號／暫停／刪除／重設／移動牌組。
 - `src/components/CardListItem.vue` — 卡片列表單列。
 - `src/components/CardFilterSheet.vue` — 卡片篩選面板（對應 `lib/filter.ts`）。
-- `src/components/CardFace.vue` — 卡片正反面渲染（基本卡／單字卡、反面填空提示、隨機例句與「查看更多例句」）；學習、練習、詳細頁共用。
-- `src/components/CardExamples.vue` — 卡片詳細頁底下的例句、備註、衍生字（可轉成卡片）。
+- `src/components/CardFace.vue` — 卡片正反面渲染（基本卡／單字卡、反面填空提示、隨機例句（優先抽釘選詞義的）與依詞義順序的「查看更多例句」）；學習、練習、詳細頁共用。
+- `src/components/CardExamples.vue` — 卡片詳細頁底下的例句（多詞義時每個詞義一張卡片，標題帶詞性與詞義）、備註、衍生字（可轉成卡片）。
 - `src/components/ExampleText.vue` — 例句文字，標記部分上色。
 - `src/components/SenseList.vue` — 詞義列表（詞性標籤＋詞義兩欄，釘選有圖示）。
 - `src/components/RelationEditor.vue` — 單字關聯編輯（`linkWord`、`start` 對外）。

@@ -12,7 +12,7 @@ import { useData } from '@/stores/data'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { uid } from '@/lib/id'
-import { applySenses, newVocabCard } from '@/lib/cards'
+import { applySenses, groupExamples, newVocabCard, sensesOf } from '@/lib/cards'
 import { matchPos } from '@/lib/importCards'
 import { findVocab, REL_KINDS } from '@/lib/relations'
 import { deckPickerOptions } from '@/lib/tree'
@@ -27,6 +27,20 @@ const ui = useUi()
 const examples = computed(() =>
   props.card.type === 'vocab' ? props.card.examples.filter((e) => e.sentence.trim()) : [],
 )
+// with several meanings, examples sit under the meaning they illustrate; older ones go under 其他
+const groups = computed(() =>
+  props.card.type === 'vocab' ? groupExamples(examples.value, sensesOf(props.card)) : [],
+)
+const grouped = computed(() => groups.value.length > 1)
+// numbered as soon as any group has several sentences, so a group with one is numbered too
+const numbered = computed(() => groups.value.some((g) => g.items.length > 1))
+const posLabels = (ids: string[]) =>
+  props.card.type === 'vocab'
+    ? ids.flatMap(
+        (id) =>
+          settings.synced.pos[(props.card as VocabCard).lang].find((o) => o.id === id)?.label ?? [],
+      )
+    : []
 const note = computed(() => (props.card.type === 'vocab' ? props.card.note.trim() : ''))
 
 // each derived word has a button to make it a card of its own
@@ -110,35 +124,45 @@ function confirmMake() {
 </script>
 
 <template>
-  <section v-if="card.type === 'vocab' && examples.length" class="card mb-3">
-    <h2 class="label">例句</h2>
-    <div class="divide-y divide-line">
-      <div v-for="(e, i) in examples" :key="e.id" class="py-3 first:pt-1 last:pb-0">
-        <!-- the speaker lines up with the first line of the sentence -->
-        <div class="flex items-start gap-2">
-          <div class="min-w-0 flex-1">
-            <div class="flex items-start gap-2">
-              <span
-                v-if="examples.length > 1"
-                class="w-5 shrink-0 pt-1 text-xs font-bold tracking-[1px] text-muted/70"
-              >
-                #{{ i + 1 }}
-              </span>
-              <p class="flex-1"><ExampleText :sentence="e.sentence" :marks="e.marks" /></p>
+  <!-- with several meanings each one gets a card of its own, titled with the meaning -->
+  <template v-if="card.type === 'vocab'">
+    <section v-for="g in groups" :key="g.sense?.id ?? 'rest'" class="card mb-3">
+      <h2 class="label flex items-center gap-2">
+        例句<span
+          v-if="grouped"
+          class="flex min-w-0 items-center gap-1 tracking-normal normal-case"
+        >
+          <template v-if="g.sense">
+            <span v-for="p in posLabels(g.sense.pos)" :key="p" class="shrink-0">[ {{ p }} ]</span>
+            <span class="truncate">{{ g.sense.meaning.split('\n')[0] }}</span>
+          </template>
+          <template v-else>其他</template>
+        </span>
+      </h2>
+      <div class="divide-y divide-line">
+        <div v-for="(e, i) in g.items" :key="e.id" class="py-3 first:pt-1 last:pb-0">
+          <!-- the speaker lines up with the first line of the sentence -->
+          <div class="flex items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start gap-2">
+                <span
+                  v-if="numbered"
+                  class="w-5 shrink-0 pt-1 text-xs font-bold tracking-[1px] text-muted/70"
+                >
+                  #{{ i + 1 }}
+                </span>
+                <p class="flex-1"><ExampleText :sentence="e.sentence" :marks="e.marks" /></p>
+              </div>
+              <p v-if="e.translation" class="mt-1 text-sm text-muted" :class="{ 'pl-7': numbered }">
+                {{ e.translation }}
+              </p>
             </div>
-            <p
-              v-if="e.translation"
-              class="mt-1 text-sm text-muted"
-              :class="{ 'pl-7': examples.length > 1 }"
-            >
-              {{ e.translation }}
-            </p>
+            <SpeakButton :text="e.sentence" :lang="card.lang" class="-my-1.5 shrink-0" />
           </div>
-          <SpeakButton :text="e.sentence" :lang="card.lang" class="-my-1.5 shrink-0" />
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </template>
   <section v-if="card.type === 'vocab' && derived.length" class="card mb-3">
     <h2 class="label">衍生字</h2>
     <ul class="divide-y divide-line">

@@ -53,6 +53,8 @@ export interface Example {
   translation: string
   /** parts of the sentence the user colored (usually the studied word in some form) */
   marks?: string[]
+  /** the meaning (`Sense.id`) this sentence illustrates; absent on older examples and when unsure */
+  senseId?: string
 }
 
 /** FSRS state stored on a card (dates as epoch ms so it is JSON friendly). */

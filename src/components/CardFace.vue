@@ -8,7 +8,7 @@ import DictLinks from './DictLinks.vue'
 import SenseList from './SenseList.vue'
 import ExampleText from './ExampleText.vue'
 import { useSettings } from '@/stores/settings'
-import { sensesOf } from '@/lib/cards'
+import { sensesOf, sortExamples } from '@/lib/cards'
 import { prefetchSpeech, speak } from '@/lib/tts'
 
 const props = defineProps<{
@@ -40,9 +40,26 @@ const senseRows = computed(() => {
   }))
 })
 
-const examples = computed<Example[]>(() =>
-  props.card.type === 'vocab' ? props.card.examples.filter((e) => e.sentence.trim()) : [],
-)
+// in the order of the meanings (pinned ones come first), so "more examples" lists those of the
+// meanings the user cares about before the rest
+const examples = computed<Example[]>(() => {
+  const c = props.card
+  if (c.type !== 'vocab') return []
+  return sortExamples(
+    c.examples.filter((e) => e.sentence.trim()),
+    sensesOf(c),
+  )
+})
+
+// the random example comes from the pinned meanings when some of them have examples
+const pool = computed(() => {
+  const c = props.card
+  const all = examples.value.map((_, i) => i)
+  if (c.type !== 'vocab') return all
+  const pinned = new Set(sensesOf(c).flatMap((s) => (s.pinned ? s.id : [])))
+  const own = all.filter((i) => pinned.has(examples.value[i]?.senseId ?? ''))
+  return own.length ? own : all
+})
 
 // a random example is picked each time a card is shown
 const pick = ref(0)
@@ -66,7 +83,7 @@ const wordHint = computed(() => {
 function reset() {
   pick.value =
     examples.value.length && !props.listExamples
-      ? Math.floor(Math.random() * examples.value.length)
+      ? (pool.value[Math.floor(Math.random() * pool.value.length)] ?? 0)
       : 0
   showExample.value = false
   showAllExamples.value = false

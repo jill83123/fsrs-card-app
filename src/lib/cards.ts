@@ -1,4 +1,13 @@
-import type { BasicCard, Card, CardTemplate, Lang, SchedState, Sense, VocabCard } from '@/db/types'
+import type {
+  BasicCard,
+  Card,
+  CardTemplate,
+  Example,
+  Lang,
+  SchedState,
+  Sense,
+  VocabCard,
+} from '@/db/types'
 import { LANGS, langLabel } from '@/db/defaults'
 import { uid } from './id'
 import { emptySched, State } from './fsrs'
@@ -169,7 +178,9 @@ export const sortPinned = (senses: Sense[]): Sense[] => [
 /** Set the meanings, and keep `meaning` and `pos` (read by lists, search and spelling) in step with them. */
 export function applySenses(c: VocabCard, senses: Sense[]) {
   const kept = sortPinned(
-    senses.map((s) => ({ ...s, meaning: s.meaning.trim() })).filter((s) => s.meaning || s.pos.length),
+    senses
+      .map((s) => ({ ...s, meaning: s.meaning.trim() }))
+      .filter((s) => s.meaning || s.pos.length),
   )
   c.senses = kept
   c.meaning = kept
@@ -177,6 +188,42 @@ export function applySenses(c: VocabCard, senses: Sense[]) {
     .filter(Boolean)
     .join('\n')
   c.pos = [...new Set(kept.flatMap((s) => s.pos))]
+}
+
+/**
+ * Examples in the order of the meanings they belong to; ones without a meaning (older cards, or the
+ * meaning was deleted) keep their order and go last.
+ */
+export function sortExamples(examples: Example[], senses: Sense[]): Example[] {
+  const rank = (e: Example) => {
+    const i = senses.findIndex((s) => s.id === e.senseId)
+    return i < 0 ? senses.length : i
+  }
+  return examples
+    .map((e, i) => ({ e, i, r: rank(e) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map((x) => x.e)
+}
+
+/**
+ * Examples grouped by meaning, for display. A card with a single meaning, or none of whose examples
+ * name a meaning, comes back as one group without a meaning, so older cards look as they always did.
+ */
+export function groupExamples(
+  examples: Example[],
+  senses: Sense[],
+): { sense: Sense | null; items: Example[] }[] {
+  const known = new Set(senses.map((s) => s.id))
+  if (senses.length < 2 || !examples.some((e) => e.senseId && known.has(e.senseId)))
+    return examples.length ? [{ sense: null, items: examples }] : []
+  const groups: { sense: Sense | null; items: Example[] }[] = []
+  for (const s of senses) {
+    const items = examples.filter((e) => e.senseId === s.id)
+    if (items.length) groups.push({ sense: s, items })
+  }
+  const rest = examples.filter((e) => !e.senseId || !known.has(e.senseId))
+  if (rest.length) groups.push({ sense: null, items: rest })
+  return groups
 }
 
 /** Short tag of a card's kind: its language for a vocab card (EN, JA, KO), QA for a basic one. */
