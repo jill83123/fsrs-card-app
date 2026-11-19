@@ -983,5 +983,8 @@ const previewRevealed = ref(false)
       </button>
     </BottomSheet>
   </div>
-  <div v-else class="py-20 text-center text-muted">找不到卡片</div>
+  <div v-else class="flex min-h-[60dvh] flex-col items-center justify-center gap-4 text-muted">
+    <p>找不到卡片</p>
+    <RouterLink to="/" class="btn btn-primary px-6">回首頁</RouterLink>
+  </div>
 </template>

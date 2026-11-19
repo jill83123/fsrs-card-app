@@ -17,7 +17,11 @@ const node = computed(() => data.nodeById.get(id.value))
     <PageHeader :back="`/node/${node.id}`" :title="node.name" subtitle="統計" />
     <StatsPanel :scope="node.id" />
   </div>
-  <div v-else-if="data.ready" class="py-20 text-center text-muted">
-    找不到這個項目。<RouterLink to="/" class="text-primary">回首頁</RouterLink>
+  <div
+    v-else-if="data.ready"
+    class="flex min-h-[60dvh] flex-col items-center justify-center gap-4 text-muted"
+  >
+    <p>找不到這個項目</p>
+    <RouterLink to="/" class="btn btn-primary px-6">回首頁</RouterLink>
   </div>
 </template>
