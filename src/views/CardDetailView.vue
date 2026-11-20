@@ -348,7 +348,7 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
         </div>
       </section>
     </div>
-    <CardExamples :card="card" :revealed="revealed">
+    <CardExamples v-if="revealed" :card="card">
       <section v-if="related.length" class="card mb-3 space-y-3">
         <div v-for="g in related" :key="g.label">
           <h2 class="mb-1.5 text-xs font-semibold text-muted">{{ g.label }}</h2>

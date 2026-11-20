@@ -204,7 +204,7 @@ Node 需要 `^22.18.0 || >=24.12.0`。路徑別名 `@` → `src/`。程式碼風
 - `src/components/CardListItem.vue` — 卡片列表單列。
 - `src/components/CardFilterSheet.vue` — 卡片篩選面板（對應 `lib/filter.ts`）。
 - `src/components/CardFace.vue` — 卡片正反面渲染（基本卡／單字卡、反面填空提示、隨機例句（優先抽釘選詞義的）與依詞義順序的「查看更多例句」）；學習、練習、詳細頁共用。
-- `src/components/CardExamples.vue` — 卡片詳細頁底下的例句（多詞義時每個詞義一張卡片，標題帶詞性與詞義）、備註、衍生字（可轉成卡片；插槽放關聯詞，順序為例句、備註、關聯詞、衍生字；props `revealed`）。
+- `src/components/CardExamples.vue` — 卡片詳細頁底下的例句（多詞義時每個詞義一張卡片，標題帶詞性與詞義）、備註、衍生字（可轉成卡片；插槽放關聯詞，順序為例句、備註、關聯詞、衍生字）。
 - `src/components/ExampleText.vue` — 例句文字，標記部分上色。
 - `src/components/SenseList.vue` — 詞義列表（詞性標籤＋詞義兩欄，釘選有圖示）。
 - `src/components/RelationEditor.vue` — 單字關聯編輯（`linkWord`、`start` 對外）。
