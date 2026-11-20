@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
-import { Archive, Trash2 } from '@lucide/vue'
-import { DELETED_KEEP_DAYS } from '@/lib/purge'
+import { computed, reactive, ref, watch } from 'vue'
+import { ChevronDown, CircleHelp } from '@lucide/vue'
+import ChartTip from './stats/ChartTip.vue'
+import { useTip } from './stats/useTip'
 import BottomSheet from './BottomSheet.vue'
 import NumberStepper from './NumberStepper.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
@@ -28,7 +29,7 @@ const props = defineProps<{
   parentId?: string | null
 }>()
 const open = defineModel<boolean>({ required: true })
-const emit = defineEmits<{ saved: [node: TreeNode]; deleted: [parentId: string | null] }>()
+const emit = defineEmits<{ saved: [node: TreeNode] }>()
 
 const data = useData()
 const settings = useSettings()
@@ -48,11 +49,21 @@ const form = reactive({
   /** the deck's own setting; a sub-deck can also follow its parent instead (`reverseMode`) */
   reverse: false,
   reverseMode: 'inherit' as 'inherit' | 'on' | 'off',
-  paused: false,
 })
+
+const advanced = ref(false)
+// plain-language hints, shown in the same floating bubble as on the card detail page
+const HELP = {
+  template: '新增卡片時會先套用這個模板，編輯時仍可切換。',
+  reverse:
+    '詞義 → 單字的反向複習，只對單字卡有效。正向進入複習後才會出現，不計入每日上限，關閉後進度會保留。',
+  limits: '關閉時沿用上層牌組的設定，最上層沿用設定頁的全域值；打開後可為這個牌組自訂。',
+}
+const { root: tipRoot, tip, show: showTip } = useTip()
 
 watch(open, (v) => {
   if (!v) return
+  advanced.value = false
   const n = props.node
   const study = settings.synced.study
   form.name = n?.name ?? ''
@@ -65,7 +76,6 @@ watch(open, (v) => {
   form.cardLang = n?.defaultCard?.lang ?? ''
   form.reverse = effectiveReverse(data.nodes, n ? n.id : form.parentId)
   form.reverseMode = n?.reverse === undefined ? 'inherit' : n.reverse ? 'on' : 'off'
-  form.paused = !!n?.paused
 })
 
 // a top-level deck has nothing to inherit from
@@ -96,34 +106,6 @@ const parentOptions = computed(() => {
   }))
 })
 
-async function remove() {
-  const n = props.node
-  if (!n) return
-  const count = data.cardsInScope(n.id).length
-  const ok = await ui.confirm(`刪除「${n.name}」？`, {
-    message:
-      (count
-        ? `底下的所有子項目與 ${count} 張卡片都會一併刪除，`
-        : '底下的所有子項目都會一併刪除，') +
-      `這些牌組的複習紀錄也不再列入統計。\n可以在「設定 → 封存與最近刪除」中於 ${DELETED_KEEP_DAYS} 天內還原，超過就會永久刪除。\n只想暫時收起來的話，請改用「封存」。`,
-    danger: true,
-    confirmText: '刪除',
-  })
-  if (!ok) return
-  await data.deleteNode(n.id)
-  open.value = false
-  emit('deleted', n.parentId)
-}
-
-async function archive() {
-  const n = props.node
-  if (!n) return
-  await data.setArchived(n.id, true)
-  open.value = false
-  ui.toast(`已封存「${n.name}」，可在「設定 → 封存與最近刪除」還原`, 'success')
-  emit('deleted', n.parentId)
-}
-
 async function save() {
   const name = form.name.trim()
   if (!name) return ui.toast('請輸入名稱', 'error')
@@ -152,12 +134,9 @@ async function save() {
       limits,
       defaultCard,
       reverse,
-      // undefined clears the field
-      paused: form.paused || undefined,
     })
     saved = {
       ...props.node,
-      paused: form.paused || undefined,
       name,
       parentId: form.parentId,
       limits,
@@ -216,119 +195,144 @@ async function save() {
         </SelectBox>
       </div>
 
-      <div>
-        <label class="label">新增卡片的預設模板</label>
-        <PillTabs
-          v-model="form.cardType"
-          :options="[
-            ...(form.parentId ? [{ value: 'inherit' as const, label: '沿用上層' }] : []),
-            { value: 'basic', label: '正反卡' },
-            { value: 'vocab', label: '單字卡' },
-          ]"
-        />
-        <p v-if="form.cardType === 'inherit'" class="mt-2 text-xs text-muted">
-          目前上層使用：<strong class="font-semibold text-primary">{{ inheritedLabel }}</strong>
-        </p>
-        <div v-if="form.cardType === 'vocab'" class="mt-3">
-          <label class="label">單字卡語言</label>
+      <button
+        type="button"
+        class="flex w-full items-center justify-between py-1 text-sm font-semibold text-muted"
+        :aria-expanded="advanced"
+        @click="advanced = !advanced"
+      >
+        進階設定
+        <ChevronDown :size="18" class="transition-transform" :class="advanced && 'rotate-180'" />
+      </button>
+      <div v-if="advanced" ref="tipRoot" class="relative -mt-2 space-y-5">
+        <div class="card space-y-2">
+          <div class="flex items-center gap-1">
+            <span class="text-sm font-semibold text-ink/65">新增卡片的預設模板</span>
+            <button
+              type="button"
+              class="help-btn"
+              aria-label="說明"
+              @click="showTip($event, HELP.template, 110)"
+            >
+              <CircleHelp :size="15" />
+            </button>
+          </div>
           <PillTabs
-            v-model="form.cardLang"
+            v-model="form.cardType"
             :options="[
-              { value: '', label: '沿用上次' },
-              ...LANGS.map((l) => ({ value: l.id, label: l.label })),
+              ...(form.parentId ? [{ value: 'inherit' as const, label: '沿用上層' }] : []),
+              { value: 'basic', label: '正反卡' },
+              { value: 'vocab', label: '單字卡' },
             ]"
           />
-        </div>
-        <div class="mt-3 space-y-0.5 text-xs text-muted">
-          <p>按「新增卡片」時會先打開這個模板，編輯時仍可切換。</p>
-          <p>子牌組預設沿用上層設定。</p>
-        </div>
-      </div>
-
-      <div class="card space-y-2">
-        <div class="flex items-center justify-between gap-3">
-          <span class="min-w-0 text-sm font-semibold">反向學習（詞義 → 單字）</span>
-          <ToggleSwitch v-if="!form.parentId" v-model="form.reverse" label="反向學習" />
-        </div>
-        <!-- a sub-deck chooses between following its parent and its own on / off -->
-        <template v-if="form.parentId">
-          <PillTabs
-            v-model="form.reverseMode"
-            :options="[
-              { value: 'inherit', label: '沿用上層' },
-              { value: 'on', label: '開啟' },
-              { value: 'off', label: '關閉' },
-            ]"
-          />
-          <p v-if="form.reverseMode === 'inherit'" class="text-xs text-muted">
-            上層目前<strong class="font-semibold text-primary">{{
-              inheritedReverse ? '開啟' : '關閉'
-            }}</strong
-            >，所以這個牌組也<strong class="font-semibold text-primary">{{
-              inheritedReverse ? '開啟' : '關閉'
-            }}</strong>
+          <p v-if="form.cardType === 'inherit'" class="text-xs text-muted">
+            目前上層使用：<strong class="font-semibold text-primary">{{ inheritedLabel }}</strong>
           </p>
-        </template>
-        <div class="space-y-0.5 text-xs text-muted">
-          <p>只對單字卡有效。每張單字卡會多一份獨立排程的反向複習。</p>
-          <p>正向進入複習狀態後，反向才會開始以新卡出現，不計入每日上限。</p>
-          <p>關閉後反向的進度會保留，重新開啟可接續。子牌組預設沿用上層。</p>
-        </div>
-      </div>
-
-      <div class="card space-y-4">
-        <p class="text-sm font-semibold">每日上限（未覆寫時沿用上層牌組）</p>
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <ToggleSwitch v-model="form.overrideNew" label="覆寫新卡上限" />
-            <span class="text-sm">新卡</span>
+          <div v-if="form.cardType === 'vocab'" class="space-y-1.5 pt-2">
+            <label class="block text-sm font-semibold text-ink/65">單字卡語言</label>
+            <PillTabs
+              v-model="form.cardLang"
+              :options="[
+                { value: '', label: '沿用上次' },
+                ...LANGS.map((l) => ({ value: l.id, label: l.label })),
+              ]"
+            />
           </div>
-          <NumberStepper v-if="form.overrideNew" v-model="form.newPerDay" :max="9999" />
-          <span v-else class="text-sm text-muted"
-            >沿用{{ inherited.newFrom ? `「${inherited.newFrom}」` : '全域預設' }}的
-            {{ inherited.newPerDay }}</span
-          >
         </div>
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <ToggleSwitch v-model="form.overrideReview" label="覆寫複習上限" />
-            <span class="text-sm">複習</span>
-          </div>
-          <NumberStepper
-            v-if="form.overrideReview"
-            v-model="form.reviewPerDay"
-            :max="99999"
-            :step="10"
-          />
-          <span v-else class="text-sm text-muted"
-            >沿用{{ inherited.reviewFrom ? `「${inherited.reviewFrom}」` : '全域預設' }}的
-            {{ inherited.reviewPerDay }}</span
-          >
-        </div>
-      </div>
 
-      <div v-if="node" class="card space-y-2">
-        <div class="flex items-center justify-between gap-3">
-          <span class="text-sm font-semibold">暫停牌組</span>
-          <ToggleSwitch v-model="form.paused" label="暫停牌組" />
+        <div class="card space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-1">
+              <span class="text-sm font-semibold text-ink/65">反向學習</span>
+              <button
+                type="button"
+                class="help-btn"
+                aria-label="說明"
+                @click="showTip($event, HELP.reverse, 110)"
+              >
+                <CircleHelp :size="15" />
+              </button>
+            </div>
+            <ToggleSwitch v-if="!form.parentId" v-model="form.reverse" label="反向學習" />
+          </div>
+          <!-- a sub-deck chooses between following its parent and its own on / off -->
+          <template v-if="form.parentId">
+            <PillTabs
+              v-model="form.reverseMode"
+              :options="[
+                { value: 'inherit', label: '沿用上層' },
+                { value: 'on', label: '開啟' },
+                { value: 'off', label: '關閉' },
+              ]"
+            />
+            <p v-if="form.reverseMode === 'inherit'" class="text-xs text-muted">
+              目前上層：<strong class="font-semibold text-primary">{{
+                inheritedReverse ? '開啟' : '關閉'
+              }}</strong>
+            </p>
+          </template>
         </div>
-        <p class="text-xs text-muted">
-          暫停期間不出學習（含子牌組），列表仍會顯示；卡片各自的狀態不變。練習可用開關納入。
-        </p>
+
+        <div class="card space-y-4">
+          <div class="flex items-center gap-1">
+            <span class="text-sm font-semibold text-ink/65">每日上限</span>
+            <button
+              type="button"
+              class="help-btn"
+              aria-label="說明"
+              @click="showTip($event, HELP.limits, 110)"
+            >
+              <CircleHelp :size="15" />
+            </button>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <ToggleSwitch v-model="form.overrideNew" label="自訂新卡上限" />
+              <span class="text-sm">新卡</span>
+            </div>
+            <NumberStepper v-if="form.overrideNew" v-model="form.newPerDay" :max="9999" />
+            <div v-else class="text-right">
+              <p class="text-sm">每天 {{ inherited.newPerDay }} 張</p>
+              <p class="text-xs text-muted">
+                {{ inherited.newFrom ? `來自上層：${inherited.newFrom}` : '來自全域' }}
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <ToggleSwitch v-model="form.overrideReview" label="自訂複習上限" />
+              <span class="text-sm">複習</span>
+            </div>
+            <NumberStepper
+              v-if="form.overrideReview"
+              v-model="form.reviewPerDay"
+              :max="99999"
+              :step="10"
+            />
+            <div v-else class="text-right">
+              <p class="text-sm">每天 {{ inherited.reviewPerDay }} 張</p>
+              <p class="text-xs text-muted">
+                {{ inherited.reviewFrom ? `來自上層：${inherited.reviewFrom}` : '來自全域' }}
+              </p>
+            </div>
+          </div>
+        </div>
+        <ChartTip :tip="tip" />
       </div>
 
       <button class="btn btn-primary w-full" type="submit">儲存</button>
-      <div v-if="node" class="-mt-2 space-y-2">
-        <div class="grid grid-cols-2 gap-2">
-          <button type="button" class="btn btn-ghost" @click="archive">
-            <Archive :size="18" /> 封存
-          </button>
-          <button type="button" class="btn btn-ghost text-danger" @click="remove">
-            <Trash2 :size="18" /> 刪除
-          </button>
-        </div>
-        <p class="text-center text-xs text-muted">封存會保留統計，只是不再顯示。</p>
-      </div>
     </form>
   </BottomSheet>
 </template>
+
+<style scoped>
+.help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  color: var(--muted);
+}
+</style>
