@@ -13,6 +13,8 @@ export interface DialogState {
   message?: string
   /** shown as a bulleted list under the message */
   items?: string[]
+  /** put the list right under the title, above the message */
+  itemsFirst?: boolean
   confirmText: string
   cancelText: string
   danger: boolean
@@ -39,13 +41,20 @@ export const useUi = defineStore('ui', () => {
 
   function confirm(
     title: string,
-    opts: { message?: string; items?: string[]; confirmText?: string; danger?: boolean } = {},
+    opts: {
+      message?: string
+      items?: string[]
+      itemsFirst?: boolean
+      confirmText?: string
+      danger?: boolean
+    } = {},
   ): Promise<boolean> {
     return new Promise((resolve) => {
       dialog.value = {
         title,
         message: opts.message,
         items: opts.items,
+        itemsFirst: opts.itemsFirst,
         confirmText: opts.confirmText ?? '確定',
         cancelText: '取消',
         danger: opts.danger ?? false,

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import { useRouter } from 'vue-router'
 import {
   ArrowUp,
-  CheckSquare,
+  Check,
   FolderInput,
   Pause,
   Play,
@@ -127,9 +127,16 @@ const shown = computed(() => filtered.value.slice(0, limit.value))
 const filterCount = computed(() => activeFilterCount(filter.value))
 
 const manual = computed(() => filter.value.sort === 'manual')
-const dragReady = computed(
-  () => manual.value && !selecting.value && !filterCount.value && !filter.value.q.trim(),
-)
+// a hand-made order can only be changed while nothing narrows the list
+const canSort = computed(() => manual.value && !filterCount.value && !filter.value.q.trim())
+// the sort button switches dragging on; otherwise a long press always starts selecting
+const sorting = ref(false)
+const finishShown = ref(false)
+const HINT_MS = 1800
+watch(canSort, (v) => {
+  if (!v) sorting.value = false
+})
+const dragReady = computed(() => sorting.value && canSort.value && !selecting.value)
 const drag = useDragSort((from, to) => {
   const ids = moved(
     filtered.value.map((c) => c.id),
@@ -140,7 +147,8 @@ const drag = useDragSort((from, to) => {
   void data.reorderCards(ids)
 })
 
-// press and hold a card to pick it up; moving before the hold ends is a normal scroll
+// press and hold a card: while sorting it picks the card up to drag, otherwise it starts selecting
+// with that card ticked; moving before the hold ends is a normal scroll
 const HOLD_MS = 350
 let holdTimer = 0
 let holdFrom = { x: 0, y: 0 }
@@ -155,7 +163,13 @@ function pressStart(e: PointerEvent, index: number) {
     justHeld = true
     holdTimer = 0
     navigator.vibrate?.(15)
-    drag.start(e, index, el)
+    if (dragReady.value) drag.start(e, index, el)
+    else {
+      const c = shown.value[index]
+      if (c) selected.value = new Set([c.id])
+      sorting.value = false
+      selecting.value = true
+    }
   }, HOLD_MS)
 }
 function pressMove(e: PointerEvent) {
@@ -201,8 +215,20 @@ function exitSelect() {
   selected.value = new Set()
 }
 
+// selecting and sorting never run together: starting to sort leaves the selection
+function startSorting() {
+  exitSelect()
+  showFilter.value = false
+  sorting.value = true
+  // the hint comes first; the finish button takes its place once the hint is gone
+  finishShown.value = false
+  ui.toast('長按卡片後拖曳，調整順序', 'info', undefined, HINT_MS)
+  setTimeout(() => (finishShown.value = sorting.value), HINT_MS + 100)
+}
+
 function onItem(c: Card) {
-  if (justHeld) return
+  // while sorting a tap does nothing, like the deck list: only dragging is meant to happen
+  if (justHeld || sorting.value) return
   if (selecting.value) toggle(c.id)
   else {
     try {
@@ -274,14 +300,6 @@ async function moveTo(deckId: string) {
           {{ filterCount }}
         </span>
       </button>
-      <button
-        class="icon-btn"
-        :class="{ 'bg-primary! text-white!': selecting }"
-        aria-label="選取"
-        @click="selecting ? exitSelect() : (selecting = true)"
-      >
-        <CheckSquare :size="18" />
-      </button>
     </div>
 
     <div class="mb-2 flex items-center justify-between px-1 text-xs text-muted">
@@ -292,8 +310,8 @@ async function moveTo(deckId: string) {
     </div>
 
     <div class="space-y-2">
-      <p v-if="manual && !dragReady && !selecting" class="px-1 text-xs text-muted">
-        清除搜尋與篩選後，才能拖拉調整順序
+      <p v-if="manual && !canSort && !selecting" class="px-1 text-xs text-muted">
+        清除搜尋與篩選後，才能調整順序
       </p>
       <div
         v-for="(c, i) in shown"
@@ -311,12 +329,12 @@ async function moveTo(deckId: string) {
           <span class="leader flex-1" :style="{ backgroundImage: dash }" />
         </div>
         <div
-          :class="dragReady && 'select-none'"
-          @pointerdown="dragReady && pressStart($event, i)"
+          :class="!selecting && 'select-none'"
+          @pointerdown="!selecting && pressStart($event, i)"
           @pointermove="pressMove"
           @pointerup="pressCancel"
           @pointercancel="pressCancel"
-          @contextmenu="dragReady && $event.preventDefault()"
+          @contextmenu="!selecting && $event.preventDefault()"
         >
           <CardListItem
             :card="c"
@@ -332,13 +350,25 @@ async function moveTo(deckId: string) {
       </button>
       <p v-if="!filtered.length" class="py-8 text-center text-sm text-muted">沒有符合條件的卡片</p>
       <!-- the action bar floats over the bottom of the page: room for the last cards to scroll above it -->
-      <div v-if="selecting" class="h-16" aria-hidden="true" />
+      <div v-if="selecting || sorting" class="h-16" aria-hidden="true" />
     </div>
+
+    <!-- the order is saved at every drop; this only switches dragging off -->
+    <Transition name="sheet">
+      <div
+        v-if="sorting && finishShown && !selecting"
+        class="fixed inset-x-0 z-40 flex justify-center px-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))]"
+      >
+        <button class="btn btn-primary shadow-xl" @click="sorting = false">
+          <Check :size="18" /> 完成排序
+        </button>
+      </div>
+    </Transition>
 
     <Transition name="sheet">
       <div
         v-if="selecting"
-        class="fixed inset-x-0 z-40 flex justify-center px-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))]"
+        class="fixed inset-x-0 z-40 flex justify-center px-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))]"
       >
         <div
           class="flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-line bg-surface p-1.5 shadow-xl scrollbar-none"
@@ -346,29 +376,60 @@ async function moveTo(deckId: string) {
           <span class="pr-2 pl-1.5 text-sm font-bold whitespace-nowrap"
             >{{ selectedIds.length }} 張</span
           >
-          <button class="icon-btn" title="加星號" @click="patch({ starred: true }, '已加星號')">
+          <button
+            class="icon-btn disabled:opacity-40"
+            :disabled="!selectedIds.length"
+            title="加星號"
+            @click="patch({ starred: true }, '已加星號')"
+          >
             <Star :size="18" />
           </button>
           <button
-            class="icon-btn"
+            class="icon-btn disabled:opacity-40"
+            :disabled="!selectedIds.length"
             title="取消星號"
             @click="patch({ starred: false }, '已取消星號')"
           >
             <StarOff :size="18" />
           </button>
-          <button class="icon-btn" title="暫停" @click="patch({ suspended: true }, '已暫停')">
+          <button
+            class="icon-btn disabled:opacity-40"
+            :disabled="!selectedIds.length"
+            title="暫停"
+            @click="patch({ suspended: true }, '已暫停')"
+          >
             <Pause :size="18" />
           </button>
-          <button class="icon-btn" title="恢復" @click="patch({ suspended: false }, '已恢復')">
+          <button
+            class="icon-btn disabled:opacity-40"
+            :disabled="!selectedIds.length"
+            title="恢復"
+            @click="patch({ suspended: false }, '已恢復')"
+          >
             <Play :size="18" />
           </button>
-          <button class="icon-btn" title="移動" @click="selectedIds.length && (showMove = true)">
+          <button
+            class="icon-btn disabled:opacity-40"
+            :disabled="!selectedIds.length"
+            title="移動"
+            @click="selectedIds.length && (showMove = true)"
+          >
             <FolderInput :size="18" />
           </button>
-          <button class="icon-btn" title="重設進度" @click="reset">
+          <button
+            class="icon-btn disabled:opacity-40"
+            :disabled="!selectedIds.length"
+            title="重設進度"
+            @click="reset"
+          >
             <RotateCcw :size="18" />
           </button>
-          <button class="icon-btn text-danger" title="刪除" @click="remove">
+          <button
+            class="icon-btn text-danger disabled:opacity-40"
+            :disabled="!selectedIds.length"
+            title="刪除"
+            @click="remove"
+          >
             <Trash2 :size="18" />
           </button>
           <button class="icon-btn" title="結束選取" @click="exitSelect">
@@ -378,7 +439,12 @@ async function moveTo(deckId: string) {
       </div>
     </Transition>
 
-    <CardFilterSheet v-model="showFilter" v-model:filter="filter" />
+    <CardFilterSheet
+      v-model="showFilter"
+      v-model:filter="filter"
+      :can-arrange="canSort"
+      @arrange="startSorting"
+    />
 
     <MoveDeckSheet v-model="showMove" @pick="moveTo" />
   </div>

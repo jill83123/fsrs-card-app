@@ -15,7 +15,14 @@ import { LANGS } from '@/db/defaults'
 
 const open = defineModel<boolean>({ required: true })
 const f = defineModel<CardFilter>('filter', { required: true })
-defineProps<{ hideDraft?: boolean; hideManual?: boolean; hideStudy?: boolean }>()
+defineProps<{
+  hideDraft?: boolean
+  hideManual?: boolean
+  hideStudy?: boolean
+  /** a hand-made order can only be rearranged while nothing narrows the list */
+  canArrange?: boolean
+}>()
+const emit = defineEmits<{ arrange: [] }>()
 
 // the language filter only shows for vocab cards, so it must not stay active once hidden
 watch(
@@ -74,7 +81,22 @@ function reset() {
           >
             {{ f.desc ? '由大到小' : '由小到大' }}
           </button>
+          <!-- same spot and size as the direction button: a hand-made order has no direction -->
+          <button
+            v-else-if="!hideManual"
+            class="btn btn-ghost shrink-0 px-4 text-sm font-medium disabled:opacity-40"
+            :disabled="!canArrange"
+            @click="emit('arrange')"
+          >
+            調整順序
+          </button>
         </div>
+        <p
+          v-if="f.sort === 'manual' && !hideManual && !canArrange"
+          class="mt-1.5 text-xs text-muted"
+        >
+          清除搜尋與篩選後，才能調整順序。
+        </p>
       </div>
 
       <div>

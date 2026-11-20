@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeftRight, ChevronRight, Folder, GripVertical, PauseCircle, Timer } from '@lucide/vue'
+import {
+  ArrowLeftRight,
+  Check,
+  ChevronRight,
+  Folder,
+  GripVertical,
+  PauseCircle,
+  Timer,
+} from '@lucide/vue'
 import { useTicker } from '@/composables/useTicker'
 import { formatCountdown } from '@/lib/date'
 import type { TreeNode } from '@/db/types'
@@ -11,8 +19,44 @@ import { childrenOf } from '@/lib/tree'
 const props = defineProps<{
   node: TreeNode
   sorting?: boolean
+  selectable?: boolean
+  selected?: boolean
 }>()
-const emit = defineEmits<{ grip: [e: PointerEvent] }>()
+const emit = defineEmits<{ grip: [e: PointerEvent]; toggle: []; hold: [] }>()
+
+// long press starts selecting; the click that follows the release must not also open the deck
+let timer: ReturnType<typeof setTimeout> | undefined
+let startX = 0
+let startY = 0
+let held = false
+function pressStart(e: PointerEvent) {
+  if (props.sorting) return
+  held = false
+  startX = e.clientX
+  startY = e.clientY
+  clearTimeout(timer)
+  timer = setTimeout(() => {
+    held = true
+    navigator.vibrate?.(15)
+    emit('hold')
+  }, 500)
+}
+function pressMove(e: PointerEvent) {
+  if (Math.hypot(e.clientX - startX, e.clientY - startY) > 8) clearTimeout(timer)
+}
+function pressEnd() {
+  clearTimeout(timer)
+}
+
+function open() {
+  if (props.sorting) return
+  if (held) {
+    held = false
+    return
+  }
+  if (props.selectable) emit('toggle')
+  else void router.push(`/node/${props.node.id}`)
+}
 
 const data = useData()
 const router = useRouter()
@@ -37,10 +81,22 @@ const subtitle = computed(() => {
 <template>
   <div>
     <div
-      class="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2/60"
-      :class="{ 'opacity-60': paused }"
-      @click="!sorting && router.push(`/node/${node.id}`)"
+      class="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors select-none"
+      :class="[paused && 'opacity-60', selected ? 'bg-primary-soft' : 'hover:bg-surface-2/60']"
+      @click="open"
+      @pointerdown="pressStart"
+      @pointermove="pressMove"
+      @pointerup="pressEnd"
+      @pointercancel="pressEnd"
+      @contextmenu.prevent
     >
+      <span
+        v-if="selectable"
+        class="flex size-5 shrink-0 items-center justify-center rounded-full border-2"
+        :class="selected ? 'border-primary bg-primary text-white' : 'border-line'"
+      >
+        <Check v-if="selected" :size="12" stroke-width="3" />
+      </span>
       <button
         v-if="sorting"
         type="button"
@@ -131,7 +187,7 @@ const subtitle = computed(() => {
           {{ stats.newAvail }}
         </span>
       </div>
-      <span class="-mr-1.5 flex size-7 shrink-0 items-center justify-center">
+      <span v-if="!selectable" class="-mr-1.5 flex size-7 shrink-0 items-center justify-center">
         <ChevronRight :size="16" class="text-muted/60" />
       </span>
     </div>

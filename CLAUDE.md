@@ -102,7 +102,7 @@ Node 需要 `^22.18.0 || >=24.12.0`。路徑別名 `@` → `src/`。程式碼風
 
 ## Store（`src/stores/`，Pinia setup 風格）
 
-- `src/stores/data.ts` — `useData`（最大的 store）。狀態：`nodes`、`cards`（未刪除且未封存）、`archivedNodes`、`archivedTree`、`todayLogs`、`ready`、`now`、`today`、`dayEnd`。查詢：`nodeById`、`cardById`、`cardsByDeck`、`scheduler`、`reverseDecks`、`sidesOf`、`limitsOf`、`doneToday`、`deckStats`、`scopeStats`、`decksStats`、`scopeProgress`、`cardsInScope`、`cardsInDecks`、`pausedIds`。動作：`start`、`createNode`、`updateNode`、`reorderNodes`、`reorderCards`、`deleteNode`、`setArchived`、`setPaused`、`listDeleted`、`restoreNode`、`purgeDeleted`、`saveCard`、`addCards`、`syncRelations`、`patchCards`、`resetCards`、`applyRating`、`undoLog`、`latestLog`、`rerate`、`rebucketRecentLogs`。內含舊資料遷移（folder→deck、例句標記）。
+- `src/stores/data.ts` — `useData`（最大的 store）。狀態：`nodes`、`cards`（未刪除且未封存）、`archivedNodes`、`archivedTree`、`todayLogs`、`ready`、`now`、`today`、`dayEnd`。查詢：`nodeById`、`cardById`、`cardsByDeck`、`scheduler`、`reverseDecks`、`sidesOf`、`limitsOf`、`doneToday`、`deckStats`、`scopeStats`、`decksStats`、`scopeProgress`、`cardsInScope`、`cardsInDecks`、`pausedIds`。動作：`start`、`createNode`、`updateNode`、`reorderNodes`、`reorderCards`、`deleteNode`、`setArchived`、`setPaused`、`setPausedMany`、`listDeleted`、`restoreNode`、`purgeDeleted`、`saveCard`、`addCards`、`syncRelations`、`patchCards`、`resetCards`、`applyRating`、`undoLog`、`latestLog`、`rerate`、`rebucketRecentLogs`。內含舊資料遷移（folder→deck、例句標記）。
 - `src/stores/settings.ts` — `useSettings`：`synced`（`SyncedSettings`，存 `meta.settings`）、`device`（`DeviceSettings`，存 localStorage）、`isDark`；`load`、`applyRemote`、`toggleDark`、`resetSynced`、`resetDevice`、`resetPos`、`resetAll`；含 `mergeDefaults` 補新欄位、預設字典／語音版本遷移。**新增設定項時改 `db/types.ts` + `db/defaults.ts`，`mergeDefaults` 會自動補舊資料。**
 - `src/stores/sync.ts` — `useSync`：Google Drive 同步狀態機。狀態 `connected`、`lastSync`、`status`（`off|idle|dirty|syncing|reauth|offline|error`）、`error`、`backups`、`busy`、`preEditWaiting`、`conflict`；動作 `init`、`connect`、`disconnect`、`syncNow`、`syncBeforeEdit`、`refreshBackups`、`backupNow`、`restoreBackup`、`wipeEverywhere`、`deleteAllBackups`、`reloadSettings`、`dismissConflict`；另匯出 `conflictItems`、`describeConflict`。遠端檔 `sync.json.gz`，備份 `backup-(auto|manual)-<時間>.json.gz` 保留 3 份。
 - `src/stores/ui.ts` — `useUi`：全域 `toasts`、`dialog` 與 `toast`、`dismiss`、`confirm`、`confirmCheck`、`prompt`、`closeDialog`（由 `UiLayer.vue` 繪出）。需要確認／輸入／提示一律用它，不要自己做 dialog。
@@ -195,12 +195,12 @@ Node 需要 `^22.18.0 || >=24.12.0`。路徑別名 `@` → `src/`。程式碼風
 
 ### 牌組與卡片
 
-- `src/components/NodeList.vue` / `NodeRow.vue` / `NodeLegend.vue` — 牌組列表（可拖曳排序）／單列／「可複習、新卡」色塊圖例。
-- `src/components/NodeFormSheet.vue` — 新增／編輯牌組（名稱、顏色、上層、每日上限、預設卡片類型、反向）。
+- `src/components/NodeList.vue` / `NodeRow.vue` / `NodeLegend.vue` — 牌組列表（可拖曳排序；長按列進入多選，浮動列可批次暫停／恢復、改名（限選一個）、封存、刪除，皆有確認窗）／單列／「可複習、新卡」色塊圖例。
+- `src/components/NodeFormSheet.vue` — 新增／編輯牌組（名稱、上層；預設卡片類型、反向、每日上限收在預設摺疊的「進階設定」）。
 - `src/components/MoveDeckSheet.vue` / `DeckPickSheet.vue` — 選擇要移入的牌組／挑選要排除或納入學習的牌組。
 - `src/components/StudyEntry.vue` — 學習入口：待複習／新卡數與倒數，進入 `/study/*` 或 `/practice`。
 - `src/components/NewPickSheet.vue` — 挑選這次要學哪些新卡（受每日上限提示）。
-- `src/components/CardList.vue` — 牌組內卡片列表：篩選、排序（存在牌組上）、長按拖曳手動排序、多選後批次星號／暫停／刪除／重設／移動牌組。
+- `src/components/CardList.vue` — 牌組內卡片列表：篩選、排序（存在牌組上）、排序鈕開啟後長按拖曳手動排序、長按卡片進入多選後批次星號／暫停／刪除／重設／移動牌組。
 - `src/components/CardListItem.vue` — 卡片列表單列。
 - `src/components/CardFilterSheet.vue` — 卡片篩選面板（對應 `lib/filter.ts`）。
 - `src/components/CardFace.vue` — 卡片正反面渲染（基本卡／單字卡、反面填空提示、隨機例句（優先抽釘選詞義的）與依詞義順序的「查看更多例句」）；學習、練習、詳細頁共用。

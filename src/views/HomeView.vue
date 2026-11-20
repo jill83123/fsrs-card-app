@@ -28,6 +28,7 @@ const untilRollover = computed(() => {
 
 const showForm = ref(false)
 const sorting = ref(false)
+const selecting = ref(false)
 </script>
 
 <template>
@@ -108,8 +109,9 @@ const sorting = ref(false)
         <Plus :size="18" /> 新增
       </button>
     </div>
-    <div v-else class="card divide-y divide-line overflow-hidden p-0">
-      <NodeList :nodes="roots" :sorting="sorting" />
+    <!-- margin below the card: room for the floating action bar -->
+    <div v-else class="card divide-y divide-line overflow-hidden p-0" :class="selecting && 'mb-16'">
+      <NodeList v-model:selecting="selecting" :nodes="roots" :sorting="sorting" />
     </div>
 
     <NodeFormSheet v-model="showForm" :parent-id="null" />

@@ -57,7 +57,7 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'due', label: '到期日' },
   { value: 'familiarity', label: '熟悉度' },
   { value: 'alpha', label: '正面文字' },
-  { value: 'manual', label: '自訂排序（長按調整）' },
+  { value: 'manual', label: '自訂排序' },
 ]
 
 export const isSortKey = (k: unknown): k is SortKey => SORT_OPTIONS.some((o) => o.value === k)

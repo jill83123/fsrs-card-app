@@ -409,6 +409,16 @@ export const useData = defineStore('data', () => {
     markLocalChange()
   }
 
+  async function setPausedMany(ids: string[], paused: boolean) {
+    await sync.syncBeforeEdit()
+    const t = stamp()
+    await db.nodes
+      .where('id')
+      .anyOf(ids)
+      .modify({ paused: paused || undefined, updatedAt: t })
+    markLocalChange()
+  }
+
   async function setArchived(id: string, archived: boolean) {
     await sync.syncBeforeEdit()
     await db.nodes.update(id, { archived: archived || undefined, updatedAt: stamp() })
@@ -776,6 +786,7 @@ export const useData = defineStore('data', () => {
     deleteNode,
     setArchived,
     setPaused,
+    setPausedMany,
     pausedIds,
     listDeleted,
     restoreNode,

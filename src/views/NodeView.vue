@@ -37,6 +37,7 @@ const scopeCards = computed(() => data.cardsInScope(id.value))
 
 // a deck holds either cards or sub-decks; adding a sub-deck to one with cards asks what to do with them
 const sorting = ref(false)
+const selecting = ref(false)
 
 const template = computed(() => effectiveTemplate(data.nodes, id.value))
 
@@ -55,10 +56,6 @@ const showCards = computed(() => !hasChildren.value || tab.value === 'cards')
 const showEdit = ref(false)
 const showAdd = ref(false)
 const showImport = ref(false)
-
-function onDeleted(parentId: string | null) {
-  router.replace(parentId ? `/node/${parentId}` : '/')
-}
 </script>
 
 <template>
@@ -133,8 +130,12 @@ function onDeleted(parentId: string | null) {
     </div>
 
     <div v-if="!showCards">
-      <div v-if="children.length" class="card divide-y divide-line overflow-hidden p-0">
-        <NodeList :nodes="children" :sorting="sorting" />
+      <div
+        v-if="children.length"
+        class="card divide-y divide-line overflow-hidden p-0"
+        :class="selecting && 'mb-16'"
+      >
+        <NodeList v-model:selecting="selecting" :nodes="children" :sorting="sorting" />
       </div>
       <p v-else class="card text-center text-sm text-muted">
         這個牌組是空的，可以新增卡片或子牌組。
@@ -147,7 +148,7 @@ function onDeleted(parentId: string | null) {
       :storage-key="node.id"
     />
 
-    <NodeFormSheet v-model="showEdit" :node="node" @deleted="onDeleted" />
+    <NodeFormSheet v-model="showEdit" :node="node" />
     <NodeFormSheet v-model="showAdd" :parent-id="node.id" />
     <ImportCardsSheet v-model="showImport" :deck-id="node.id" />
   </div>

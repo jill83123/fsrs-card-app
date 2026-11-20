@@ -58,10 +58,20 @@ function submit() {
             <h2 class="text-lg font-bold">{{ ui.dialog.title }}</h2>
             <div
               v-if="ui.dialog.message || ui.dialog.items?.length"
-              class="space-y-2 text-sm text-muted"
+              class="text-muted"
+              :class="ui.dialog.itemsFirst ? 'space-y-1 text-xs' : 'space-y-2 text-sm'"
             >
+              <ul
+                v-if="ui.dialog.items?.length && ui.dialog.itemsFirst"
+                class="mb-3 max-h-40 list-disc space-y-1 overflow-y-auto rounded-xl bg-surface-2 py-2.5 pr-3.5 pl-8 text-sm font-semibold text-ink"
+              >
+                <li v-for="item in ui.dialog.items" :key="item">{{ item }}</li>
+              </ul>
               <p v-for="(line, i) in ui.dialog.message?.split('\n')" :key="i">{{ line }}</p>
-              <ul v-if="ui.dialog.items?.length" class="list-disc space-y-0.5 pl-5">
+              <ul
+                v-if="ui.dialog.items?.length && !ui.dialog.itemsFirst"
+                class="list-disc space-y-0.5 pl-5"
+              >
                 <li v-for="item in ui.dialog.items" :key="item">{{ item }}</li>
               </ul>
             </div>
