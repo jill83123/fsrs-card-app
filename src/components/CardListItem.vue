@@ -46,11 +46,10 @@ const senseGroups = computed(() => {
     .map((s) => ({
       pos: s.pos
         .flatMap((id) => opts.find((o) => o.id === id)?.label ?? [])
-        .map((l) => l.match(/\s([A-Za-z0-9][A-Za-z0-9. -]*)$/)?.[1] ?? l)
-        .join('・'),
+        .map((l) => l.match(/\s([A-Za-z0-9][A-Za-z0-9. -]*)$/)?.[1] ?? l),
       meaning: s.meaning.split('\n').map(plainText).filter(Boolean).join('；'),
     }))
-    .filter((g) => g.pos || g.meaning)
+    .filter((g) => g.pos.length || g.meaning)
 })
 const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
 </script>
@@ -62,7 +61,7 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
     :class="[
       compact
         ? 'bg-surface-2 px-3 py-2 hover:bg-surface-2/60'
-        : 'border border-line bg-surface px-4 py-3 hover:bg-surface-2/50',
+        : 'border border-line bg-surface px-4 py-3 hover:bg-[color-mix(in_oklab,var(--surface-2)_60%,var(--surface))]',
       { 'ring-2 ring-primary': selected, 'opacity-60': card.suspended },
     ]"
     @click="$emit('click')"
@@ -97,7 +96,11 @@ const deckName = computed(() => data.nodeById.get(props.card.deckId)?.name)
         <span v-else-if="card.type === 'vocab'" class="truncate">
           <template v-for="(g, i) in senseGroups" :key="i">
             <span v-if="i" class="mr-3" />
-            <span v-if="g.pos" class="mr-1 text-xs font-semibold text-primary">{{ g.pos }}</span>
+            <span v-if="g.pos.length" class="mr-1 text-xs font-semibold text-primary">
+              <template v-for="(p, i) in g.pos" :key="i"
+                ><span v-if="i" class="font-normal text-muted"> / </span>{{ p }}</template
+              >
+            </span>
             <span>{{ g.meaning }}</span>
           </template>
         </span>
