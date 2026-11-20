@@ -163,6 +163,22 @@ async function run() {
         ...(senseId ? { senseId } : {}),
       }
     })
+    // phrases: a list in the note, their sentences with no meaning (shown under 其他)
+    for (const p of r.phrases) {
+      if (!p.sentence) continue
+      const mark = p.marks?.length ? undefined : findWordMark(p.phrase, r.lang, p.sentence)
+      const marks = p.marks?.length ? p.marks : mark ? [mark] : undefined
+      c.examples.push({
+        id: uid(),
+        sentence: p.sentence,
+        translation: p.translation ?? '',
+        ...(marks ? { marks } : {}),
+      })
+    }
+    if (r.phrases.length) {
+      const list = r.phrases.map((p) => `- \`${p.phrase}\` ${p.meaning}`).join('\n')
+      c.note = c.note.trim() ? `${c.note.trim()}\n\n${list}` : list
+    }
     if (r.derived.length) c.derived = r.derived.map((d) => ({ id: uid(), ...d }))
     c.createdAt = base + i
     return c

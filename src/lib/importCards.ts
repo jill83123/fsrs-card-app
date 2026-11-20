@@ -14,6 +14,14 @@ export interface ImportRow {
   examples: { sentence: string; translation: string; marks?: string[]; sense?: number }[]
   /** derived words on the picture, kept in the note as a table; made into cards by hand later */
   derived: DerivedRow[]
+  /** phrases on the picture: listed in the note, their sentences go under 其他 among the examples */
+  phrases: {
+    phrase: string
+    meaning: string
+    sentence?: string
+    translation?: string
+    marks?: string[]
+  }[]
   /** pos texts that matched no option */
   unknownPos: string[]
 }
@@ -153,7 +161,28 @@ export function parseImport(
         .join('、')
       return [{ word: dWord, pos: dPos, meaning: dMeaning }]
     })
-    rows.push({ word, lang, meaning, pos, senses, examples, derived, unknownPos })
+    const rawPh = pick(o, ['phrases', '片語'])
+    const phrases = (Array.isArray(rawPh) ? rawPh : []).flatMap((p) => {
+      const x = p && typeof p === 'object' ? (p as Record<string, unknown>) : {}
+      const phrase = asText(pick(x, ['phrase', '片語']))
+      const pMeaning = asText(pick(x, ['meaning', '意思']))
+      if (!phrase || !pMeaning) return []
+      const sentence = asText(pick(x, ['sentence', 'example', '例句']))
+      const translation = asText(pick(x, ['translation', '翻譯']))
+      const rawMarks = pick(x, ['marks', 'mark', '標記'])
+      const marks = (Array.isArray(rawMarks) ? rawMarks : [rawMarks])
+        .map(asText)
+        .filter((m, i, a) => m && sentence.includes(m) && a.indexOf(m) === i)
+      return [
+        {
+          phrase,
+          meaning: pMeaning,
+          ...(sentence ? { sentence, translation } : {}),
+          ...(sentence && marks.length ? { marks } : {}),
+        },
+      ]
+    })
+    rows.push({ word, lang, meaning, pos, senses, examples, derived, phrases, unknownPos })
   }
   return { rows, skipped }
 }
@@ -179,6 +208,15 @@ export const importPrompt = (posOf: (lang: Lang) => PosOption[]) =>
     ],
     "derived": [
       { "word": "衍生字", "pos": ["詞性"], "meaning": "繁體中文詞義" }
+    ],
+    "phrases": [
+      {
+        "phrase": "片語",
+        "meaning": "繁體中文詞義",
+        "sentence": "片語的例句",
+        "translation": "繁體中文翻譯",
+        "marks": ["例句中的片語"]
+      }
     ]
   }
 ]
@@ -207,4 +245,9 @@ ${LANGS.map(
 - derived：圖片上該單字旁列出的衍生字（例如 happy 的 happiness、happily、unhappy）。
   - 只收圖片上有寫出來的，不要自己補；沒有就省略或給空陣列。
   - 每個衍生字都要有 word 和 meaning，pos 的選項與 senses 的 pos 相同，只選一個最貼切的。
-  - 衍生字不要另外成為最外層的項目。`
+  - 衍生字不要另外成為最外層的項目。
+- phrases：圖片上該單字旁列出的片語（例如 close 的 close call、close by）。
+  - 只收圖片上有寫出來的，不要自己補；沒有就省略或給空陣列。
+  - phrase 和 meaning 必填；圖片上有該片語的例句才填 sentence 和 translation，沒有就省略。
+  - marks 的規則同上，標出 sentence 中的片語（片語被拆開時各部分分別標）。
+  - 片語的例句只放在 phrases 裡，不要再放進 examples；片語也不要另外成為最外層的項目。`
