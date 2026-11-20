@@ -348,17 +348,18 @@ const { root: infoRoot, tip: infoTip, show: showInfoTip } = useTip()
         </div>
       </section>
     </div>
-    <CardExamples v-if="revealed" :card="card" />
-    <section v-if="related.length" class="card mb-3 space-y-3">
-      <div v-for="g in related" :key="g.label">
-        <h2 class="mb-1.5 text-xs font-semibold text-muted">{{ g.label }}</h2>
-        <div class="flex flex-wrap gap-2">
-          <RouterLink v-for="r in g.cards" :key="r.id" :to="`/card/${r.id}`" class="chip">
-            {{ r.word }}
-          </RouterLink>
+    <CardExamples :card="card" :revealed="revealed">
+      <section v-if="related.length" class="card mb-3 space-y-3">
+        <div v-for="g in related" :key="g.label">
+          <h2 class="mb-1.5 text-xs font-semibold text-muted">{{ g.label }}</h2>
+          <div class="flex flex-wrap gap-2">
+            <RouterLink v-for="r in g.cards" :key="r.id" :to="`/card/${r.id}`" class="chip">
+              {{ r.word }}
+            </RouterLink>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </CardExamples>
     <DictLinks
       v-if="revealed && card.type === 'vocab'"
       :word="card.word"

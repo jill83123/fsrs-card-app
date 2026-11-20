@@ -19,7 +19,8 @@ import { deckPickerOptions } from '@/lib/tree'
 import { canAutoReading, generateReading } from '@/lib/tts/autoReading'
 
 // examples and note of a card, for the page that shows them beneath the card itself
-const props = defineProps<{ card: Card }>()
+// the slot (related words) sits between the note and the derived words, and shows before the reveal too
+const props = withDefaults(defineProps<{ card: Card; revealed?: boolean }>(), { revealed: true })
 const data = useData()
 const settings = useSettings()
 const ui = useUi()
@@ -125,7 +126,7 @@ function confirmMake() {
 
 <template>
   <!-- with several meanings each one gets a card of its own, titled with the meaning -->
-  <template v-if="card.type === 'vocab'">
+  <template v-if="card.type === 'vocab' && revealed">
     <section v-for="g in groups" :key="g.sense?.id ?? 'rest'" class="card mb-3">
       <h2 class="label flex items-baseline gap-2">
         <span class="shrink-0" :class="{ 'text-muted/70': grouped }">例句</span>
@@ -164,7 +165,12 @@ function confirmMake() {
       </div>
     </section>
   </template>
-  <section v-if="card.type === 'vocab' && derived.length" class="card mb-3">
+  <section v-if="card.type === 'vocab' && revealed && note" class="card mb-3">
+    <h2 class="label">備註</h2>
+    <MarkdownView :source="card.note" class="text-sm" />
+  </section>
+  <slot />
+  <section v-if="card.type === 'vocab' && revealed && derived.length" class="card mb-3">
     <h2 class="label">衍生字</h2>
     <ul class="divide-y divide-line">
       <li
@@ -184,10 +190,6 @@ function confirmMake() {
         </button>
       </li>
     </ul>
-  </section>
-  <section v-if="card.type === 'vocab' && note" class="card mb-3">
-    <h2 class="label">備註</h2>
-    <MarkdownView :source="card.note" class="text-sm" />
   </section>
   <BottomSheet
     v-model="picking"

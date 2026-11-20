@@ -130,8 +130,12 @@ function addNew() {
   <div>
     <!-- only the kinds that have words get a line: the kind on the left, its words beside it;
          the button that adds words sits in the header of this section, in the edit page -->
-    <div v-if="groups.length" class="card divide-y divide-line px-4 py-2">
-      <div v-for="g in groups" :key="g.kind" class="flex items-start gap-3 py-2.5">
+    <div v-if="groups.length" class="card divide-y divide-line p-4">
+      <div
+        v-for="g in groups"
+        :key="g.kind"
+        class="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
+      >
         <p class="w-14 shrink-0 pt-1 text-sm font-semibold text-muted">{{ g.label }}</p>
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <!-- tap a word to change its kind or remove it -->
