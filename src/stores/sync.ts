@@ -41,12 +41,14 @@ const LS_CONNECTED = 'sr.google.connected'
 const LS_LAST_SYNC = 'sr.google.lastSync'
 const LS_LAST_AUTO_BACKUP = 'sr.google.lastAutoBackup'
 const LS_CONFLICT = 'sr.google.conflict'
+/** `fileId@modifiedTime` of the cloud copy as of our last sync; equal now = nothing new to pull. */
+const LS_REMOTE_TAG = 'sr.google.remoteTag'
 /** Re-merge at most this many times when another device uploads while we sync. */
 const MAX_RETRIES = 3
 /** Without local edits, pull other devices' changes at most this often. */
 const PULL_INTERVAL = 2 * 60_000
 /** After a local edit, wait this long (collecting further edits) before uploading. */
-const PUSH_DELAY = 5_000
+const PUSH_DELAY = 3_000
 /** While the app is open and visible, check for remote changes this often. */
 const POLL_INTERVAL = 60_000
 /** Before editing, skip the pull if we synced this recently. */
@@ -202,6 +204,7 @@ export const useSync = defineStore('sync', () => {
     needsAuth.value = false
     error.value = null
     localStorage.removeItem(LS_CONNECTED)
+    localStorage.removeItem(LS_REMOTE_TAG)
   }
 
   let syncing: Promise<void> | null = null
@@ -225,11 +228,20 @@ export const useSync = defineStore('sync', () => {
               c[k].forEach((id) => seen[k].add(id))
             settingsConflict ||= c.settings
           }
-          let snapshot!: Snapshot
+          let snapshot: Snapshot | undefined
+          let remoteTag = ''
           for (let attempt = 1; ; attempt++) {
             const file = (await listFiles(t, SYNC_FILE)).find((f) => f.name === SYNC_FILE)
+            const tag = file ? `${file.id}@${file.modifiedTime}` : ''
             let push = true
-            if (file) {
+            if (file && tag === localStorage.getItem(LS_REMOTE_TAG)) {
+              // the cloud copy is the one we last synced: nothing to download or merge
+              if (!dirty()) {
+                remoteTag = tag
+                break
+              }
+              snapshot = await takeSnapshot()
+            } else if (file) {
               const remote = await gunzipJson(await downloadFile(t, file.id))
               if (!isSnapshot(remote)) throw new Error('雲端同步檔格式不正確')
               const res = await mergeIntoLocal(remote, lastSync.value)
@@ -242,7 +254,10 @@ export const useSync = defineStore('sync', () => {
             } else {
               snapshot = await takeSnapshot()
             }
-            if (!push) break
+            if (!push) {
+              remoteTag = tag
+              break
+            }
             // another device may have uploaded while we merged: merge its copy too
             // instead of overwriting it
             const latest = (await listFiles(t, SYNC_FILE)).find((f) => f.name === SYNC_FILE)
@@ -251,8 +266,10 @@ export const useSync = defineStore('sync', () => {
               throw new Error('雲端資料一直在變動，請稍後再同步一次')
             }
             const blob = await gzipJson(snapshot)
-            if (file) await updateFile(t, file.id, blob)
-            else await createFile(t, SYNC_FILE, blob)
+            const saved = file
+              ? await updateFile(t, file.id, blob)
+              : await createFile(t, SYNC_FILE, blob)
+            remoteTag = `${saved.id}@${saved.modifiedTime}`
             break
           }
           const found: SyncConflict = {
@@ -271,7 +288,11 @@ export const useSync = defineStore('sync', () => {
           localStorage.setItem(LS_LAST_SYNC, String(startedAt))
           error.value = null
           needsAuth.value = false
-          await maybeAutoBackup(t, snapshot)
+          if (remoteTag) localStorage.setItem(LS_REMOTE_TAG, remoteTag)
+          // the daily backup is not part of syncing: don't keep the user waiting for it
+          maybeAutoBackup(t, snapshot).catch((e) => {
+            error.value = e instanceof Error ? e.message : String(e)
+          })
         })
       } catch (e) {
         error.value = e instanceof Error ? e.message : String(e)
@@ -310,7 +331,7 @@ export const useSync = defineStore('sync', () => {
     for (const old of mine.slice(KEEP)) await deleteFile(t, old.id)
   }
 
-  async function maybeAutoBackup(t: string, snap: Snapshot) {
+  async function maybeAutoBackup(t: string, snap?: Snapshot) {
     const day = new Date().toDateString()
     if (localStorage.getItem(LS_LAST_AUTO_BACKUP) === day) return
     await writeBackup(t, 'auto', snap)

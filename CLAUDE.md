@@ -91,7 +91,7 @@ Node 需要 `^22.18.0 || >=24.12.0`。路徑別名 `@` → `src/`。程式碼風
 | localStorage | `sr.dictVersion` / `sr.ttsVersion` | 預設字典／語音遷移版本 |
 | localStorage | `sr.lastLocalChange` | 最後一次本機寫入時間 |
 | localStorage | `sr.google.token` / `sr.google.refresh` | Access／Refresh Token（`lib/google/gis.ts`） |
-| localStorage | `sr.google.connected` / `.lastSync` / `.lastAutoBackup` / `.conflict` | 同步狀態（`stores/sync.ts`） |
+| localStorage | `sr.google.connected` / `.lastSync` / `.lastAutoBackup` / `.conflict` / `.remoteTag` | 同步狀態（`stores/sync.ts`）；`remoteTag` = 上次同步時雲端檔的 `id@modifiedTime`，相同就免下載（`wipeLocal` 會清掉） |
 | localStorage | `sr.lastLang` | 最後使用的卡片語言（`CardEditView`、`ImportCardsSheet`） |
 | localStorage | `sr.exampleMarksMigrated` | 例句標記遷移已做過（`stores/data.ts`） |
 | localStorage | `sr.cardInfoOpen` / `sr.stats.deck` | 卡片詳細頁資訊展開／統計頁選的牌組 |

@@ -21,6 +21,8 @@ export async function importJson(file: File) {
 }
 
 export async function wipeLocal() {
+  // forget the synced cloud copy so the next sync pulls everything back
+  localStorage.removeItem('sr.google.remoteTag')
   await db.transaction('rw', [db.nodes, db.cards, db.logs, db.meta], async () => {
     await Promise.all([db.nodes.clear(), db.cards.clear(), db.logs.clear(), db.meta.clear()])
   })
