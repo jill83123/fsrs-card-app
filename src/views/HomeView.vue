@@ -101,8 +101,8 @@ const selecting = ref(false)
     </div>
 
     <div v-if="!data.ready" class="py-10 text-center text-muted">載入中…</div>
-    <div v-else-if="!roots.length" class="card flex flex-col items-center gap-3 py-10 text-center">
-      <Layers :size="32" class="text-primary" />
+    <div v-else-if="!roots.length" class="card flex flex-col items-center gap-1 py-10 text-center">
+      <Layers :size="32" class="mb-2 text-primary" />
       <p class="font-semibold">還沒有任何牌組</p>
       <p class="text-sm text-muted">先建立一個牌組開始吧！</p>
       <button class="btn btn-primary mt-2" @click="showForm = true">
