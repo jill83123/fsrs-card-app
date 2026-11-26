@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
-@import '@fontsource-variable/chiron-hei-hk';
 @import '@fontsource/ibm-plex-mono/400.css';
 @import '@fontsource/ibm-plex-mono/500.css';
 @import '@fontsource/ibm-plex-mono/600.css';
@@ -37,13 +36,22 @@
   color-scheme: dark;
 }
 
+/* digits 0-9 only come from Inter: the Zev Hei TC web build has no tabular digits ("1" is much narrower than "0"), so counters and times would jitter */
+@font-face {
+  font-family: 'Digits';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+30-39;
+}
+
 @theme inline {
   --font-sans:
-    'Inter Variable', 'Chiron Hei HK Variable', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei',
+    'Digits', 'ZevHeiTC-N Web', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei',
     'Hiragino Sans', 'Noto Sans JP', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
   --font-mono:
-    'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, 'Chiron Hei HK Variable',
-    monospace;
+    'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, 'ZevHeiTC-N Web', monospace;
   --color-primary: var(--primary);
   --color-primary-soft: color-mix(in oklab, var(--primary) 14%, var(--surface));
   --color-primary-strong: color-mix(in oklab, var(--primary) 75%, var(--ink));
@@ -63,6 +71,8 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* Zev Hei TC: IDSP = extra spacing between Chinese characters, in 1/1000 em (0 = none, 20 = 2%); width stays at the default 100% */
+  font-variation-settings: 'IDSP' 0;
   /* digits all the same width, so counters and times do not jitter as they change */
   font-variant-numeric: tabular-nums;
   -webkit-tap-highlight-color: transparent;

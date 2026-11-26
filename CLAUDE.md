@@ -274,7 +274,7 @@ Node 需要 `^22.18.0 || >=24.12.0`。路徑別名 `@` → `src/`。程式碼風
 - 圖示一律用 `@lucide/vue`。
 
 ### 字級
-- 字體：`font-sans`（Inter Variable → Chiron Hei HK → 系統 CJK 字型）、`font-mono`（IBM Plex Mono）；全站 `tabular-nums`（數字等寬）。
+- 字體：`font-sans`（宙黑體 N 版 `ZevHeiTC-N Web` → 系統 CJK 字型；數字 0–9 只用 Inter 的 `Digits`，因宙黑體網頁版沒有等寬數字）、`font-mono`（IBM Plex Mono）；全站 `tabular-nums`；字重預設 400、字寬 100%，`main.css` 用 `font-variation-settings: 'IDSP' 0` 控制漢字額外字距（0 = 不加，20 = 2%）。字型檔在 `public/fonts/zevheitc/`（約 150 個切片，由 `index.html` 的 `<link>` 載入，不在 PWA 預載，改走 `app-fonts` 快取）。
 - 本文 `text-sm`、輔助／標籤 `text-xs`（最常用）、頁首標題 `text-lg font-bold`、底部導覽 `text-[11px]`、圖表與極小註記 `text-[10px]`／`text-[11px]`、卡面與大數字 `text-2xl`／`text-4xl`。**不要自創其他像素值。**
 
 ### 層級（z-index）

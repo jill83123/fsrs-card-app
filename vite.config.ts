@@ -50,7 +50,18 @@ export default defineConfig({
         importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // the Chinese font is split into ~150 pieces (~26 MB): fetched on first use and then kept, not precached
+        globIgnores: ['fonts/**'],
         runtimeCaching: [
+          {
+            urlPattern: ({ sameOrigin, url }) => sameOrigin && url.pathname.includes('/fonts/zevheitc/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'app-fonts',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
           {
             urlPattern: ({ url, sameOrigin }) => sameOrigin && /\.(wasm|data)$/.test(url.pathname),
             handler: 'CacheFirst',
